@@ -1,0 +1,29 @@
+{
+  "name": "makonbook-web",
+  "private": true,
+  "description": "MakonBook web: the landing page (makonbook.uz) and the student and teacher web app (sat.makonbook.uz).",
+  "workspaces": [
+    "landing",
+    "app"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:landing": "npm run dev -w landing",
+    "dev:app": "npm run dev -w app",
+    "gen": "npm run gen -w app",
+    "typecheck": "npm run typecheck -w app",
+    "lint": "eslint .",
+    "build": "npm run build -w landing && npm run build -w app",
+    "precompress": "node scripts/precompress.mjs landing/dist app/dist"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "typescript-eslint": "8.72.1"
+  },
+  "type": "module"
+}

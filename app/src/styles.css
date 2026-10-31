@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Bitter for titles and big numbers (Latin, Cyrillic and the Uzbek ʻ); the
+   system font for everything else. Each weight is its own file. */
+@import "@fontsource/bitter/600.css";
+@import "@fontsource/bitter/700.css";
+
+/* Colour tokens, light theme first, the same names and values as the mobile
+   app's src/global.css (MOBILE-DESIGN.md says why). The dark values below
+   redefine the same variables, and every utility reads the variable at use
+   (`@theme`, not `@theme inline`), so `bg-brand`, `text-ink`… switch with the
+   colour scheme on their own: never use `dark:` variants. Keep in step with
+   the mobile app when a value changes there. */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-brand: #f5efe3;          /* app background */
+  --color-surface: #fffcf6;
+  --color-surface-2: #ede2cc;
+  --color-line: rgba(18, 45, 71, 0.12);
+  --color-line-strong: rgba(18, 45, 71, 0.24);
+  --color-ink: #122d47;
+  --color-ink-2: #4f606f;
+  --color-ink-3: #66737f;
+  --color-primary: #122d47;        /* buttons */
+  --color-on-primary: #f5efe3;
+  --color-accent: #7a4590;         /* selection, links */
+  --color-on-accent: #ffffff;
+  --color-accent-tint: #ece1ee;
+  --color-good: #4a6b50;
+  --color-good-tint: #dfe8dc;
+  --color-watch: #86600e;
+  --color-watch-tint: #f3e3bd;
+  --color-bad: #9e4527;
+  --color-bad-tint: #f3d9cc;
+  --color-info: #3d6f86;
+  --color-track: #ede2cc;
+  --color-fill-good: #2f7444;
+  --color-fill-watch: #a87810;
+  --color-fill-bad: #9e4527;
+
+  --font-title: "Bitter", Georgia, "Times New Roman", serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Radius 10 (chips) · 14 (buttons, inputs) · 20 (panels), as on the phone. */
+  --radius-chip: 10px;
+  --radius-control: 14px;
+  --radius-panel: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-brand: #0b1a2a;
+    --color-surface: #122438;
+    --color-surface-2: #1a2f46;
+    --color-line: rgba(242, 234, 218, 0.1);
+    --color-line-strong: rgba(242, 234, 218, 0.2);
+    --color-ink: #f2eada;
+    --color-ink-2: #c2baa9;
+    --color-ink-3: #9a9487;
+    --color-primary: #ede2cc;
+    --color-on-primary: #122d47;
+    --color-accent: #c391d8;
+    --color-on-accent: #0b1a2a;
+    --color-accent-tint: #2a2d48;
+    --color-good: #9dbda2;
+    --color-good-tint: #1d3434;
+    --color-watch: #e0b24e;
+    --color-watch-tint: #2d2f2c;
+    --color-bad: #e58d6b;
+    --color-bad-tint: #302a31;
+    --color-info: #97c1d5;
+    --color-track: #24384e;
+    --color-fill-good: #7fc28e;
+    --color-fill-watch: #e0b24e;
+    --color-fill-bad: #e58d6b;
+  }
+}
+
+@layer base {
+  html {
+    background: var(--color-brand);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+  }
+}

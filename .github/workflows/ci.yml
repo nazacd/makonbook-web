@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  web:
+    name: typecheck, lint, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The API types are generated from app/api/openapi.yaml; fail if stale.
+      - run: npm run gen && git diff --exit-code app/src/api/schema.d.ts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  image:
+    name: image builds and nginx starts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: makonbook-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The same settings as deploy/docker-compose.yml: read-only, tmpfs on /tmp.
+      - run: docker run --rm --read-only --tmpfs /tmp makonbook-web:ci nginx -t
+      - name: both sites answer
+        run: |
+          docker run -d --name web --read-only --tmpfs /tmp -p 8080:8080 makonbook-web:ci
+          for i in $(seq 1 20); do curl -fsS http://localhost:8080/healthz && break; sleep 1; done
+          curl -fsSI -H 'Host: makonbook.uz' http://localhost:8080/ | tee /dev/stderr | grep -qi '^content-security-policy:'
+          curl -fsS -H 'Host: makonbook.uz' http://localhost:8080/ | grep -q 'data-practice'
+          curl -fsS -H 'Host: makonbook.uz' -o /dev/null -w '%{http_code}\n' http://localhost:8080/vendor/three-r128.min.js | grep -q 200
+          curl -fsSI -H 'Host: sat.makonbook.uz' http://localhost:8080/ | grep -qi '^content-security-policy:'
+          curl -fsS -H 'Host: sat.makonbook.uz' http://localhost:8080/some/route | grep -q '<div id="root">'
+          curl -sS -H 'Host: sat.makonbook.uz' -o /dev/null -w '%{http_code}\n' http://localhost:8080/assets/missing.js | grep -q 404
+          curl -sS -H 'Host: www.makonbook.uz' -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8080/x | grep -q '301 https://makonbook.uz/x'
+          docker logs web
+          docker rm -f web

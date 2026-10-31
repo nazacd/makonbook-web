@@ -1,0 +1,41 @@
+# Production stack for makonbook.uz and sat.makonbook.uz — lives on the VPS at
+# /opt/makonbook-web/docker-compose.yml. See deploy/DEPLOY.md.
+#
+# One container, makonbook-web, reached only by the edge nginx
+# (makonbook-nginx) as http://makonbook-web:8080 on sat_makon_network. No
+# host ports are published. The image is nginx with both builds inside.
+
+name: makonbook-web
+
+services:
+  web:
+    image: ${WEB_IMAGE:-nazacd/makonbook-web:latest}
+    container_name: makonbook-web
+    pull_policy: always
+    restart: always
+    networks:
+      - sat_makon_network
+    expose:
+      - "8080"
+    # nginx-unprivileged keeps its pid and temp files under /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  sat_makon_network:
+    external: true
