@@ -10,7 +10,7 @@ The plan and the rules: `docs/handoff.md`. Deployment: `deploy/DEPLOY.md`.
 
 ## Development
 
-Node 22. One install for both workspaces:
+Node 22.12 or newer. One install for both workspaces:
 
 ```bash
 npm install
@@ -31,7 +31,7 @@ one origin, as in production.
 Checks, all of which CI runs:
 
 ```bash
-npm run typecheck && npm run lint && npm run build
+npm run typecheck && npm run lint && npm run check:csp && npm run build
 ```
 
 API types: `app/src/api/schema.d.ts` is generated from `app/api/openapi.yaml`

@@ -23,7 +23,16 @@ At Eskiz add **A** records to the VPS's IP (the same as `api.makonbook.uz`):
 - `sat.makonbook.uz`
 - `dev.makonbook.uz` (temporary, until the landing page moves to `makonbook.uz`)
 
-Wait until the VPS sees them:
+First make sure neither name is in use already (a record pointing elsewhere,
+or a block in the edge config; nginx only warns about a duplicate
+`server_name`, keeps the first block and ignores the new one):
+
+```bash
+getent hosts sat.makonbook.uz dev.makonbook.uz       # nothing yet, or the VPS's IP
+grep -n 'sat.makonbook.uz\|dev.makonbook.uz' /opt/sat-makon/makonbook/nginx/default.conf   # nothing
+```
+
+Then wait until the VPS sees the new records:
 
 ```bash
 getent hosts sat.makonbook.uz dev.makonbook.uz      # must print the VPS's IP
@@ -81,6 +90,9 @@ docker exec makonbook-nginx nginx -t && docker exec makonbook-nginx nginx -s rel
 curl -sI http://sat.makonbook.uz/ | head -1        # expect 301
 curl -sI http://dev.makonbook.uz/ | head -1        # expect 301
 ```
+
+`nginx -t` must print no `conflicting server name` warning (it still says
+"successful" with one, and the new block is then ignored).
 
 **4b. Certificates** — one lineage per host, so the existing makonbook.uz
 certificate is not touched:
@@ -145,24 +157,47 @@ is stateless; nothing else to migrate.
 When the landing page is ready to replace the site served at `makonbook.uz`
 today (decision: it replaces it completely):
 
-1. In `default.conf`, find the existing blocks with `server_name makonbook.uz
-   www.makonbook.uz` (the `listen 80` one and the `listen 443 ssl` one) and
-   note the `ssl_certificate` paths they use (the makonbook.uz SAN lineage).
-2. Replace those two blocks with PART 3 of `deploy/nginx-web.conf` (uncommented),
-   keeping the same certificate paths. This edit can't be an append: use nano
-   (it writes in place; vim and `sed -i` replace the file and the bind mount
-   keeps the old one), then check with the `tail` above that the container
-   sees the change.
+1. In `default.conf`, find the existing blocks whose `server_name` includes
+   `makonbook.uz` (the `listen 80` one and the `listen 443 ssl` one). Note
+   **every** name in those `server_name` lines, whether either block is the
+   `default_server`, the `ssl_certificate` paths (the makonbook.uz SAN
+   lineage) and what `proxy_pass` points to. Check that the certificate
+   covers `www.makonbook.uz` too:
+
+   ```bash
+   docker exec makonbook-nginx openssl x509 -in /etc/letsencrypt/live/makonbook.uz/fullchain.pem -noout -ext subjectAltName
+   ```
+
+2. Replace those two blocks with PART 3 of `deploy/nginx-web.conf`
+   (uncommented), keeping the same certificate paths. Names other than
+   `makonbook.uz` and `www.makonbook.uz` that were in those blocks keep a
+   block of their own (with the ACME location, or the SAN certificate stops
+   renewing for them), and `default_server` stays where it was. This edit
+   can't be an append: use nano (it writes in place; vim and `sed -i`
+   replace the file and the bind mount keeps the old one), then check with
+   the `tail` above that the container sees the change.
 3. `docker exec makonbook-nginx nginx -t && docker exec makonbook-nginx nginx -s reload`
 4. `curl -sI https://makonbook.uz/ | head -1` (200) and
    `curl -sI https://www.makonbook.uz/ | head -1` (301 to makonbook.uz).
-5. Stop whatever served the old site, if it was a container of its own.
-6. Later, drop `dev.makonbook.uz`: remove its blocks, its DNS record, and
-   `docker compose run --rm --entrypoint certbot certbot delete --cert-name dev.makonbook.uz`.
+5. The old site's container: stop it only if no remaining block in
+   `default.conf` proxies to it (`grep -n proxy_pass default.conf`); the
+   same container may serve sat-makon.uz or school28.
+6. In this repo, add `og:url` / `og:image` tags for `https://makonbook.uz/`
+   to `landing/index.html` (left out while the page lives on the dev host,
+   where they would point link previews at the old site).
+7. Later, drop `dev.makonbook.uz`: remove the name from PART 1's
+   `server_name` and delete the PART 2b block (nano, in place), reload
+   (`nginx -t && nginx -s reload` as above), **then** delete the
+   certificate from the certbot project and remove the DNS record:
 
-No change to this repo is needed: the container already answers
-`makonbook.uz`, `www.makonbook.uz` (a redirect to the apex) and
-`dev.makonbook.uz` (`docker/nginx.conf`).
+   ```bash
+   cd /opt/sat-makon/makonbook
+   docker compose run --rm --entrypoint certbot certbot delete --cert-name dev.makonbook.uz
+   ```
+
+No change to the container is needed: it already answers `makonbook.uz`,
+`www.makonbook.uz` (a redirect to the apex) and `dev.makonbook.uz`
+(`docker/nginx.conf`).
 
 ## Everyday operations
 

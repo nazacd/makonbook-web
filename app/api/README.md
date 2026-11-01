@@ -10,4 +10,4 @@ To update both to the API's `main`:
 npm run api:pull -w app && npm run gen -w app
 ```
 
-Copied from commit `74e08d5ad0bf0bb796cb0ea07b30d13aaa9beebb` (`SOURCE` keeps the latest).
+`SOURCE` holds the commit it was copied from.

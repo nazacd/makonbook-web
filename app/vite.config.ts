@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 
-import { csp } from './csp';
+import { csp } from './csp.ts';
 
 // The app at sat.makonbook.uz. In production the edge nginx sends /v1/ to the
 // API and the rest here (deploy/nginx-web.conf), so page and API share one

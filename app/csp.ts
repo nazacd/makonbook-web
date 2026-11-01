@@ -1,5 +1,6 @@
 // The app's Content-Security-Policy, in one place for the dev server, the
-// preview server and (copied by hand, see the check below) docker/nginx.conf.
+// preview server and docker/app-csp.conf (nginx). That file is a copy made by
+// hand; `npm run check:csp` (CI runs it) fails when the two differ.
 //
 // The bearer token lives in localStorage (docs/handoff.md section 6), so no
 // script but our own may run: 'self' and Desmos (the calculator, from M2).

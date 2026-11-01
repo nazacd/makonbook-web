@@ -7,7 +7,7 @@
     "app"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev:landing": "npm run dev -w landing",
@@ -16,7 +16,8 @@
     "typecheck": "npm run typecheck -w app",
     "lint": "eslint .",
     "build": "npm run build -w landing && npm run build -w app",
-    "precompress": "node scripts/precompress.mjs landing/dist app/dist"
+    "precompress": "node scripts/precompress.mjs landing/dist app/dist",
+    "check:csp": "node --experimental-strip-types scripts/check-csp.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

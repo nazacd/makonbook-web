@@ -15,7 +15,7 @@ Ground rules, short:
 - Never commit secrets (the Desmos key, passwords, tokens). `.env` files only.
 - Never put student data or test content in the repo.
 - Before calling a step done: `npm run typecheck`, `npm run lint`,
-  `npm run build` must pass (CI runs them, then builds the image and starts
+  `npm run check:csp`, `npm run build` must pass (CI runs them, then builds the image and starts
   nginx in it), and try the flow in a real browser at laptop and phone widths.
 - Branch on the API's `error.code`, never on its message. A 401 on a
   signed-in request means the session is gone: sign out locally.

@@ -11,8 +11,10 @@ var PRACTICE_URL = 'https://sat.makonbook.uz';
 // buttons offer the app instead of the practice site. Empty until then.
 var PLAY_URL = '';
 
-// MathJax reads this when it loads; it must exist before the script does.
-window.MathJax = { svg: { fontCache: 'none' }, startup: { typeset: false } };
+// MathJax reads this when it loads; it must exist before the script does. The
+// page only converts formulas to images, so no context menu: its stylesheets
+// are inline styles the page's CSP refuses.
+window.MathJax = { svg: { fontCache: 'none' }, startup: { typeset: false }, options: { enableMenu: false } };
 
 (function links(){
   var phone = PLAY_URL && /Android/i.test(navigator.userAgent) && matchMedia('(pointer: coarse)').matches;
@@ -71,6 +73,8 @@ function startScene(){
     noScene();
     return;
   }
+  // The scene is running: the page gets its scroll track and the cue (styles.css).
+  document.documentElement.classList.add('scene');
   // The formulas and symbols in the scene are drawn with MathJax (2 MB):
   // loaded only now, once there is a scene to draw them in.
   loadScript('/vendor/mathjax-3.2.2-tex-svg.js').catch(function(){});
@@ -452,7 +456,7 @@ function startScene(){
       svg.setAttribute('width', (w * PX) + 'px');
       svg.setAttribute('height', (h * PX) + 'px');
       svg.setAttribute('color', '#ffffff');
-      svg.setAttribute('style', 'color:#ffffff');
+      svg.style.color = '#ffffff';   // through the CSSOM, which the page's CSP allows (a style attribute isn't)
       if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       var str = new XMLSerializer().serializeToString(svg);
       var img = new Image();

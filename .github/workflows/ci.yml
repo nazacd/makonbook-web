@@ -20,6 +20,7 @@ jobs:
       - run: npm run gen && git diff --exit-code app/src/api/schema.d.ts
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run check:csp
       - run: npm run build
 
   image:
@@ -49,5 +50,9 @@ jobs:
           curl -fsS -H 'Host: sat.makonbook.uz' http://localhost:8080/some/route | grep -q '<div id="root">'
           curl -sS -H 'Host: sat.makonbook.uz' -o /dev/null -w '%{http_code}\n' http://localhost:8080/assets/missing.js | grep -q 404
           curl -sS -H 'Host: www.makonbook.uz' -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8080/x | grep -q '301 https://makonbook.uz/x'
-          docker logs web
-          docker rm -f web
+          # A missing asset must not be cached (no Cache-Control on a 404).
+          ! curl -sSI -H 'Host: sat.makonbook.uz' http://localhost:8080/assets/missing.js | grep -qi '^cache-control:'
+          curl -sSI -H 'Host: sat.makonbook.uz' http://localhost:8080/ | grep -qi '^cache-control: no-cache'
+      - name: nginx log
+        if: always()
+        run: docker logs web; docker rm -f web
