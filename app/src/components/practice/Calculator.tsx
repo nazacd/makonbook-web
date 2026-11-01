@@ -47,7 +47,9 @@ type Box = { x: number; y: number; w: number; h: number };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 
-export function Calculator({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+// Docked (a laptop): the calculator takes a pane beside the question, as in
+// Bluebook; otherwise it floats, dragged by its bar and resized from its corner.
+export function Calculator({ visible, onClose, docked = false }: { visible: boolean; onClose: () => void; docked?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const calc = useRef<{ resize: () => void; destroy: () => void } | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed' | 'unconfigured'>(KEY ? 'loading' : 'unconfigured');
@@ -77,7 +79,15 @@ export function Calculator({ visible, onClose }: { visible: boolean; onClose: ()
   useEffect(() => () => calc.current?.destroy(), []);
   useEffect(() => {
     if (visible) calc.current?.resize();
-  }, [visible, box]);
+  }, [visible, box, docked]);
+  // A docked pane follows the window; tell the calculator when it moves.
+  useEffect(() => {
+    const el = host.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => calc.current?.resize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Drag from the bar, resize from the corner: pointer events with capture,
   // so the gesture carries on outside the panel.
@@ -110,18 +120,18 @@ export function Calculator({ visible, onClose }: { visible: boolean; onClose: ()
     <section
       aria-label="Calculator"
       hidden={!visible}
-      className="fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]"
-      style={{ left: box.x, top: box.y, width: box.w, height: box.h }}>
-      <div onPointerDown={gesture('move')} className="flex h-9 shrink-0 cursor-move touch-none items-center justify-between border-b border-line px-3 select-none">
-        <span className="t-caption text-ink-2">Calculator</span>
-        <button type="button" onClick={onClose} aria-label="Close the calculator" className="flex size-7 items-center justify-center rounded-full bg-surface-2">
-          <Icon as={X} size={14} strokeWidth={2.25} />
+      className={docked ? 'flex h-full w-full flex-col overflow-hidden border-r border-line bg-paper' : 'fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]'}
+      style={docked ? undefined : { left: box.x, top: box.y, width: box.w, height: box.h }}>
+      <div onPointerDown={docked ? undefined : gesture('move')} className={`flex h-10 shrink-0 items-center justify-between border-b border-line bg-ink px-3 select-none ${docked ? '' : 'cursor-move touch-none'}`}>
+        <span className="t-subhead font-semibold text-paper">Calculator</span>
+        <button type="button" onClick={onClose} aria-label="Close the calculator" className="flex size-7 items-center justify-center rounded-full text-paper active:bg-ink-2">
+          <Icon as={X} size={16} strokeWidth={2.25} className="text-current" />
         </button>
       </div>
       <div className="relative min-h-0 flex-1">
         <div ref={host} className="absolute inset-0" />
         {state !== 'ready' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface p-6 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-paper p-6 text-center">
             {state === 'loading' ? (
               <>
                 <Spinner className="size-7 text-ink" />
@@ -143,11 +153,13 @@ export function Calculator({ visible, onClose }: { visible: boolean; onClose: ()
           </div>
         )}
       </div>
+      {!docked && (
       <div onPointerDown={gesture('resize')} aria-hidden="true" className="absolute bottom-0 right-0 flex size-7 cursor-nwse-resize touch-none items-end justify-end p-1.5">
         <svg width={14} height={14} viewBox="0 0 14 14" fill="none" className="text-ink-3">
           <path d="M12 2 2 12M12 7l-5 5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
         </svg>
       </div>
+      )}
     </section>
   );
 }

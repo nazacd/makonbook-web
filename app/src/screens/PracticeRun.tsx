@@ -1,19 +1,23 @@
-import { ArrowRight, Bookmark, Calculator as CalculatorIcon, Check, Coffee, Eye, EyeOff, House, ListChecks, Lock, Timer as TimerIcon, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, Spinner } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
+import { useMe } from '@/api/queries';
+import { Annotated, HighlightsToggle, type TextHighlight } from '@/components/practice/Annotations';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
 import { Calculator } from '@/components/practice/Calculator';
+import { Directions } from '@/components/practice/Directions';
 import { GridInInput } from '@/components/practice/GridInInput';
-import { QuestionNavigatorGrid } from '@/components/practice/QuestionNavigatorGrid';
+import { NavigatorLegend, QuestionNavigatorGrid } from '@/components/practice/QuestionNavigatorGrid';
+import { Reference } from '@/components/practice/Reference';
 import { RichContent } from '@/components/practice/RichContent';
 import { confirm } from '@/lib/confirm';
 import { usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
 import { saveAttempt, type Run, type StoredPackage } from '@/lib/practice/local';
-import { finishRun, questionKey, stagesOf, SUBJECT_LABEL, testName } from '@/lib/practice/run';
+import { finishRun, questionKey, stagesOf, SUBJECT_LABEL, SUBJECT_SHORT, testName } from '@/lib/practice/run';
 import { formatRemainingTime, useRemainingTime } from '@/lib/timer';
 import { useTitle } from '@/lib/title';
 
@@ -74,6 +78,13 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const [showReview, setShowReview] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [hideTimer, setHideTimer] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+  const [showReference, setShowReference] = useState(false);
+  const [crossOut, setCrossOut] = useState(false);
+  const [annotating, setAnnotating] = useState(false);
+  const wide = useWide();
+  const me = useMe().data;
+  const studentName = me ? `${me.first_name} ${me.last_name}` : '';
   const [finishing, setFinishing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -320,123 +331,216 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const isLast = run.index === questions.length - 1;
   const low = remainingMs <= 5 * 60_000;
   const twoColumns = !!question.passage;
+  const english = stage.subject === 'english';
+  const highlightsOf = (block: string) => run.highlights?.[`${qKey}/${block}`] ?? [];
+  const setHighlights = (block: string, next: TextHighlight[]) => update((r) => ({ ...r, highlights: { ...r.highlights, [`${qKey}/${block}`]: next } }));
+  const toggleMark = () => update((r) => ({ ...r, marked: r.marked.includes(qKey) ? r.marked.filter((k) => k !== qKey) : [...r.marked, qKey] }));
+  const closePopovers = () => {
+    setShowNavigator(false);
+    setShowDirections(false);
+  };
+  const submitPrompt = () =>
+    confirm({
+      title: 'Submit this module?',
+      message:
+        questions.length - answered === 1
+          ? 'One question is blank. You can’t come back to this module.'
+          : questions.length - answered > 1
+            ? `${questions.length - answered} questions are blank. You can’t come back to this module.`
+            : 'You can’t come back to this module.',
+      onConfirm: submitModule,
+    });
+
+  const questionBody = (
+    <>
+      {/* The question strip, as in Bluebook: the number, Mark for Review beside it, the cross-out tool at the right. */}
+      <div className="mb-4 flex items-center gap-3 border-b-2 border-dashed border-ink bg-paper-2 pr-2">
+        <span className="flex h-9 min-w-9 items-center justify-center bg-accent px-2 t-subhead font-bold text-on-accent" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
+          {run.index + 1}
+        </span>
+        <button type="button" onClick={toggleMark} aria-pressed={marked} className={`flex h-9 items-center gap-1.5 rounded-chip px-1 t-subhead font-medium ${marked ? 'text-accent' : 'text-ink'}`}>
+          <Bookmark size={18} strokeWidth={1.75} className={marked ? 'text-accent' : 'text-ink'} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
+          Mark for Review
+        </button>
+        {question.type === 'mcq' && (
+          <button
+            type="button"
+            onClick={() => setCrossOut((v) => !v)}
+            aria-pressed={crossOut}
+            aria-label="Cross out answer choices"
+            title="Cross out answer choices"
+            className={`ml-auto flex h-6 items-center rounded-[4px] border px-1 text-[11px] font-bold tracking-wide line-through ${crossOut ? 'border-accent bg-accent text-on-accent' : 'border-ink text-ink'}`}>
+            ABC
+          </button>
+        )}
+      </div>
+      <Annotated enabled={english && annotating} highlights={highlightsOf('q')} onChange={(next) => setHighlights('q', next)}>
+        <RichContent text={question.stem} images={pkg.images} links={links} className="rich rich-lg" />
+      </Annotated>
+      {question.type === 'mcq' && question.choices ? (
+        <div role="radiogroup" aria-label="Answer choices" className="mt-5 flex flex-col gap-3">
+          {LETTERS.filter((l) => question.choices![l] != null).map((letter) => (
+            <AnswerChoice
+              key={letter}
+              letter={letter}
+              content={<RichContent text={question.choices![letter]} images={pkg.images} links={links} displayMath />}
+              selected={answer === letter}
+              eliminated={eliminated.includes(letter)}
+              crossOut={crossOut}
+              onSelect={() => update((r) => ({ ...r, answers: { ...r.answers, [qKey]: letter } }))}
+              onToggleEliminate={() =>
+                update((r) => {
+                  const cur = r.eliminated[qKey] ?? [];
+                  const striking = !cur.includes(letter);
+                  const answers = { ...r.answers };
+                  if (striking && answers[qKey] === letter) delete answers[qKey];
+                  return { ...r, answers, eliminated: { ...r.eliminated, [qKey]: striking ? [...cur, letter] : cur.filter((x) => x !== letter) } };
+                })
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5">
+          <GridInInput value={answer ?? ''} onChange={(value) => update((r) => ({ ...r, answers: { ...r.answers, [qKey]: value } }))} />
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div className="flex h-dvh flex-col bg-paper">
       {note && (
-        <div role="status" className="absolute left-1/2 top-16 z-30 flex -translate-x-1/2 items-center gap-2.5 rounded-control bg-primary px-3.5 py-3 text-on-primary">
-          <Icon as={Check} size={18} className="text-on-primary" />
+        <div role="status" className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-2.5 rounded-control bg-ink px-3.5 py-3 text-paper">
+          <Icon as={Check} size={18} className="text-paper" />
           <span className="t-subhead font-medium">{note}</span>
         </div>
       )}
-      <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line bg-paper px-2 sm:px-4">
-        <div className="flex min-w-0 items-center gap-1">
-          <button type="button" onClick={leave} aria-label="Leave the test" className="flex size-11 items-center justify-center rounded-chip active:bg-paper-2">
-            <Icon as={House} size={20} />
+
+      {/* The header, as Bluebook's: the section and its directions, the clock, the tools. */}
+      <header className="relative grid h-[72px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-dashed border-ink bg-paper px-3 sm:px-5">
+        <div className="flex min-w-0 flex-col items-start">
+          <p className="t-headline truncate text-ink">
+            <span className="hidden sm:inline">{moduleLabel}</span>
+            <span className="sm:hidden">
+              {SUBJECT_SHORT[stage.subject]} · M{stage.module.module}
+            </span>
+          </p>
+          <button type="button" onClick={() => setShowDirections((v) => !v)} aria-expanded={showDirections} className="t-subhead flex h-7 items-center gap-0.5 text-ink active:text-accent">
+            Directions
+            <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
-          <span className="t-subhead hidden truncate font-medium text-ink sm:block">{moduleLabel}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <span className={`tabular font-title text-[22px] font-bold ${low ? 'text-bad' : 'text-ink'} ${hideTimer && !low ? 'invisible' : ''}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
-            {formatRemainingTime(remainingMs)}
-          </span>
-          <button type="button" onClick={() => setHideTimer((h) => !h)} aria-label={hideTimer ? 'Show the time' : 'Hide the time'} className="flex size-9 items-center justify-center rounded-chip text-ink-3 active:bg-surface-2">
-            <Icon as={hideTimer ? Eye : EyeOff} size={17} className="text-ink-3" />
+        <div className="flex flex-col items-center">
+          {hideTimer && !low ? (
+            <span className="flex h-7 items-center text-ink" aria-label="Time hidden">
+              <TimerIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+          ) : (
+            <span className={`tabular font-title text-[22px] font-bold leading-7 ${low ? 'text-bad' : 'text-ink'}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
+              {formatRemainingTime(remainingMs)}
+            </span>
+          )}
+          <button type="button" onClick={() => setHideTimer((h) => !h)} className="t-caption mt-0.5 h-6 rounded-full border border-ink px-2.5 font-medium text-ink active:bg-paper-2">
+            {hideTimer ? 'Show' : 'Hide'}
           </button>
         </div>
         <div className="flex items-center justify-end gap-1">
+          {english && <HighlightsToggle on={annotating} onToggle={() => setAnnotating((v) => !v)} />}
           {stage.subject === 'math' && (
-            <button type="button" onClick={() => setShowCalculator((v) => !v)} aria-pressed={showCalculator} aria-label="Calculator" className={`flex h-11 items-center gap-1.5 rounded-chip px-3 active:bg-paper-2 ${showCalculator ? 'bg-accent-tint text-accent' : ''}`}>
-              <Icon as={CalculatorIcon} size={20} />
-              <span className="t-subhead hidden text-ink sm:block">Calculator</span>
-            </button>
+            <>
+              <Tool icon={CalculatorIcon} label="Calculator" on={showCalculator} onClick={() => setShowCalculator((v) => !v)} />
+              <Tool icon={BookOpen} label="Reference" on={showReference} onClick={() => setShowReference((v) => !v)} />
+            </>
           )}
+          <Tool icon={House} label="Leave" onClick={leave} />
         </div>
+        {showDirections && <Directions subject={stage.subject} onClose={() => setShowDirections(false)} />}
       </header>
 
-      {/* One scrolling page on a phone and for Math; on a laptop a passage and
-          its question scroll on their own, so the row must take the main's
-          height exactly (minmax(0, 1fr)), or the columns would grow past it. */}
-      <main key={qKey} className={`min-h-0 flex-1 overflow-y-auto ${twoColumns ? 'md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden' : ''}`}>
-        {twoColumns && (
-          <div className="border-b border-line p-5 md:min-h-0 md:overflow-y-auto md:border-b-0 md:border-r md:p-8">
-            <RichContent text={question.passage} images={pkg.images} links={links} />
-          </div>
+      <div className="flex min-h-0 flex-1">
+        {stage.subject === 'math' && showCalculator && wide && (
+          <aside className="w-[46%] min-w-[320px] max-w-[640px] shrink-0">
+            <Calculator visible docked onClose={() => setShowCalculator(false)} />
+          </aside>
         )}
-        <div className={`p-5 md:p-8 ${twoColumns ? 'md:min-h-0 md:overflow-y-auto' : 'mx-auto w-full max-w-2xl'}`}>
-          {/* The question strip, as in Bluebook: the number, then Mark for Review beside it. */}
-          <div className="mb-5 flex items-center gap-3 border-b border-dashed border-line-strong pb-2.5">
-            <span className="flex h-8 min-w-8 items-center justify-center rounded-md bg-accent px-2 t-subhead font-bold text-on-accent" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
-              {run.index + 1}
-            </span>
-            <button
-              type="button"
-              onClick={() => update((r) => ({ ...r, marked: r.marked.includes(qKey) ? r.marked.filter((k) => k !== qKey) : [...r.marked, qKey] }))}
-              aria-pressed={marked}
-              className={`flex h-9 items-center gap-1.5 rounded-chip px-2 t-subhead font-medium active:bg-paper-2 ${marked ? 'text-accent' : 'text-ink-2'}`}>
-              <Bookmark size={18} strokeWidth={1.75} className={marked ? 'text-accent' : 'text-ink-2'} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
-              {marked ? 'Marked for review' : 'Mark for review'}
-            </button>
-            <span className="t-footnote ml-auto text-ink-3 sm:hidden">{run.index + 1} of {questions.length}</span>
-          </div>
-          <RichContent text={question.stem} images={pkg.images} links={links} className="rich rich-lg" />
-          {question.type === 'mcq' && question.choices ? (
-            <div role="radiogroup" aria-label="Answer choices" className="mt-5 flex flex-col gap-3">
-              {LETTERS.filter((l) => question.choices![l] != null).map((letter) => (
-                <AnswerChoice
-                  key={letter}
-                  letter={letter}
-                  content={<RichContent text={question.choices![letter]} images={pkg.images} links={links} displayMath />}
-                  selected={answer === letter}
-                  eliminated={eliminated.includes(letter)}
-                  onSelect={() => update((r) => ({ ...r, answers: { ...r.answers, [qKey]: letter } }))}
-                  onToggleEliminate={() =>
-                    update((r) => {
-                      const cur = r.eliminated[qKey] ?? [];
-                      const striking = !cur.includes(letter);
-                      const answers = { ...r.answers };
-                      if (striking && answers[qKey] === letter) delete answers[qKey];
-                      return { ...r, answers, eliminated: { ...r.eliminated, [qKey]: striking ? [...cur, letter] : cur.filter((x) => x !== letter) } };
-                    })
-                  }
+        {showReview ? (
+          <main className="min-h-0 flex-1 overflow-y-auto p-5 md:p-8">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="t-title mb-2 text-center text-ink">Check your work</h2>
+              <p className="t-subhead mb-6 text-center text-ink-2">On the real test you can’t move on until time runs out. Here you may submit the module once you’re done; its answers can’t be changed afterwards.</p>
+              <div className="rounded-panel border border-line bg-paper p-5">
+                <p className="t-headline mb-3 text-ink">{moduleLabel}</p>
+                <NavigatorLegend />
+                <QuestionNavigatorGrid
+                  variant="progress"
+                  items={grid}
+                  onPress={(id) => {
+                    goto(id - 1);
+                    setShowReview(false);
+                  }}
                 />
-              ))}
+              </div>
             </div>
+          </main>
+        ) : (
+          /* One scrolling page on a phone and for Math; on a laptop a passage and
+             its question scroll on their own, so the row must take the main's
+             height exactly (minmax(0, 1fr)), or the columns would grow past it. */
+          <main key={qKey} className={`min-h-0 flex-1 overflow-y-auto ${twoColumns ? 'md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden' : ''}`} onClick={closePopovers}>
+            {twoColumns && (
+              <div className="border-b border-line p-5 md:min-h-0 md:overflow-y-auto md:border-b-0 md:border-r md:p-8">
+                <Annotated enabled={english && annotating} highlights={highlightsOf('p')} onChange={(next) => setHighlights('p', next)}>
+                  <RichContent text={question.passage} images={pkg.images} links={links} />
+                </Annotated>
+              </div>
+            )}
+            <div className={`p-5 md:p-8 ${twoColumns ? 'md:min-h-0 md:overflow-y-auto' : 'mx-auto w-full max-w-2xl'}`}>{questionBody}</div>
+          </main>
+        )}
+      </div>
+
+      <footer className="relative grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t-2 border-dashed border-ink bg-paper px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
+        <p className="t-subhead hidden truncate font-bold uppercase text-ink sm:block">{studentName}</p>
+        <span className="sm:hidden" />
+        <button type="button" onClick={() => setShowNavigator((v) => !v)} aria-haspopup="dialog" aria-expanded={showNavigator} className="t-subhead flex h-10 items-center gap-1.5 rounded-lg bg-ink px-3 font-semibold text-paper sm:px-4">
+          <span className="hidden sm:inline">Question </span>
+          {run.index + 1} of {questions.length}
+          <ChevronUp size={16} strokeWidth={2} aria-hidden="true" className={showNavigator ? 'rotate-180' : ''} />
+        </button>
+        <div className="flex items-center justify-end gap-2">
+          {showReview ? (
+            <>
+              <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+                Back
+              </button>
+              <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+                {run.stage + 1 < stages.length ? 'Submit module' : 'Submit the test'}
+              </button>
+            </>
           ) : (
-            <div className="mt-5">
-              <GridInInput value={answer ?? ''} onChange={(value) => update((r) => ({ ...r, answers: { ...r.answers, [qKey]: value } }))} />
-            </div>
+            <>
+              <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent disabled:opacity-30">
+                Back
+              </button>
+              <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+                Next
+              </button>
+            </>
           )}
         </div>
-      </main>
 
-      <footer className="flex h-16 shrink-0 items-center justify-between border-t border-line bg-paper px-4 pb-[env(safe-area-inset-bottom)]">
-        <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-medium text-accent disabled:opacity-30">
-          Back
-        </button>
-        <button type="button" onClick={() => setShowNavigator(true)} aria-haspopup="dialog" className="t-subhead h-10 rounded-lg bg-ink px-4 font-semibold text-paper">
-          Question {run.index + 1} of {questions.length} ▴
-        </button>
-        <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
-          {isLast ? 'Review' : 'Next'}
-        </button>
-      </footer>
-
-      {(showNavigator || showReview) && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center" onClick={() => (setShowNavigator(false), setShowReview(false))}>
-          <div role="dialog" aria-label={showReview ? 'Check your work' : moduleLabel} className="flex max-h-[85dvh] w-full max-w-xl flex-col gap-4 rounded-t-panel bg-paper p-5 sm:rounded-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="t-headline text-ink">{showReview ? 'Check your work' : moduleLabel}</h2>
-              <button type="button" onClick={() => (setShowNavigator(false), setShowReview(false))} className="t-callout font-medium text-accent">
-                Close
+        {showNavigator && (
+          <div role="dialog" aria-label={`${moduleLabel} questions`} className="absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-[min(600px,calc(100vw-24px))] -translate-x-1/2 rounded-panel border border-line bg-paper p-5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)]">
+            <span aria-hidden="true" className="absolute -bottom-2 left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-line bg-paper" />
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="t-headline text-ink">{moduleLabel} questions</h2>
+              <button type="button" onClick={() => setShowNavigator(false)} aria-label="Close" className="flex size-8 items-center justify-center rounded-chip active:bg-paper-2">
+                <X size={18} strokeWidth={1.75} aria-hidden="true" />
               </button>
             </div>
-            <p className="t-footnote flex gap-4 text-ink-2">
-              <span>Answered: {answered}</span>
-              <span>Blank: {questions.length - answered}</span>
-              <span>For review: {grid.filter((g) => g.marked).length}</span>
-            </p>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <NavigatorLegend />
+            <div className="max-h-[40dvh] overflow-y-auto border-t border-line pb-1">
               <QuestionNavigatorGrid
                 variant="progress"
                 items={grid}
@@ -447,27 +551,34 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
                 }}
               />
             </div>
-            <Button
-              label={run.stage + 1 < stages.length ? `Submit module ${stage.module.module}` : 'Submit the test'}
-              onClick={() =>
-                confirm({
-                  title: 'Submit this module?',
-                  message:
-                    questions.length - answered === 1
-                      ? 'One question is blank. You can’t come back to this module.'
-                      : questions.length - answered > 1
-                        ? `${questions.length - answered} questions are blank. You can’t come back to this module.`
-                        : 'You can’t come back to this module.',
-                  onConfirm: submitModule,
-                })
-              }
-            />
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNavigator(false);
+                  setShowReview(true);
+                }}
+                className="t-subhead h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+                Go to review page
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </footer>
 
-      {stage.subject === 'math' && <Calculator visible={showCalculator} onClose={() => setShowCalculator(false)} />}
+      {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} onClose={() => setShowCalculator(false)} />}
+      {showReference && <Reference onClose={() => setShowReference(false)} />}
     </div>
+  );
+}
+
+/** A header tool, as Bluebook's: the icon over its label. */
+function Tool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: string; on?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-accent-tint text-accent' : 'text-ink active:bg-paper-2'}`}>
+      <Icon as={icon} size={20} className="text-current" />
+      <span className="t-caption hidden font-medium sm:block">{label}</span>
+    </button>
   );
 }
 
@@ -495,4 +606,16 @@ function CloseButton({ onClick, label }: { onClick: () => void; label: string })
       <Icon as={House} size={22} />
     </button>
   );
+}
+
+/** A laptop-sized window: the calculator docks beside the question. */
+function useWide(): boolean {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 900px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 900px)');
+    const onChange = () => setWide(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return wide;
 }

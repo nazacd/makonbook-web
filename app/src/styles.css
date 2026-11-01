@@ -168,3 +168,9 @@
   .rich-table th { background: var(--color-surface-2); font-weight: 700; }
   .rich-table tr + tr td { border-top: 1px solid var(--color-line-strong); }
 }
+
+/* Highlights & Notes (components/practice/Annotations): painted by the CSS
+   Custom Highlight API; each block registers its own names, suffixed by colour. */
+::highlight(mb-yellow) { background-color: #f6d860; color: #122d47; }
+::highlight(mb-blue) { background-color: #a8d8f0; color: #122d47; }
+::highlight(mb-pink) { background-color: #f6b8d0; color: #122d47; }
