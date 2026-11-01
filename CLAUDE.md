@@ -41,7 +41,10 @@ Vocabulary: `lib/vocab/{types,scheduler,progress}.ts` are copies from the
 phone; `ts-fsrs` stays pinned to exactly 5.4.2 (no fuzz, 90 % retention) so
 replaying the same review log gives the same cards on every device. The deck
 and each person's log live in IndexedDB (`lib/idb.ts`); card states are only
-ever derived from the log. Type comes from the `t-*`
+ever derived from the log. Teachers: `lib/attendance/code.ts` is the phone's
+copy of the QR signing and must match the API's
+`internal/attendance/token.go`; the session screen polls every 3 s while
+open and draws the code itself from the session secret. Type comes from the `t-*`
 classes in `styles.css` (the phone's type scale), colours from the tokens,
 never `dark:` variants. `app/mock/api.cjs` is a fictional API for working
 without the real one (README).

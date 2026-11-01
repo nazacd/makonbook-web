@@ -7,20 +7,25 @@ import { AttendanceBar } from '@/components/AttendanceBar';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/States';
 import { useNow } from '@/lib/clock';
-import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber, teacherTitle } from '@/lib/groups';
+import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber } from '@/lib/groups';
 import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
 
-// The home screen, built around the next lesson: day and time set large,
-// then each class as type on the page, no cards (MOBILE-DESIGN.md). Teachers
-// see their groups the same way; their day's lessons and attendance come with
-// a later milestone.
+import { TeacherToday } from './TeacherToday';
+
+// "/": students see their classes, teachers their lessons for the day.
+// The student's home is built around the next lesson: day and time set
+// large, then each class as type on the page, no cards (MOBILE-DESIGN.md).
 export function Classes() {
+  const kind = useMe().data?.kind;
+  return kind === 'teacher' ? <TeacherToday /> : <StudentClasses />;
+}
+
+function StudentClasses() {
   useTitle('Classes');
   const profile = useMe().data as Profile; // RequireAuth only renders with a profile
   const now = useNow();
-  const student = profile.kind === 'student';
-  const attendance = useMyAttendance(student);
+  const attendance = useMyAttendance();
   const next = nextClass(profile.groups, now);
 
   return (
@@ -29,9 +34,7 @@ export function Classes() {
       {profile.groups.length === 0 ? (
         <EmptyState icon={CalendarX} title="No classes yet" message="When the office adds you to a group, it shows up here with its schedule." />
       ) : (
-        profile.groups.map((group) => (
-          <ClassBlock key={group.id} group={group} teacher={!student} attendance={attendance.data?.groups.find((g) => g.group_id === group.id)} />
-        ))
+        profile.groups.map((group) => <ClassBlock key={group.id} group={group} attendance={attendance.data?.groups.find((g) => g.group_id === group.id)} />)
       )}
     </div>
   );
@@ -69,9 +72,9 @@ function NextClass({ next, now }: { next: Occurrence; now: number }) {
 
 // A class, set on the page as type: its name, then teacher, time with days,
 // and room, each on its own line. The attendance bar sits at its bottom right.
-function ClassBlock({ group, attendance, teacher: forTeacher }: { group: Group; attendance?: GroupAttendance; teacher: boolean }) {
+function ClassBlock({ group, attendance }: { group: Group; attendance?: GroupAttendance }) {
   const name = parseClassName(group.name, group.discipline);
-  const teacher = forTeacher ? null : (name.teacher ?? (group.schedule[0]?.teachers[0] ? normalCase(group.schedule[0].teachers[0]) : null));
+  const teacher = name.teacher ?? (group.schedule[0]?.teachers[0] ? normalCase(group.schedule[0].teachers[0]) : null);
   // One time line per distinct slot; rooms listed once.
   const times = [...new Map(group.schedule.map((s) => [`${s.begin_time}|${s.weekdays.join()}`, s])).values()];
   const rooms = [...new Set(group.schedule.map((s) => s.classroom).filter(Boolean).map(roomNumber))];
@@ -81,8 +84,8 @@ function ClassBlock({ group, attendance, teacher: forTeacher }: { group: Group; 
     <section className="flex items-end gap-3">
       <div className="flex flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="t-title2 text-ink">{forTeacher ? teacherTitle(name) : name.title}</h2>
-          {name.isPrivate && !forTeacher && <span className="t-caption rounded-lg border-[1.5px] border-ink-2 px-1.5 py-px text-ink-2">1:1</span>}
+          <h2 className="t-title2 text-ink">{name.title}</h2>
+          {name.isPrivate && <span className="t-caption rounded-lg border-[1.5px] border-ink-2 px-1.5 py-px text-ink-2">1:1</span>}
         </div>
         <div className="flex flex-col gap-1">
           {teacher && (
@@ -105,7 +108,7 @@ function ClassBlock({ group, attendance, teacher: forTeacher }: { group: Group; 
           )}
         </div>
       </div>
-      {rate !== null && <AttendanceBar rate={rate} to={`/attendance/${group.id}`} />}
+      {rate !== null && <AttendanceBar rate={rate} to={`/attendance/group/${group.id}`} />}
     </section>
   );
 }

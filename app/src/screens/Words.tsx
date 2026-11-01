@@ -1,4 +1,4 @@
-import { BookOpen, Check, ChevronRight, Clock, CloudUpload, Layers, Plus, SlidersHorizontal, Users } from 'lucide-react';
+import { BookOpen, Check, ChevronRight, Clock, CloudUpload, Layers, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -15,19 +15,18 @@ import type { Settings } from '@/lib/vocab/local';
 import { almostDone, listName, listProgress } from '@/lib/vocab/progress';
 import { activeLists, formatGap, newToday, queue } from '@/lib/vocab/scheduler';
 
+import { TeacherWords } from './TeacherWords';
+
 export function Words() {
-  useTitle('Words');
-  const me = useMe().data;
-  if (me?.kind === 'teacher') {
-    return <EmptyState icon={Users} title="Your groups’ words are coming to the web" message="Until then, they are in the MakonBook app on your phone." />;
-  }
-  return <StudentWords />;
+  const kind = useMe().data?.kind;
+  return kind === 'teacher' ? <TeacherWords /> : <StudentWords />;
 }
 
 // The student's Words tab (the phone's StudentWords): progress only. Today's
 // words and Study, then the lists being studied, each opening its words.
 // Setup (new words a day, which lists) is behind the sliders.
 function StudentWords() {
+  useTitle('Words');
   const now = new Date(useNow());
   const deck = useDeck();
   const state = useVocabState();
