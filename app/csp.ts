@@ -5,7 +5,8 @@
 // The bearer token lives in localStorage (docs/handoff.md section 6), so no
 // script but our own may run: 'self' and Desmos (the calculator, from M2).
 // Styles allow inline: MathJax and Desmos write style attributes. Images
-// allow https: because practice packages link presigned R2 URLs.
+// allow https: because practice packages link presigned R2 URLs. Desmos also
+// brings its own fonts.
 export function csp({ dev }: { dev: boolean }): string {
   const script = ["'self'", 'https://www.desmos.com', ...(dev ? ["'unsafe-inline'"] : [])];
   return [
@@ -13,7 +14,7 @@ export function csp({ dev }: { dev: boolean }): string {
     `script-src ${script.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    "font-src 'self'",
+    "font-src 'self' https://www.desmos.com",
     "connect-src 'self' https://www.desmos.com",
     "worker-src 'self' blob:",
     "frame-src https://www.desmos.com",
