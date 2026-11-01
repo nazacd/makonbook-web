@@ -31,8 +31,12 @@ In `app/src`: `api/` (client, generated `schema.d.ts`, queries, the error
 wording), `auth/session.tsx` (who is signed in; the token in localStorage),
 `layouts/` (`RequireAuth`/`RequireGuest` decide who sees what, like the mobile
 app's route guards; `AppShell` is the frame with the four tabs), `screens/`,
-`components/`, `lib/` (`schedule.ts`, `groups.ts` and `clock.ts` are copies
-from the mobile app: change them there first). Type comes from the `t-*`
+`components/`, `lib/` (`schedule.ts`, `groups.ts`, `clock.ts` and
+`practice/{types,grade,run}.ts` are copies from the mobile app: change them
+there first; `practice/local.ts` and `hooks.ts` are this browser's storage
+and queries). Question text is rendered by `components/practice/RichContent`
+with MathJax from `/vendor` (`app/scripts/vendor.mjs`), formulas only, never
+`$…$`. The Desmos calculator needs `VITE_DESMOS_API_KEY` in `app/.env`. Type comes from the `t-*`
 classes in `styles.css` (the phone's type scale), colours from the tokens,
 never `dark:` variants. `app/mock/api.cjs` is a fictional API for working
 without the real one (README).

@@ -10,9 +10,15 @@ import { Attendance } from '@/screens/Attendance';
 import { ChoosePassword } from '@/screens/ChoosePassword';
 import { Classes } from '@/screens/Classes';
 import { Password } from '@/screens/Password';
+import { Practice } from '@/screens/Practice';
+import { PracticeHistory } from '@/screens/PracticeHistory';
+import { PracticeResult } from '@/screens/PracticeResult';
+import { PracticeReview } from '@/screens/PracticeReview';
+import { PracticeRun } from '@/screens/PracticeRun';
+import { PracticeTest } from '@/screens/PracticeTest';
 import { Profile } from '@/screens/Profile';
 import { SignIn } from '@/screens/SignIn';
-import { PracticeSoon, WordsSoon } from '@/screens/Soon';
+import { WordsSoon } from '@/screens/Soon';
 import { Username } from '@/screens/Username';
 
 const queryClient = new QueryClient({
@@ -39,10 +45,16 @@ export function App() {
               </Route>
               <Route element={<RequireAuth />}>
                 <Route path="/choose-password" element={<ChoosePassword />} />
+                {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
+                <Route path="/practice/run/:code" element={<PracticeRun />} />
                 <Route element={<AppShell />}>
                   <Route path="/" element={<Classes />} />
                   <Route path="/attendance/:groupId" element={<Attendance />} />
-                  <Route path="/practice" element={<PracticeSoon />} />
+                  <Route path="/practice" element={<Practice />} />
+                  <Route path="/practice/test/:code" element={<PracticeTest />} />
+                  <Route path="/practice/history/:code" element={<PracticeHistory />} />
+                  <Route path="/practice/result/:id" element={<PracticeResult />} />
+                  <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<WordsSoon />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/profile/username" element={<Username />} />
