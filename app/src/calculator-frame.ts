@@ -7,9 +7,16 @@ import './calculator-frame.css';
 // what Desmos needs to run. The key comes from VITE_DESMOS_API_KEY at build
 // time and is restricted to our domain by Desmos.
 
+type DesmosCalculator = {
+  resize: () => void;
+  getState: () => unknown;
+  setState: (state: unknown, options?: { allowUndo?: boolean }) => void;
+  observeEvent?: (event: string, callback: () => void) => void;
+};
+
 declare global {
   interface Window {
-    Desmos?: { GraphingCalculator?: (el: HTMLElement, options: Record<string, unknown>) => { resize: () => void } };
+    Desmos?: { GraphingCalculator?: (el: HTMLElement, options: Record<string, unknown>) => DesmosCalculator };
   }
 }
 
@@ -31,7 +38,46 @@ const note = (p: string) => {
 document.addEventListener('securitypolicyviolation', (e) => note(`Blocked by the security policy: ${e.effectiveDirective} ${e.blockedURI}`.trim()));
 window.addEventListener('error', (e) => note(e.message));
 
-let calculator: { resize: () => void } | null = null;
+let calculator: DesmosCalculator | null = null;
+
+// The student's work, kept for the test in progress (the page is opened as
+// calculator.html?run=<run id>): restored when the calculator starts, saved
+// as it changes. The key is lib/practice/calculator-state.ts's.
+const run = new URLSearchParams(location.search).get('run');
+const storeKey = run && /^[\w-]{1,64}$/.test(run) ? `mb.calc.${run}` : null;
+let saved = '';
+
+function restore() {
+  if (!storeKey || !calculator) return;
+  try {
+    const raw = localStorage.getItem(storeKey);
+    if (raw) {
+      calculator.setState(JSON.parse(raw), { allowUndo: false });
+      saved = raw;
+    }
+  } catch {
+    // A state Desmos can't read (or no storage): start empty.
+  }
+}
+
+function save() {
+  if (!storeKey || !calculator) return;
+  try {
+    const state = JSON.stringify(calculator.getState());
+    if (state !== saved) {
+      localStorage.setItem(storeKey, state);
+      saved = state;
+    }
+  } catch {
+    // Storage full or blocked: the work stays on screen for now.
+  }
+}
+
+let pending: ReturnType<typeof setTimeout> | undefined;
+const saveSoon = () => {
+  clearTimeout(pending);
+  pending = setTimeout(save, 300);
+};
 
 function fail(reason: string) {
   note(reason);
@@ -49,6 +95,10 @@ function start() {
       zoomButtons: true,
       border: false,
     });
+    restore();
+    calculator.observeEvent?.('change', saveSoon);
+    // Also now and then, and when the page goes away, in case a change slipped by.
+    setInterval(save, 3000);
     show(null);
   } catch (e) {
     fail(e instanceof Error ? e.message : String(e));
@@ -86,6 +136,8 @@ function load() {
 
 // The frame is resized with its pane (dragged, docked or floating).
 window.addEventListener('resize', () => calculator?.resize());
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save());
 el('retry').addEventListener('click', () => location.reload());
 
 if (KEY) load();

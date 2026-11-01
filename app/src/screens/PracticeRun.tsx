@@ -523,9 +523,10 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {stage.subject === 'math' && showCalculator && wide && (
-          <CalcPane>
-            <Calculator visible docked onClose={() => setShowCalculator(false)} />
+        {/* Mounted for the whole Math module and only hidden when closed, so the calculator keeps its work. */}
+        {stage.subject === 'math' && wide && (
+          <CalcPane hidden={!showCalculator}>
+            <Calculator visible docked runId={run.id} onClose={() => setShowCalculator(false)} />
           </CalcPane>
         )}
         {showReview ? (
@@ -629,7 +630,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         )}
       </footer>
 
-      {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} onClose={() => setShowCalculator(false)} />}
+      {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} runId={run.id} onClose={() => setShowCalculator(false)} />}
       {showReference && <Reference onClose={() => setShowReference(false)} />}
     </div>
   );
@@ -666,7 +667,7 @@ const clampCalc = (w: number) => Math.round(Math.min(Math.max(w, CALC_MIN), calc
 // The docked calculator's pane. Its right edge is a handle: drag it (or focus
 // it and use the arrow keys) to make the calculator wider or narrower; the
 // width is remembered in this browser.
-function CalcPane({ children }: { children: ReactNode }) {
+function CalcPane({ children, hidden }: { children: ReactNode; hidden: boolean }) {
   const [width, setWidth] = useState(() => {
     let saved = 0;
     try {
@@ -720,7 +721,7 @@ function CalcPane({ children }: { children: ReactNode }) {
     save(next);
   };
   return (
-    <aside className="relative shrink-0" style={{ width }}>
+    <aside className="relative shrink-0" style={{ width }} hidden={hidden}>
       {children}
       <div
         role="separator"

@@ -11,7 +11,9 @@ import { Icon } from '@/components/Icon';
 // Docked (a laptop): a pane beside the question, as in Bluebook, its width
 // set by the pane's right edge (PracticeRun's CalcPane). Otherwise it floats,
 // dragged by its bar and resized from its corner. Either way it stays mounted
-// while hidden, so the calculator's work survives closing and reopening.
+// while hidden, and the frame keeps the student's work for the run
+// (lib/practice/calculator-state.ts), so it survives closing the panel,
+// leaving the test, a reload or a switch between docked and floating.
 
 const MIN_W = 300;
 const MIN_H = 320;
@@ -26,7 +28,7 @@ export function dragging(on: boolean) {
   document.documentElement.classList.toggle('mb-dragging', on);
 }
 
-export function Calculator({ visible, onClose, docked = false }: { visible: boolean; onClose: () => void; docked?: boolean }) {
+export function Calculator({ visible, onClose, docked = false, runId }: { visible: boolean; onClose: () => void; docked?: boolean; runId: string }) {
   const [box, setBox] = useState<Box>(() => {
     const w = Math.min(380, window.innerWidth - MARGIN * 2);
     const h = Math.min(460, window.innerHeight - MARGIN * 2);
@@ -75,7 +77,7 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
         </button>
       </div>
       <div className="relative min-h-0 flex-1">
-        <iframe src="/calculator.html" title="Desmos graphing calculator" className="absolute inset-0 h-full w-full border-0 bg-paper" />
+        <iframe src={`/calculator.html?run=${encodeURIComponent(runId)}`} title="Desmos graphing calculator" className="absolute inset-0 h-full w-full border-0 bg-paper" />
       </div>
       {!docked && (
         <div onPointerDown={gesture('resize')} aria-hidden="true" className="absolute bottom-0 right-0 flex size-7 cursor-nwse-resize touch-none items-end justify-end bg-paper p-1.5">

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { ApiError, api, call } from '@/api/client';
 import { useMe } from '@/api/queries';
 
+import { forgetCalculator } from './calculator-state';
 import {
   clearRun,
   loadAttempts,
@@ -112,6 +113,9 @@ export function useRunStore() {
         saveRun(person, run);
       },
       clear: (code: string) => {
+        // The run is over (finished or discarded): its calculator work too.
+        const ending = loadRun(person, code);
+        if (ending) forgetCalculator(ending.id);
         put(code, null);
         clearRun(person, code);
       },
