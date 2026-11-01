@@ -18,8 +18,10 @@ import { PracticeRun } from '@/screens/PracticeRun';
 import { PracticeTest } from '@/screens/PracticeTest';
 import { Profile } from '@/screens/Profile';
 import { SignIn } from '@/screens/SignIn';
-import { WordsSoon } from '@/screens/Soon';
+import { Study } from '@/screens/Study';
 import { Username } from '@/screens/Username';
+import { Words } from '@/screens/Words';
+import { WordsList } from '@/screens/WordsList';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +49,7 @@ export function App() {
                 <Route path="/choose-password" element={<ChoosePassword />} />
                 {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
                 <Route path="/practice/run/:code" element={<PracticeRun />} />
+                <Route path="/words/study" element={<Study />} />
                 <Route element={<AppShell />}>
                   <Route path="/" element={<Classes />} />
                   <Route path="/attendance/:groupId" element={<Attendance />} />
@@ -55,7 +58,8 @@ export function App() {
                   <Route path="/practice/history/:code" element={<PracticeHistory />} />
                   <Route path="/practice/result/:id" element={<PracticeResult />} />
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
-                  <Route path="/words" element={<WordsSoon />} />
+                  <Route path="/words" element={<Words />} />
+                  <Route path="/words/list/:slug" element={<WordsList />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/profile/username" element={<Username />} />
                   <Route path="/profile/password" element={<Password />} />

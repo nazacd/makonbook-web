@@ -57,6 +57,24 @@ function grade(pkg, sections, answers) {
   return scores;
 }
 
+// --- Vocabulary (fictional words) ---
+const vw = (list, i, word, pos, definition, example) => ({ id: `0000000${list}-0000-4000-8000-${String(i).padStart(12, '0')}`, word, part_of_speech: pos, definition, example, image: null });
+const deck = { version: 'demo-1', lists: [
+  { slug: 'unit-1', title: 'SAT Words: Unit 1', words: [
+    vw(1, 1, 'abate', 'verb', 'To become less strong or intense.', 'The storm abated by morning.'),
+    vw(1, 2, 'candid', 'adjective', 'Truthful and straightforward.', 'Her candid reply surprised the committee.'),
+    vw(1, 3, 'diligent', 'adjective', 'Working carefully and steadily.', 'A diligent student checks every answer.'),
+    vw(1, 4, 'ephemeral', 'adjective', 'Lasting a very short time.', 'Fame on the internet is often ephemeral.'),
+  ] },
+  { slug: 'unit-2', title: 'SAT Words: Unit 2', words: [
+    vw(2, 1, 'lucid', 'adjective', 'Clear and easy to understand.', 'The teacher gave a lucid explanation.'),
+    vw(2, 2, 'meticulous', 'adjective', 'Very careful about details.', 'He kept meticulous notes.'),
+    vw(2, 3, 'novel', 'adjective', 'New and original.', 'She proposed a novel approach to the problem.'),
+  ] },
+] };
+const reviews = new Map(); // login -> [{seq, ...review}]
+let seq = 0;
+
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
 http.createServer(async (req, res) => {
@@ -94,6 +112,15 @@ http.createServer(async (req, res) => {
     attempts.set(key, stored); const { answers: _a, ...out } = stored; return json(res, 200, out);
   }
   if (url === '/v1/me/practice/attempts') return me.kind === 'student' ? json(res, 200, { attempts: [...attempts.values()].filter((a) => [...attempts.keys()].some((k) => k === `${login}:${a.id}`)).sort((a, b) => b.finished_at.localeCompare(a.finished_at)) }) : err(res, 403, 'forbidden', 'not a student');
+  if (url === '/v1/vocab/deck') { const have = new URL(req.url, 'http://x').searchParams.get('have'); return json(res, 200, have === deck.version ? { version: deck.version, unchanged: true } : { version: deck.version, unchanged: false, lists: deck.lists }); }
+  if (/^\/v1\/vocab\/lists\/[^/]+\/images$/.test(url)) return json(res, 200, { images: {}, expires_at: new Date(Date.now() + 6 * 3600e3).toISOString() });
+  if (url === '/v1/vocab/reviews' && req.method === 'POST') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    const mine = reviews.get(login) || []; let added = 0;
+    for (const r of body.reviews || []) { if (!mine.some((x) => x.id === r.id)) { mine.push({ seq: ++seq, ...r }); added++; } }
+    reviews.set(login, mine); return json(res, 200, { received: (body.reviews || []).length, added });
+  }
+  if (url === '/v1/me/vocab/reviews') { const after = Number(new URL(req.url, 'http://x').searchParams.get('after') || 0); const mine = (reviews.get(login) || []).filter((r) => r.seq > after); return json(res, 200, { reviews: mine.slice(0, 1000), next: mine.length > 1000 ? mine[999].seq : null }); }
   if (url === '/v1/me/parent-code') return me.kind === 'student' ? json(res, 200, { code: '48213' }) : err(res, 403, 'forbidden', 'not a student');
   err(res, 404, 'not_found', 'no such route');
 }).listen(8081, '127.0.0.1', () => console.log('mock api on 8081'));
