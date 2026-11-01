@@ -53,6 +53,8 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
   const host = useRef<HTMLDivElement>(null);
   const calc = useRef<{ resize: () => void; destroy: () => void } | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed' | 'unconfigured'>(KEY ? 'loading' : 'unconfigured');
+  // What went wrong, for the message (a blocked request, a thrown error).
+  const [reason, setReason] = useState<string | null>(null);
   const [box, setBox] = useState<Box>(() => {
     const w = Math.min(380, window.innerWidth - MARGIN * 2);
     const h = Math.min(460, window.innerHeight - MARGIN * 2);
@@ -63,16 +65,31 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
   useEffect(() => {
     if (!KEY) return;
     let live = true;
+    // A request the page's policy refuses shows up here, not as a script error.
+    const onViolation = (e: SecurityPolicyViolationEvent) => {
+      if (live && /desmos/.test(e.blockedURI)) setReason(`Blocked by the page's security policy: ${e.violatedDirective} ${e.blockedURI}`);
+    };
+    document.addEventListener('securitypolicyviolation', onViolation);
     loadDesmos().then(
       () => {
         if (!live || !host.current || !window.Desmos) return;
-        calc.current ??= window.Desmos.GraphingCalculator(host.current, { keypad: true, expressionsCollapsed: false, settingsMenu: false, zoomButtons: true, border: false });
-        setState('ready');
+        try {
+          calc.current ??= window.Desmos.GraphingCalculator(host.current, { keypad: true, expressionsCollapsed: false, settingsMenu: false, zoomButtons: true, border: false });
+          setState('ready');
+        } catch (e) {
+          setReason(e instanceof Error ? e.message : String(e));
+          setState('failed');
+        }
       },
-      () => live && setState('failed'),
+      (e: unknown) => {
+        if (!live) return;
+        setReason((r) => r ?? (e instanceof Error ? e.message : String(e)));
+        setState('failed');
+      },
     );
     return () => {
       live = false;
+      document.removeEventListener('securitypolicyviolation', onViolation);
     };
   }, [attempt]);
 
@@ -120,7 +137,7 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
     <section
       aria-label="Calculator"
       hidden={!visible}
-      className={docked ? 'flex h-full w-full flex-col overflow-hidden border-r border-line bg-paper' : 'fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]'}
+      className={docked ? 'flex h-full w-full flex-col overflow-hidden bg-paper' : 'fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]'}
       style={docked ? undefined : { left: box.x, top: box.y, width: box.w, height: box.h }}>
       <div onPointerDown={docked ? undefined : gesture('move')} className={`flex h-10 shrink-0 items-center justify-between border-b border-line bg-ink px-3 select-none ${docked ? '' : 'cursor-move touch-none'}`}>
         <span className="t-subhead font-semibold text-paper">Calculator</span>
@@ -136,11 +153,14 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
               <>
                 <Spinner className="size-7 text-ink" />
                 <p className="t-subhead text-ink-2">Loading the calculator…</p>
+                {reason && <p className="t-caption max-w-xs break-words font-normal text-ink-3">{reason}</p>}
               </>
             ) : state === 'failed' ? (
               <>
                 <p className="t-subhead text-ink-2">The calculator didn’t load. Check the connection.</p>
+                {reason && <p className="t-caption max-w-xs break-words font-normal text-ink-3">{reason}</p>}
                 <button type="button" onClick={() => {
+                    setReason(null);
                     setState('loading');
                     setAttempt((n) => n + 1);
                   }} className="t-headline h-11 rounded-control bg-primary px-5 text-on-primary">
