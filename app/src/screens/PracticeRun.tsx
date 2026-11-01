@@ -1,5 +1,5 @@
 import { ArrowRight, BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, Spinner } from '@/components/Button';
@@ -429,7 +429,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
       )}
 
       {/* The header, as Bluebook's: the section and its directions, the clock, the tools. */}
-      <header className="relative grid h-[72px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-dashed border-ink bg-paper px-3 sm:px-5">
+      <header className="relative grid h-[72px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b-2 border-dashed border-ink bg-bar px-3 sm:px-5">
         <div className="flex min-w-0 flex-col items-start">
           <p className="t-headline truncate text-ink">
             <span className="hidden sm:inline">{moduleLabel}</span>
@@ -471,9 +471,9 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 
       <div className="flex min-h-0 flex-1">
         {stage.subject === 'math' && showCalculator && wide && (
-          <aside className="w-[46%] min-w-[320px] max-w-[640px] shrink-0">
+          <CalcPane>
             <Calculator visible docked onClose={() => setShowCalculator(false)} />
-          </aside>
+          </CalcPane>
         )}
         {showReview ? (
           <main className="min-h-0 flex-1 overflow-y-auto p-5 md:p-8">
@@ -483,6 +483,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
               <div className="rounded-panel border border-line bg-paper p-5">
                 <p className="t-headline mb-3 text-ink">{moduleLabel}</p>
                 <NavigatorLegend />
+                <div className="mt-3 border-t border-line pt-3">
                 <QuestionNavigatorGrid
                   variant="progress"
                   items={grid}
@@ -491,6 +492,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
                     setShowReview(false);
                   }}
                 />
+                </div>
               </div>
             </div>
           </main>
@@ -511,7 +513,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         )}
       </div>
 
-      <footer className="relative grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t-2 border-dashed border-ink bg-paper px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
+      <footer className="relative grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t-2 border-dashed border-ink bg-bar px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
         {/* A laptop shows the name here; a phone has no room for it, so Back takes the left side. */}
         <p className="t-subhead hidden truncate font-bold uppercase text-ink sm:block">{studentName}</p>
         <div className="flex sm:hidden">{showReview ? backToQuestion : backButton}</div>
@@ -548,7 +550,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
               </button>
             </div>
             <NavigatorLegend />
-            <div className="max-h-[40dvh] overflow-y-auto border-t border-line pb-1">
+            <div className="mt-3 max-h-[44dvh] overflow-y-auto border-t border-line pb-1 pt-3">
               <QuestionNavigatorGrid
                 variant="progress"
                 items={grid}
@@ -583,7 +585,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 /** A header tool, as Bluebook's: the icon over its label. */
 function Tool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: string; on?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-accent-tint text-accent' : 'text-ink active:bg-paper-2'}`}>
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-paper text-accent shadow-sm' : 'text-ink active:bg-paper'}`}>
       <Icon as={icon} size={20} className="text-current" />
       <span className="t-caption hidden font-medium sm:block">{label}</span>
     </button>
@@ -626,4 +628,84 @@ function useWide(): boolean {
     return () => mq.removeEventListener('change', onChange);
   }, []);
   return wide;
+}
+
+const CALC_WIDTH_KEY = 'mb.calc.width';
+const CALC_MIN = 300;
+/** Keep room for the question beside the calculator. */
+const calcMax = () => Math.max(CALC_MIN, window.innerWidth - 420);
+const clampCalc = (w: number) => Math.round(Math.min(Math.max(w, CALC_MIN), calcMax()));
+
+// The docked calculator's pane. Its right edge is a handle: drag it (or focus
+// it and use the arrow keys) to make the calculator wider or narrower; the
+// width is remembered in this browser.
+function CalcPane({ children }: { children: ReactNode }) {
+  const [width, setWidth] = useState(() => {
+    let saved = 0;
+    try {
+      saved = Number(localStorage.getItem(CALC_WIDTH_KEY)) || 0;
+    } catch {
+      // No storage: the default width.
+    }
+    return clampCalc(saved || window.innerWidth * 0.42);
+  });
+  useEffect(() => {
+    const onResize = () => setWidth((w) => clampCalc(w));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const save = (w: number) => {
+    try {
+      localStorage.setItem(CALC_WIDTH_KEY, String(w));
+    } catch {
+      // Not remembered: fine.
+    }
+  };
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const handle = e.currentTarget;
+    const startX = e.clientX;
+    const startW = width;
+    let last = startW;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      last = clampCalc(startW + ev.clientX - startX);
+      setWidth(last);
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      save(last);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  };
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === 'ArrowLeft' ? -24 : e.key === 'ArrowRight' ? 24 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = clampCalc(width + step);
+    setWidth(next);
+    save(next);
+  };
+  return (
+    <aside className="relative shrink-0" style={{ width }}>
+      {children}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the calculator"
+        aria-valuenow={width}
+        aria-valuemin={CALC_MIN}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
+        className="group absolute -right-2 bottom-0 top-0 z-10 flex w-4 cursor-col-resize touch-none select-none items-center justify-center outline-none">
+        <span className="h-full w-px bg-line-strong transition-colors group-hover:w-0.5 group-hover:bg-accent group-focus-visible:w-0.5 group-focus-visible:bg-accent" />
+        <span className="absolute h-12 w-1.5 rounded-full bg-ink-3 transition-colors group-hover:bg-accent group-focus-visible:bg-accent" />
+      </div>
+    </aside>
+  );
 }

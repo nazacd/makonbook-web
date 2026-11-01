@@ -137,7 +137,7 @@ export function Calculator({ visible, onClose, docked = false }: { visible: bool
     <section
       aria-label="Calculator"
       hidden={!visible}
-      className={docked ? 'flex h-full w-full flex-col overflow-hidden border-r border-line bg-paper' : 'fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]'}
+      className={docked ? 'flex h-full w-full flex-col overflow-hidden bg-paper' : 'fixed z-40 flex flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]'}
       style={docked ? undefined : { left: box.x, top: box.y, width: box.w, height: box.h }}>
       <div onPointerDown={docked ? undefined : gesture('move')} className={`flex h-10 shrink-0 items-center justify-between border-b border-line bg-ink px-3 select-none ${docked ? '' : 'cursor-move touch-none'}`}>
         <span className="t-subhead font-semibold text-paper">Calculator</span>

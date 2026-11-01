@@ -67,8 +67,8 @@ const FIGURES: { id: string; draw: ReactNode; tex: string[]; caption?: string }[
       <g>
         <polygon points="14,66 92,66 14,16" {...stroke} />
         <polyline points="14,60 20,60 20,66" {...stroke} />
-        <text x="24" y="34" {...label} fontStyle="normal">60°</text>
-        <text x="64" y="61" {...label} fontStyle="normal">30°</text>
+        <text x="17" y="42" {...label} fontStyle="normal">60°</text>
+        <text x="58" y="64" {...label} fontStyle="normal">30°</text>
         <text x="4" y="44" {...label}>x</text>
         <text x="40" y="78" {...label}>x√3</text>
         <text x="52" y="38" {...label}>2x</text>
@@ -83,8 +83,8 @@ const FIGURES: { id: string; draw: ReactNode; tex: string[]; caption?: string }[
       <g>
         <polygon points="14,66 70,66 14,10" {...stroke} />
         <polyline points="14,60 20,60 20,66" {...stroke} />
-        <text x="22" y="28" {...label} fontStyle="normal">45°</text>
-        <text x="46" y="61" {...label} fontStyle="normal">45°</text>
+        <text x="16" y="40" {...label} fontStyle="normal">45°</text>
+        <text x="44" y="64" {...label} fontStyle="normal">45°</text>
         <text x="4" y="42" {...label}>s</text>
         <text x="38" y="78" {...label}>s</text>
         <text x="50" y="36" {...label}>s√2</text>
