@@ -1,0 +1,57 @@
+/* Layout: a fixed WebGL particle stairwell behind a tall scroll track; overlays fade out as the climb begins */
+:root{
+  color-scheme: dark;
+  --night:#07061a;
+  --ink:#f1eefc;
+  --mist:#9a90c9;
+  --violet:#5b21b6;
+  --violet-hi:#6d28d9;
+  --violet-glow:#8b5cf6;
+  --violet-soft:#c4b5fd;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+  --ui:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+html{background:var(--night)}
+body{background:var(--night);color:var(--ink);font-family:var(--ui);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-font-smoothing:antialiased;overflow-x:hidden}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;touch-action:pan-y}
+#track{height:1400vh}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:3;display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:calc(env(safe-area-inset-top,0px) + 20px);padding-left:max(28px,calc(env(safe-area-inset-left,0px) + 16px));padding-right:max(28px,calc(env(safe-area-inset-right,0px) + 16px))}
+.brand{display:inline-flex;align-items:center;gap:11px;font-family:var(--display);font-weight:700;font-size:24px;line-height:1;color:var(--ink);text-decoration:none;letter-spacing:-.025em}
+.brand img{width:31px;height:auto;display:block}
+.pill{font-family:var(--ui);font-weight:600;color:#fff;background:var(--violet);text-decoration:none;display:inline-flex;gap:10px;align-items:center;border-radius:999px;box-shadow:0 10px 32px -10px rgba(139,92,246,.85);transition:background .2s ease,transform .2s ease}
+.pill:hover{background:var(--violet-hi);transform:translateY(-2px)}
+.pill .arr{display:block;flex:none;width:1.1em;height:1.1em;transition:transform .25s ease}
+.pill:hover .arr{transform:translateX(4px)}
+.go{font-size:15px;padding:12px 22px}
+.cta{font-size:17px;padding:17px 32px}
+#hero{position:fixed;inset:0;z-index:2;display:grid;place-items:center;pointer-events:none;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.hero-in{display:flex;flex-direction:column;align-items:center;gap:clamp(28px,4vh,44px)}
+#hero h1{margin:0;font-family:var(--display);font-weight:600;font-variation-settings:"opsz" 96;font-size:clamp(44px,7.6vw,116px);line-height:.95;letter-spacing:-.045em;text-align:center;text-wrap:balance;max-width:12ch;text-shadow:0 2px 40px rgba(7,6,26,.85)}
+#hero em{color:var(--violet-glow);font-style:normal}
+#heroCta{pointer-events:auto}
+#cue{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);transform:translateX(-50%);z-index:3;color:var(--violet-glow);pointer-events:none}
+#cue::before{content:"";position:absolute;left:50%;top:50%;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;background:radial-gradient(closest-side,rgba(139,92,246,.28),rgba(91,33,182,.1) 55%,rgba(91,33,182,0))}
+#cue svg{position:relative;display:block;width:30px;height:44px;filter:drop-shadow(0 0 4px rgba(139,92,246,.85)) drop-shadow(0 0 11px rgba(139,92,246,.45))}
+#cue path{stroke-width:2}
+#cue .c1{stroke:var(--violet-soft)}
+@media (prefers-reduced-motion:no-preference){
+  #cue::before{animation:halo 2.2s ease-in-out infinite}
+  #cue svg{animation:bob 2.2s ease-in-out infinite}
+  #cue .c1{animation:chev 2.2s ease-in-out infinite}
+  #cue .c2{animation:chev 2.2s ease-in-out .25s infinite}
+  #cue.nudge svg{animation:nudge 2.2s ease-in-out infinite}
+}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+@keyframes chev{0%,100%{opacity:.45}40%{opacity:1}}
+@keyframes halo{0%,100%{transform:scale(.85);opacity:.7}50%{transform:scale(1.15);opacity:1}}
+@keyframes nudge{0%,100%{transform:translateY(0)}18%{transform:translateY(14px)}34%{transform:translateY(0)}46%{transform:translateY(8px)}58%{transform:translateY(0)}}
+#finBrand{position:fixed;top:0;left:0;right:0;z-index:3;display:flex;justify-content:center;padding-top:calc(env(safe-area-inset-top,0px) + 20px);opacity:0;pointer-events:none}
+#finale{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 13vh);z-index:3;display:flex;justify-content:center;opacity:0;pointer-events:none}
+a:focus-visible{outline:2px solid var(--violet-glow);outline-offset:5px}
+.nogl #cue,.nogl #finale,.nogl #finBrand{display:none}
+.nogl #track{height:auto}
+/* Until the scene runs (three.js loads after the first paint), the page is just the hero: no
+   scroll track to scroll through and no cue asking to. main.js adds .scene when it starts. */
+html:not(.scene) #cue{display:none}
+html:not(.scene) #track{height:auto}
+@media (max-width:520px){.brand{font-size:21px;gap:9px}.brand img{width:27px}.go{font-size:14px;padding:10px 18px}.cta{font-size:16px;padding:15px 28px}}

@@ -1,0 +1,2432 @@
+openapi: 3.1.0
+info:
+  title: MakonBook API
+  version: 0.1.0
+  description: |
+    Backend for the MakonBook mobile app and admin panel. This file is the
+    contract between this repo, the Expo app and the admin web app (spec 14.3).
+
+    Every error response uses the `Error` envelope; clients branch on
+    `error.code`, never on `error.message`. Every response carries an
+    `X-Request-ID` header — quote it when reporting a problem.
+
+    Authentication: `POST /v1/auth/login` returns a bearer token; send it as
+    `Authorization: Bearer <token>`. While `must_change_password` is true
+    (the person still uses the default password, the last 4 digits of their
+    phone) only `/v1/me`, `/v1/auth/password` and `/v1/auth/logout` work;
+    everything else answers 403 `password_change_required`. Any 401 means the
+    session is gone (logout, password changed elsewhere, person no longer
+    active): send the user back to the login screen.
+
+    Admin panel (`/v1/admin/*`): admins sign in with their HolliHop login and
+    password, which HolliHop checks; MakonBook stores neither. The session is
+    an HttpOnly `mb_admin` cookie (SameSite=Strict, 12 h). Every admin request
+    that changes something — and the sign-in itself — must carry the
+    `X-MakonBook-Admin` header (any value); without it the answer is 403
+    `forbidden`. Branch admins only ever see their own branches' data.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness check
+      description: Returns 200 while the process is running. Does not check dependencies.
+      operationId: getHealth
+      tags: [system]
+      responses:
+        "200":
+          description: Process is up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+
+  /readyz:
+    get:
+      summary: Readiness check
+      description: Returns 200 when the service can reach its database, 503 otherwise.
+      operationId: getReady
+      tags: [system]
+      responses:
+        "200":
+          description: Ready to serve traffic
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/app/config:
+    get:
+      summary: Public app configuration
+      description: |
+        Called by the app on startup, without authentication. If the app's
+        version is older than `min_app_version` for its platform, the app
+        shows an "update the app" screen and stops (spec D15).
+      operationId: getAppConfig
+      tags: [system]
+      responses:
+        "200":
+          description: Current configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppConfig" }
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /v1/auth/login:
+    post:
+      summary: Log in with phone number or username
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401":
+          description: "`invalid_credentials` — same answer whether the account exists or not"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: |
+            `account_locked` (5 wrong passwords in a row; 15 min, doubling
+            with each further lockout, at most 24 h) or `rate_limited` (too
+            many attempts from one network). `Retry-After` gives seconds.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/auth/password:
+    post:
+      summary: Change password (including replacing the default one)
+      description: Logs out every other session of this person.
+      operationId: changePassword
+      tags: [auth]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "204": { description: Changed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`wrong_password` — counts towards the lockout"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: "`weak_password` — the message says why (8–128 characters, not the old one, must not contain the phone number)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/username:
+    put:
+      summary: Set an optional username to log in with
+      operationId: setUsername
+      tags: [auth]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Username" }
+      responses:
+        "200":
+          description: Saved (lower-cased)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Username" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`username_taken`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: "`invalid_username`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/auth/logout:
+    post:
+      summary: End this session
+      operationId: logout
+      tags: [auth]
+      security: [{ bearer: [] }]
+      responses:
+        "204": { description: Logged out }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/me:
+    get:
+      summary: The logged-in person, with their groups
+      operationId: getMe
+      tags: [auth]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Profile" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/teacher/lessons:
+    get:
+      summary: The logged-in teacher's lessons on a date
+      description: |
+        Lessons come from the lesson days HolliHop lists for the teacher's
+        groups (holidays and cancellations entered there are respected), for
+        dates from 7 days ago to 14 days ahead. A teacher who isn't on a
+        lesson's schedule item (e.g. a substitute) doesn't see it.
+        `attendance_enabled` is false for one-to-one and online lessons,
+        which don't take attendance in the app.
+      operationId: getTeacherLessons
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      parameters:
+        - name: date
+          in: query
+          description: Calendar date at the school; defaults to today there.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Lessons, earliest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [date, lessons]
+                properties:
+                  date: { type: string, format: date }
+                  lessons:
+                    type: array
+                    items: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden` (not a teacher) or `password_change_required`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/attendance/sessions:
+    post:
+      summary: Start attendance for one of the teacher's lessons
+      description: |
+        Allowed from 15 minutes before the lesson until it ends, for lessons
+        with `attendance_enabled`. The roster is frozen now: enrollments
+        current that day and weekday, of active students. If the lesson
+        already has a session (opened earlier, on this or another device, by
+        any teacher of the lesson), that session is returned instead — any
+        time, so reopening the app never loses it.
+      operationId: openAttendance
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group_id]
+              properties:
+                group_id: { type: integer }
+                date: { type: string, format: date, description: Defaults to today at the school }
+      responses:
+        "200": { $ref: "#/components/responses/AttendanceSession" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found` — not one of this teacher's lessons on that date"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`too_early` (message says when it opens), `lesson_over`, `attendance_disabled` (one-to-one or online)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/attendance/sessions/{id}:
+    get:
+      summary: A session's live state (poll every few seconds while open)
+      operationId: getAttendance
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      parameters: [{ $ref: "#/components/parameters/SessionID" }]
+      responses:
+        "200": { $ref: "#/components/responses/AttendanceSession" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/attendance/sessions/{id}/finish:
+    post:
+      summary: Finish attendance; everyone still pending becomes absent
+      description: Idempotent. Sessions nobody finishes close on their own 15 minutes after the lesson ends.
+      operationId: finishAttendance
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      parameters: [{ $ref: "#/components/parameters/SessionID" }]
+      responses:
+        "200": { $ref: "#/components/responses/AttendanceSession" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/attendance/sessions/{id}/marks/{client_id}:
+    put:
+      summary: Teacher's correction of one student's mark
+      description: |
+        Allowed while open and until 24 hours after the lesson ends, except
+        for a mark the office already corrected in the admin panel (409
+        `set_by_admin`). Every change is audited.
+      operationId: setAttendanceMark
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SessionID" }
+        - { name: client_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [present, late, absent] }
+      responses:
+        "200": { $ref: "#/components/responses/AttendanceSession" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`edit_window_closed`, `not_in_roster`, `forbidden`"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`set_by_admin` — the office corrected this mark; only they change it now"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/me/attendance:
+    get:
+      summary: The student's own attendance table
+      description: |
+        Lessons of the last 120 days, per group, newest first. Past lessons
+        use HolliHop's marks (so admins' corrections count; a lesson nobody
+        marked counts as attended there); the app adds `late`, and today's
+        lessons come from the app until HolliHop has them. Synced from
+        HolliHop every 15 minutes (last week) and nightly (whole window).
+      operationId: getMyAttendance
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The table
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from, to, groups]
+                properties:
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  groups:
+                    type: array
+                    items:
+                      type: object
+                      required: [group_id, group_name, discipline, summary, days]
+                      properties:
+                        group_id: { type: integer }
+                        group_name: { type: string }
+                        discipline: { type: string }
+                        summary:
+                          type: object
+                          required: [lessons, present, late, absent]
+                          properties:
+                            lessons: { type: integer }
+                            present: { type: integer }
+                            late: { type: integer }
+                            absent: { type: integer }
+                        days:
+                          type: array
+                          items:
+                            type: object
+                            required: [date, state]
+                            properties:
+                              date: { type: string, format: date }
+                              state: { type: string, enum: [present, late, absent] }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden` — not a student"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/attendance/scan:
+    post:
+      summary: A student checks in with the code from the teacher's QR
+      description: |
+        The QR carries `session_id`, `window` and `sig` (see `AttendanceQR`).
+        Present if scanned up to 10 minutes after the lesson starts, late
+        after that. Scanning again returns the existing mark with
+        `already: true`. One phone can check in only one student per session.
+      operationId: scanAttendance
+      tags: [attendance]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, window, sig, device_id]
+              properties:
+                session_id: { type: string, format: uuid }
+                window: { type: integer, format: int64 }
+                sig: { type: string }
+                device_id: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state, already, group_name, at]
+                properties:
+                  state: { type: string, enum: [present, late] }
+                  already: { type: boolean }
+                  group_name: { type: string }
+                  at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`not_in_roster`, `forbidden` (not a student)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: "`session_closed`, `device_already_used`, `marked_absent` (the teacher marked them absent)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`invalid_code` (not a MakonBook code, or forged), `code_expired` (scan the current one)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/practice/tests:
+    get:
+      summary: Every practice test, open or locked (students and teachers)
+      description: |
+        A test opens once every question in it is approved and the server has
+        published it (within minutes); `version` is then its latest published
+        version. A locked test has `version: null` and shows how far its
+        review has come (`approved` of `questions`). A published test stays
+        open at its last version while an edited question is reviewed again.
+      operationId: practiceTests
+      tags: [practice]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The catalog, in test order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tests]
+                properties:
+                  tests: { type: array, items: { $ref: "#/components/schemas/PracticeCatalogTest" } }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/practice/tests/{code}/package:
+    get:
+      summary: A published version of a test, to take offline
+      description: |
+        The package (questions, keys, explanations, score scales) and a link
+        to each of its images, valid until `expires_at` (6 hours): download
+        them right away. A version never changes once published; images are
+        named by their bytes, so a file already on the device needn't be
+        fetched again.
+      operationId: practicePackage
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string }, example: DAY12 }
+        - name: version
+          in: query
+          description: A version; the latest when left out
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: The package and image links
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [package, images, expires_at]
+                properties:
+                  package: { $ref: "#/components/schemas/PracticePackage" }
+                  images:
+                    type: object
+                    description: Image file → download link
+                    additionalProperties: { type: string, format: uri }
+                  expires_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found`: no such test, or not published (yet), or no such version"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/practice/attempts:
+    post:
+      summary: Upload a finished attempt (students)
+      description: |
+        Sent when the device is online, with the id the device gave the
+        attempt: sending it again returns the stored attempt, so a retry
+        after a lost answer is safe. The server grades it from the version's
+        keys; its scores are the ones teachers see.
+      operationId: savePracticeAttempt
+      tags: [practice]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, test, version, sections, started_at, finished_at, answers]
+              properties:
+                id: { type: string, format: uuid }
+                test: { type: string, description: The test's code }
+                version: { type: integer }
+                sections:
+                  type: array
+                  description: The sections taken, in order
+                  items: { type: string, enum: [english, math] }
+                started_at: { type: string, format: date-time }
+                finished_at: { type: string, format: date-time }
+                answers:
+                  type: array
+                  description: One per question seen, in the sections taken; blank answers are null
+                  items: { $ref: "#/components/schemas/PracticeAnswer" }
+      responses:
+        "200":
+          description: The stored attempt
+          content: { application/json: { schema: { $ref: "#/components/schemas/PracticeAttempt" } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden`: not a student"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: "`attempt_id_taken`: another student sent an attempt with this id"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`invalid_attempt`: no such test version, a section or question not in it, an answer given twice, times out of order"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/me/practice/attempts:
+    get:
+      summary: The student's attempts, latest first, with their answers
+      description: |
+        With the answers the attempt was sent with, so a phone that doesn't have
+        an attempt (a new phone) can store it and show its review.
+      operationId: myPracticeAttempts
+      tags: [practice]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The attempts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempts]
+                properties:
+                  attempts:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PracticeAttempt"
+                        - type: object
+                          required: [answers]
+                          properties:
+                            answers: { type: array, items: { $ref: "#/components/schemas/PracticeAnswer" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/teacher/groups/{id}/practice:
+    get:
+      summary: A group's students and their practice attempts (its teachers)
+      operationId: groupPractice
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The students enrolled now, by name, each with their attempts latest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [students]
+                properties:
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      required: [client_id, first_name, last_name, attempts]
+                      properties:
+                        client_id: { type: integer }
+                        first_name: { type: string }
+                        last_name: { type: string }
+                        attempts: { type: array, items: { $ref: "#/components/schemas/PracticeAttempt" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden`: not a teacher, or not this group's"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/vocab/deck:
+    get:
+      summary: Every word list, to study offline (students and teachers)
+      description: |
+        SAT MAKON's word lists; every student sees every list. Send the
+        version you have as `have`: if it is still current the answer is
+        only `{version, unchanged: true}`. The version changes when the lists
+        are imported again. Images (optional, per word) come from
+        `/v1/vocab/lists/{slug}/images`.
+      operationId: vocabDeck
+      tags: [vocab]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: have, in: query, description: The deck version on the phone, schema: { type: string } }
+      responses:
+        "200":
+          description: The deck, or that the phone's is current
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, unchanged]
+                properties:
+                  version: { type: string, description: Empty while no list was ever imported }
+                  unchanged: { type: boolean }
+                  lists: { type: array, items: { $ref: "#/components/schemas/VocabList" }, description: Absent when unchanged }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/vocab/lists/{slug}/images:
+    get:
+      summary: Links to a list's word images
+      description: Each link works for 6 hours (`expires_at`); download the images right away.
+      operationId: vocabImages
+      tags: [vocab]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Image file → link
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [images, expires_at]
+                properties:
+                  images: { type: object, additionalProperties: { type: string, format: uri } }
+                  expires_at: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/vocab/reviews:
+    post:
+      summary: Upload reviews from the phone's log (students)
+      description: |
+        The phone schedules with FSRS and keeps an append-only log of
+        reviews; it uploads them here (at most 200 at a time) with each
+        card's state after the review. A review already stored (same id) is
+        skipped, so a retry is safe.
+      operationId: saveVocabReviews
+      tags: [vocab]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviews]
+              properties:
+                reviews: { type: array, maxItems: 200, items: { $ref: "#/components/schemas/VocabReview" } }
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received, added]
+                properties:
+                  received: { type: integer }
+                  added: { type: integer, description: New ones (the rest were stored already) }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422":
+          description: "`invalid_reviews`: a review isn't valid (nothing of the batch is stored)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/me/vocab/reviews:
+    get:
+      summary: The student's reviews, to rebuild progress on a phone
+      description: |
+        In the order the server received them, 1000 at a time: pass the
+        `next` of one answer as `after` for the next page; `next` is null on
+        the last page. Keep the last `seq` seen to fetch only newer ones later.
+      operationId: myVocabReviews
+      tags: [vocab]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: after, in: query, schema: { type: integer, format: int64, minimum: 0 } }
+      responses:
+        "200":
+          description: A page of reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reviews, next]
+                properties:
+                  reviews: { type: array, items: { $ref: "#/components/schemas/VocabReview" } }
+                  next: { type: [integer, "null"], format: int64 }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/teacher/groups/{id}/vocab:
+    get:
+      summary: A group's students and their vocabulary progress (its teachers)
+      operationId: groupVocab
+      tags: [vocab]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The students enrolled now, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [words, students]
+                properties:
+                  words: { type: integer, description: Words in all lists }
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      required: [client_id, first_name, last_name, started, learned, reviews_week, last_review]
+                      properties:
+                        client_id: { type: integer }
+                        first_name: { type: string }
+                        last_name: { type: string }
+                        started: { type: integer, description: Words reviewed at least once }
+                        learned: { type: integer, description: "Words whose next review is 21 days or more away (Anki's \"mature\")" }
+                        reviews_week: { type: integer, description: Reviews in the last 7 days }
+                        last_review: { type: [string, "null"], format: date-time }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden`: not a teacher, or not this group's"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/me/parent-code:
+    get:
+      summary: The student's parent code
+      description: |
+        Five digits, the same for good: the student gives it to their parents,
+        who enter it in the app (`POST /v1/parent/login`) to follow the child.
+      operationId: myParentCode
+      tags: [parents]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The code
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code]
+                properties:
+                  code: { type: string, pattern: "^[0-9]{5}$" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`forbidden`: not a student"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/parent/login:
+    post:
+      summary: A parent signs in with a child's code
+      description: |
+        No parent accounts: the code is the child's (`/v1/me/parent-code`). The
+        token opens only `/v1/parent/*`, read-only, for that child; a parent of
+        several children signs in once per child. Tries are limited (10 per
+        network and 5 per phone in 15 minutes: `429 rate_limited`), and many
+        wrong codes in an hour alert the admins.
+      operationId: parentLogin
+      tags: [parents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, device_id]
+              properties:
+                code: { type: string, example: "48213" }
+                device_id: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: Signed in (for 180 days after the last use)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, child]
+                properties:
+                  token: { type: string }
+                  child: { $ref: "#/components/schemas/ParentChild" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401":
+          description: "`invalid_parent_code`: no current student has this code"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /v1/parent/logout:
+    post:
+      summary: Sign this phone out of a child
+      operationId: parentLogout
+      tags: [parents]
+      security: [{ parent: [] }]
+      responses:
+        "204": { description: Signed out }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/parent/child:
+    get:
+      summary: The child and their classes (schedule, teachers)
+      description: A `401` means the session is gone or the child no longer studies here; ask for the code again.
+      operationId: parentChild
+      tags: [parents]
+      security: [{ parent: [] }]
+      responses:
+        "200":
+          description: The child
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [child, groups]
+                properties:
+                  child: { $ref: "#/components/schemas/ParentChild" }
+                  groups:
+                    type: array
+                    description: As in `/v1/me`
+                    items: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/parent/attendance:
+    get:
+      summary: The child's attendance
+      description: The same table the student sees (`GET /v1/me/attendance`).
+      operationId: parentAttendance
+      tags: [parents]
+      security: [{ parent: [] }]
+      responses:
+        "200":
+          description: The table
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from, to, groups]
+                properties:
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  groups: { type: array, items: { type: object, additionalProperties: true } }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/parent/reports:
+    get:
+      summary: This phone's reports about the child, newest first
+      operationId: parentReports
+      tags: [parents]
+      security: [{ parent: [] }]
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reports]
+                properties:
+                  reports: { type: array, items: { $ref: "#/components/schemas/ParentReport" } }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Report a problem to the admins
+      description: Goes to the admins of the child's branches (admin panel, Parent reports) and to their Telegram chat.
+      operationId: sendParentReport
+      tags: [parents]
+      security: [{ parent: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, lang]
+              properties:
+                message: { type: string, maxLength: 2000 }
+                lang: { type: string, enum: [uz, ru], description: The language the parent uses the app in }
+                group_id: { type: [integer, "null"], description: "Optional: the child's class it is about" }
+      responses:
+        "201":
+          description: Sent
+          content: { application/json: { schema: { $ref: "#/components/schemas/ParentReport" } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422":
+          description: "`invalid_report`: empty or too long, unknown lang, or a class the child isn't in"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/parent-reports:
+    get:
+      summary: Parents' reports about students of the admin's branches
+      operationId: adminParentReports
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, handled], default: open } }
+        - { name: office_id, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Newest first, at most 200
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reports]
+                properties:
+                  reports: { type: array, items: { $ref: "#/components/schemas/AdminParentReport" } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/parent-reports/{id}/handled:
+    post:
+      summary: Mark a parent's report handled, with an optional answer the parent sees
+      operationId: adminHandleParentReport
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reply: { type: string, maxLength: 1000 }
+      responses:
+        "204": { description: Handled }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found`: no such open report in the admin's branches"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/parent-codes:
+    get:
+      summary: Find a student's parent code (for a parent who asks the office)
+      operationId: adminParentCodes
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: q, in: query, required: true, description: "Part of the name, at least 2 characters", schema: { type: string } }
+        - { name: office_id, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Current students of the admin's branches, at most 30
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [students]
+                properties:
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      required: [client_id, first_name, last_name, groups, code]
+                      properties:
+                        client_id: { type: integer }
+                        first_name: { type: string }
+                        last_name: { type: string }
+                        groups: { type: string, description: "Their current classes, comma-separated" }
+                        code: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/login:
+    post:
+      summary: Admin sign-in with HolliHop credentials
+      description: |
+        HolliHop checks the login and password; then the person must be on
+        the admin access list and not fired. Sets the `mb_admin` cookie.
+      operationId: adminLogin
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminLoginRequest" }
+      responses:
+        "200":
+          description: Signed in
+          headers:
+            Set-Cookie: { schema: { type: string }, description: "`mb_admin` session cookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProfile" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401":
+          description: "`invalid_credentials` — HolliHop refused the login or password"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: "`not_admin` (right credentials, but no panel access, or fired), `forbidden` (no `X-MakonBook-Admin` header)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: "`rate_limited` — 20 attempts per network or 5 per login name in 15 min. `Retry-After` gives seconds."
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "503":
+          description: "`unavailable` — HolliHop isn't answering"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/logout:
+    post:
+      summary: End this admin session
+      operationId: adminLogout
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      responses:
+        "204": { description: Signed out; the cookie is cleared }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/me:
+    get:
+      summary: The signed-in admin and the branches they can see
+      operationId: adminMe
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/lessons:
+    get:
+      summary: Every lesson on a date in the admin's branches
+      description: |
+        By branch, then start time. `counts` appears once a teacher opened
+        attendance. Lesson days are kept from the day the app went live, and
+        known up to 14 days ahead. Only lessons someone can take attendance
+        for are listed: at least one teacher on the schedule who is in
+        MakonBook and not fired. A lesson with nobody on the list is listed
+        only for a newly opened group (`new_group`); otherwise the group is
+        finished in practice. Both kinds of left-out groups are listed by
+        `GET /v1/admin/data-quality` for admins to fix in HolliHop.
+        Online lessons (an online branch or learning type) are never listed,
+        here or in `data-quality`.
+      operationId: adminLessons
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date }, description: Defaults to today at the school }
+        - $ref: "#/components/parameters/OfficeFilter"
+      responses:
+        "200":
+          description: Lessons
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [date, lessons]
+                properties:
+                  date: { type: string, format: date }
+                  lessons: { type: array, items: { $ref: "#/components/schemas/AdminLesson" } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/attendance/sessions/{id}:
+    get:
+      summary: One lesson's attendance, with every change and the HolliHop write status
+      operationId: adminAttendanceSession
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SessionID" }
+      responses:
+        "200": { $ref: "#/components/responses/AdminAttendanceSession" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found` — no such session, or not in the admin's branches"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/attendance/sessions/{id}/marks/{client_id}:
+    put:
+      summary: Admin's correction of one student's mark
+      description: |
+        Any time, while open or after it finished. Audited with the admin's
+        name; a changed present/absent is written to HolliHop again. The
+        teacher can't change the mark back afterwards. Billing isn't touched
+        here: an absence is billed unless an admin unbills it in HolliHop (D17).
+      operationId: adminSetAttendanceMark
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+        - { $ref: "#/components/parameters/SessionID" }
+        - { name: client_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [present, late, absent] }
+      responses:
+        "200": { $ref: "#/components/responses/AdminAttendanceSession" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found` (session) or `not_in_roster`"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/reports/corrections:
+    get:
+      summary: Teachers' corrections of marks, for lessons in a date range
+      description: |
+        Per teacher: lessons they opened and how often they changed marks —
+        `made_present` counts absent or not-scanned students they marked
+        present or late, the change worth a second look. `changes` lists the
+        500 newest changes by teachers and admins.
+      operationId: adminCorrectionsReport
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date }, description: Defaults to 29 days before `to` }
+        - { name: to, in: query, schema: { type: string, format: date }, description: Defaults to today }
+        - { name: teacher_id, in: query, schema: { type: integer }, description: Only this teacher's changes }
+        - $ref: "#/components/parameters/OfficeFilter"
+      responses:
+        "200":
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CorrectionsReport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/hollihop/writes:
+    get:
+      summary: Attendance written (or to be written) to HolliHop
+      description: |
+        `counts` covers every status; `writes` lists the 500 newest with the
+        requested statuses. `set_manually`: an admin had set that day by hand
+        in HolliHop, so the app's mark wasn't applied there.
+      operationId: adminHolliHopWrites
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - name: status
+          in: query
+          description: Comma-separated statuses; defaults to `failed,set_manually`.
+          schema: { type: string, example: "failed,set_manually" }
+        - $ref: "#/components/parameters/OfficeFilter"
+      responses:
+        "200":
+          description: Writes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [writing_enabled, counts, writes]
+                properties:
+                  writing_enabled: { type: boolean, description: "false: dry run — nothing is sent to HolliHop" }
+                  counts:
+                    type: object
+                    additionalProperties: { type: integer }
+                  writes: { type: array, items: { $ref: "#/components/schemas/HolliHopWrite" } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/hollihop/writes/{id}/retry:
+    post:
+      summary: Send a failed write again
+      operationId: adminRetryHolliHopWrite
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Queued }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: "`not_found` — not a failed write in the admin's branches, or a newer write replaced it"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/data-quality:
+    get:
+      summary: What admins should fix in HolliHop
+      description: |
+        `groups`: groups with lessons from today on that need an admin —
+        `no_teacher` (no teacher on the schedule who can take attendance) or
+        `no_students` (nobody on the list of a group that isn't new: in
+        practice finished, but its schedule was never closed). These are
+        left out of `GET /v1/admin/lessons`.
+        `issues`: people who can't sign in until their phone is fixed —
+        students by their branches or their groups' branches, teachers by the
+        branches they teach in.
+      operationId: adminDataQuality
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/OfficeFilter"
+      responses:
+        "200":
+          description: Open issues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [groups, issues]
+                properties:
+                  groups: { type: array, items: { $ref: "#/components/schemas/GroupIssue" } }
+                  issues: { type: array, items: { $ref: "#/components/schemas/DataQualityIssue" } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/access:
+    get:
+      summary: Who can use the admin panel (super admins only)
+      operationId: adminAccessList
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/AccessList" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/access/{member_type}/{member_id}:
+    parameters:
+      - { name: member_type, in: path, required: true, schema: { type: string, enum: [employee, teacher] } }
+      - { name: member_id, in: path, required: true, schema: { type: integer }, description: HolliHop employee or teacher id }
+    put:
+      summary: Make someone a branch admin and/or practice editor, or change that (super admins only)
+      description: |
+        The name comes from HolliHop. An editor needs no branches, but a grant
+        must give at least one branch or `editor`. The panel only manages
+        branch admins and editors:
+        it can't make anyone a super admin, nor change any super admin
+        (another one or yourself) — 403 `super_admin_protected`. Super admins
+        are managed on the server (`makonbook admin grant|revoke`).
+      operationId: adminGrantAccess
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [office_ids]
+              properties:
+                super: { type: boolean, const: false, description: "Must be false or absent: super admins are made on the server" }
+                office_ids: { type: array, items: { type: integer }, description: "May be empty for an editor only" }
+                editor: { type: boolean, description: May edit practice tests and questions }
+      responses:
+        "200": { $ref: "#/components/responses/AccessList" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403":
+          description: "`super_admin_protected` (a super admin, or `super: true`), `forbidden` (not a super admin, or no CSRF header)"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: "`not_found` — no such employee in HolliHop, or teacher in MakonBook"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`fired` in HolliHop"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "503": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Remove a branch admin (super admins only); their sessions end at once
+      description: Super admins can't be removed in the panel (403 `super_admin_protected`), yourself included.
+      operationId: adminRevokeAccess
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      responses:
+        "200": { $ref: "#/components/responses/AccessList" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/staff:
+    get:
+      summary: Search HolliHop's employees, to give one access (super admins only)
+      operationId: adminFindStaff
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 100 }, description: "Name, phone or email" }
+      responses:
+        "200":
+          description: Up to 50 employees
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [staff]
+                properties:
+                  staff:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, position, fired, offices]
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        position: { type: string }
+                        fired: { type: boolean }
+                        offices: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/tests:
+    get:
+      summary: Practice tests and how far their review has come (editors)
+      operationId: adminPracticeTests
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      responses:
+        "200":
+          description: Every loaded test
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tests]
+                properties:
+                  tests: { type: array, items: { $ref: "#/components/schemas/PracticeTestSummary" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/tests/{code}:
+    get:
+      summary: One test with its questions in order (editors)
+      operationId: adminPracticeTest
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string }, description: "e.g. DAY12" }
+      responses:
+        "200":
+          description: The test
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PracticeTestSummary"
+                  - type: object
+                    required: [slots]
+                    properties:
+                      slots:
+                        type: array
+                        description: The test's questions in order (each with its `position`)
+                        items: { $ref: "#/components/schemas/PracticeQuestionSummary" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/questions:
+    get:
+      summary: Questions to work on, red first, then yellow, then green (editors)
+      operationId: adminPracticeQuestions
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: risk, in: query, schema: { type: string, enum: [red, yellow, green] } }
+        - { name: status, in: query, schema: { type: string, enum: [draft, review, approved] } }
+        - { name: subject, in: query, schema: { type: string, enum: [math, english] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: A page of questions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questions, total]
+                properties:
+                  questions: { type: array, items: { $ref: "#/components/schemas/PracticeQuestionSummary" } }
+                  total: { type: integer, description: All questions matching the filters }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/questions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: A question with its AI reviews and versions (editors)
+      operationId: adminPracticeQuestion
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/PracticeQuestion" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      summary: Save an edit as a new version (editors)
+      description: |
+        The whole content, plus the version it was made on. An approved
+        question goes back to review. Subject and type don't change.
+      operationId: adminPracticeUpdateQuestion
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PracticeQuestionEdit" }
+      responses:
+        "200": { $ref: "#/components/responses/PracticeQuestion" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`version_conflict`: someone saved the question after it was opened"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`invalid_question`, with `fields`"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/practice/questions/{id}/approval:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Approve a question, or take an approval back (editors)
+      description: |
+        Approves the version the editor saw (a test opens to students once
+        all its questions are approved). Approving runs the checks a save
+        does, so a question without a key can't pass. `approved: false`
+        sends it back to review, whoever approved it.
+      operationId: adminPracticeApproval
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, approved]
+              properties:
+                version: { type: integer, description: The version the editor saw. }
+                approved: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/PracticeQuestion" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`version_conflict`: someone saved the question after it was opened"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: "`invalid_question`, with `fields`: it can't be approved as it is"
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/admin/practice/questions/{id}/picture:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: test, in: query, required: false, schema: { type: string }, description: "The test whose place the picture shows (a question can be in several)." }
+    post:
+      summary: Draw the question as a picture (editors' Export image)
+      description: |
+        Draws the content sent (the editor's form, saved or not) on the
+        question picture template the Telegram group's pictures use, and
+        returns it as a PNG to download. Needs the renderer (RENDERER_URL).
+      operationId: adminPracticePicture
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PracticeQuestionEdit" }
+      responses:
+        "200":
+          description: The picture, 2560 px wide.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/taxonomy:
+    get:
+      summary: The digital SAT's domains and skills, per subject (editors)
+      operationId: adminPracticeTaxonomy
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      responses:
+        "200":
+          description: subject → domain → skills
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subjects]
+                properties:
+                  subjects:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/images:
+    post:
+      summary: Upload an image for a question (editors)
+      description: |
+        PNG, JPEG, GIF or WebP, at most 5 MB and 6000 px a side; kept in
+        MakonBook's database. The answer's `key` goes into the text as
+        `![description](r2:<key>)` and into `figures`. The same file uploaded
+        again gets the same key.
+      operationId: adminPracticeUploadImage
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/AdminCSRF"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key, width, height]
+                properties:
+                  key: { type: string, description: "mb/<hash>.<ext>" }
+                  width: { type: integer }
+                  height: { type: integer }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+
+  /v1/admin/practice/figures:
+    get:
+      summary: A question image, from the bank's R2 bucket or an upload (editors)
+      operationId: adminPracticeFigure
+      tags: [admin]
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { name: key, in: query, required: true, schema: { type: string, maxLength: 300 }, description: "R2 key as in the question, e.g. sat/question_images/x.png" }
+      responses:
+        "200":
+          description: The image
+          content:
+            image/*: { schema: { type: string, format: binary } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+    parent:
+      type: http
+      scheme: bearer
+      description: A parent's token from `POST /v1/parent/login`; it opens only `/v1/parent/*`.
+    adminCookie:
+      type: apiKey
+      in: cookie
+      name: mb_admin
+
+  schemas:
+    AdminLesson:
+      allOf:
+        - $ref: "#/components/schemas/Lesson"
+        - type: object
+          required: [office_id, teachers, counts, new_group]
+          properties:
+            new_group:
+              type: boolean
+              description: Opened within 30 days and nobody has attended yet; an empty list is expected.
+            office_id: { type: [integer, "null"] }
+            teachers: { type: array, items: { type: string } }
+            counts:
+              type: [object, "null"]
+              description: Null until a teacher opens attendance.
+              required: [present, late, absent, pending]
+              properties:
+                present: { type: integer }
+                late: { type: integer }
+                absent: { type: integer }
+                pending: { type: integer }
+
+    AdminAttendanceSession:
+      allOf:
+        - $ref: "#/components/schemas/AttendanceSession"
+        - type: object
+          description: Never has `qr`; each mark has `hollihop`.
+          required: [office_id, office, opened_by, finished_by, history]
+          properties:
+            office_id: { type: [integer, "null"] }
+            office: { type: string }
+            opened_by: { type: string, description: The teacher who started attendance }
+            finished_by: { type: [string, "null"], enum: [teacher, auto, null] }
+            history:
+              type: array
+              description: Every change of a mark, oldest first.
+              items:
+                type: object
+                required: [client_id, student_name, actor_kind, actor_name, from, to, at]
+                properties:
+                  client_id: { type: integer }
+                  student_name: { type: string }
+                  actor_kind: { type: string, enum: [student, teacher, admin, system], description: "student = scanned; system = absent when attendance finished" }
+                  actor_name: { type: string }
+                  from: { type: string }
+                  to: { type: string }
+                  at: { type: string, format: date-time }
+
+    CorrectionsReport:
+      type: object
+      required: [from, to, teachers, changes]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        teachers:
+          type: array
+          items:
+            type: object
+            required: [teacher_id, teacher_name, lessons_opened, lessons_corrected, corrections, made_present]
+            properties:
+              teacher_id: { type: integer }
+              teacher_name: { type: string }
+              lessons_opened: { type: integer }
+              lessons_corrected: { type: integer }
+              corrections: { type: integer }
+              made_present: { type: integer }
+        changes:
+          type: array
+          items:
+            type: object
+            required: [id, at, actor_kind, actor_name, from, to, session_id, date, group_id, group_name, client_id, student_name]
+            properties:
+              id: { type: integer }
+              at: { type: string, format: date-time }
+              actor_kind: { type: string, enum: [teacher, admin] }
+              actor_name: { type: string }
+              from: { type: string }
+              to: { type: string }
+              session_id: { type: string, format: uuid }
+              date: { type: string, format: date }
+              group_id: { type: integer }
+              group_name: { type: string }
+              client_id: { type: integer }
+              student_name: { type: string }
+
+    WriteStatus:
+      type: string
+      enum: [pending, sent, unchanged, set_manually, dry_run, superseded, failed]
+
+    HolliHopWrite:
+      type: object
+      required: [id, session_id, date, group_id, group_name, client_id, student_name, absent, status, attempts, error, created_at, done_at]
+      properties:
+        id: { type: integer }
+        session_id: { type: string, format: uuid }
+        date: { type: string, format: date }
+        group_id: { type: integer }
+        group_name: { type: string }
+        client_id: { type: integer }
+        student_name: { type: string }
+        absent: { type: boolean }
+        status: { $ref: "#/components/schemas/WriteStatus" }
+        attempts: { type: integer }
+        error: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        done_at: { type: [string, "null"], format: date-time }
+
+    GroupIssue:
+      type: object
+      required: [kind, group_id, group_name, office_id, office, individual, teachers, fired_teacher, students, next_lesson, schedule_since, last_attended]
+      properties:
+        kind: { type: string, enum: [no_teacher, no_students] }
+        group_id: { type: integer }
+        group_name: { type: string }
+        office_id: { type: [integer, "null"] }
+        office: { type: string }
+        individual: { type: boolean, description: One-to-one or pair lessons, not a group }
+        teachers: { type: array, items: { type: string }, description: Teachers who can take attendance (empty for no_teacher) }
+        fired_teacher: { type: boolean, description: "no_teacher: the schedule names only fired or unknown teachers" }
+        students: { type: integer, description: On the list of the next lesson }
+        next_lesson: { type: string, format: date }
+        schedule_since: { type: [string, "null"], format: date }
+        last_attended: { type: [string, "null"], format: date, description: "Last lesson anyone attended (HolliHop marks, last 120 days)" }
+
+    DataQualityIssue:
+      type: object
+      required: [id, person_kind, person_id, first_name, last_name, phone, kind, detail, since]
+      properties:
+        id: { type: integer }
+        person_kind: { type: string, enum: [student, teacher] }
+        person_id: { type: integer, description: HolliHop client id or teacher id }
+        first_name: { type: string }
+        last_name: { type: string }
+        phone: { type: string, description: As typed in HolliHop }
+        kind: { type: string, enum: [phone_missing, phone_invalid, phone_duplicate] }
+        detail: { type: string }
+        since: { type: string, format: date-time }
+
+    AdminAccess:
+      type: object
+      required: [member_type, member_id, name, super, editor, offices, granted_at, last_login_at]
+      properties:
+        member_type: { type: string, enum: [Employee, Teacher] }
+        member_id: { type: integer }
+        name: { type: string }
+        super: { type: boolean }
+        editor: { type: boolean, description: May edit practice content (super admins may anyway) }
+        offices: { type: array, items: { $ref: "#/components/schemas/Office" }, description: Empty for super admins and editors only }
+        granted_at: { type: string, format: date-time }
+        last_login_at: { type: [string, "null"], format: date-time }
+
+    PracticeTestSummary:
+      type: object
+      required: [code, title, questions, approved, red, yellow, shared, open, published]
+      properties:
+        code: { type: string, description: "The bank's test id, e.g. DAY12" }
+        title: { type: string }
+        questions: { type: integer }
+        approved: { type: integer }
+        red: { type: integer, description: Red questions not yet approved }
+        yellow: { type: integer, description: Yellow questions not yet approved }
+        shared: { type: integer, description: Questions other tests use too }
+        open: { type: boolean, description: "Every question approved: students can take it" }
+        published: { type: integer, description: "The latest published version; 0 while never published" }
+
+    ParentChild:
+      type: object
+      required: [client_id, first_name, last_name]
+      properties:
+        client_id: { type: integer }
+        first_name: { type: string }
+        last_name: { type: string }
+
+    ParentReport:
+      type: object
+      required: [id, group_id, group_name, message, created_at, handled_at, reply]
+      properties:
+        id: { type: integer, format: int64 }
+        group_id: { type: [integer, "null"] }
+        group_name: { type: string, description: Empty when not about a class }
+        message: { type: string }
+        created_at: { type: string, format: date-time }
+        handled_at: { type: [string, "null"], format: date-time }
+        reply: { type: [string, "null"], description: The admin's answer }
+
+    AdminParentReport:
+      type: object
+      required: [id, client_id, first_name, last_name, group_id, group_name, message, lang, created_at, handled_at, handled_by, reply]
+      properties:
+        id: { type: integer, format: int64 }
+        client_id: { type: integer }
+        first_name: { type: string }
+        last_name: { type: string }
+        group_id: { type: [integer, "null"] }
+        group_name: { type: string }
+        message: { type: string }
+        lang: { type: string, enum: [uz, ru] }
+        created_at: { type: string, format: date-time }
+        handled_at: { type: [string, "null"], format: date-time }
+        handled_by: { type: [string, "null"] }
+        reply: { type: [string, "null"] }
+
+    VocabList:
+      type: object
+      required: [slug, title, words]
+      properties:
+        slug: { type: string, example: sat-1 }
+        title: { type: string }
+        words:
+          type: array
+          items:
+            type: object
+            required: [id, word, part_of_speech, definition, example, image]
+            properties:
+              id: { type: string, format: uuid, description: Stays the same across imports }
+              word: { type: string }
+              part_of_speech: { type: [string, "null"] }
+              definition: { type: string }
+              example: { type: string }
+              image:
+                type: [object, "null"]
+                required: [file, bytes, width, height]
+                properties:
+                  file: { type: string }
+                  bytes: { type: integer }
+                  width: { type: integer }
+                  height: { type: integer }
+
+    VocabReview:
+      type: object
+      description: One review and the card's FSRS state after it (ts-fsrs's Card fields).
+      required: [id, word_id, rating, reviewed_at, duration_ms, state, due, stability, difficulty, scheduled_days]
+      properties:
+        seq: { type: integer, format: int64, description: The server's order (in answers only) }
+        id: { type: string, format: uuid, description: The phone's }
+        word_id: { type: string, format: uuid }
+        rating: { type: integer, enum: [1, 2, 3, 4], description: "1 again, 2 hard, 3 good, 4 easy" }
+        reviewed_at: { type: string, format: date-time }
+        duration_ms: { type: integer, minimum: 0, description: Time to answer }
+        state: { type: integer, enum: [0, 1, 2, 3], description: "After: 0 new, 1 learning, 2 review, 3 relearning" }
+        due: { type: string, format: date-time }
+        stability: { type: number }
+        difficulty: { type: number }
+        scheduled_days: { type: integer, minimum: 0 }
+
+    PracticeCatalogTest:
+      type: object
+      required: [code, title, english, math, questions, approved, version, bytes, published_at]
+      properties:
+        code: { type: string, example: DAY12 }
+        title: { type: string }
+        english: { type: integer, description: Questions in Reading and Writing }
+        math: { type: integer, description: Questions in Math }
+        questions: { type: integer }
+        approved: { type: integer }
+        version: { type: [integer, "null"], description: The latest published version; null while locked }
+        bytes: { type: [integer, "null"], description: "The download's size: the package and its images" }
+        published_at: { type: [string, "null"], format: date-time }
+
+    PracticePackage:
+      type: object
+      description: |
+        A published version of a test (format 1). Sections come in Bluebook
+        order (Reading and Writing, then Math), each with two timed modules.
+        Text uses the stored content format: paragraphs, `\( \)` and
+        `\[ \]` math, `*i*`, `**b**`, `<u>`, `- ` lists, pipe tables and
+        `![alt](r2:key)` images, whose files `images` names.
+      required: [format, code, title, version, published_at, sections, images]
+      properties:
+        format: { type: integer, enum: [1] }
+        code: { type: string }
+        title: { type: string }
+        version: { type: integer }
+        published_at: { type: string, format: date-time }
+        sections:
+          type: array
+          items:
+            type: object
+            required: [subject, modules, scale]
+            properties:
+              subject: { type: string, enum: [english, math] }
+              scale:
+                type: array
+                items: { type: integer }
+                description: The estimated 200–800 section score for each number right (index 0 … questions)
+              modules:
+                type: array
+                items:
+                  type: object
+                  required: [module, minutes, questions]
+                  properties:
+                    module: { type: integer, enum: [1, 2] }
+                    minutes: { type: integer }
+                    questions:
+                      type: array
+                      items: { $ref: "#/components/schemas/PracticePackageQuestion" }
+        images:
+          type: object
+          description: An image's key (as the text uses it) → its file
+          additionalProperties:
+            type: object
+            required: [file, bytes, width, height]
+            properties:
+              file: { type: string }
+              bytes: { type: integer }
+              width: { type: integer }
+              height: { type: integer }
+
+    PracticePackageQuestion:
+      type: object
+      required: [id, version, position, type, passage, stem, choices, figures, correct, accepted, explanation, domain, skill, difficulty]
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer, description: The question's own version }
+        position: { type: integer }
+        type: { type: string, enum: [mcq, grid_in] }
+        passage: { type: [string, "null"] }
+        stem: { type: string }
+        choices:
+          type: [object, "null"]
+          description: A–D for mcq
+          additionalProperties: { type: string }
+        figures:
+          type: array
+          items:
+            type: object
+            required: [key, kind, alt]
+            properties:
+              key: { type: string }
+              kind: { type: string }
+              alt: { type: string }
+        correct: { type: [string, "null"], description: The letter, for mcq }
+        accepted:
+          type: [array, "null"]
+          items: { type: string }
+          description: "Grid-in: every form accepted; the same number in another form (.5 for 1/2) counts too"
+        explanation: { type: string }
+        domain: { type: string }
+        skill: { type: string }
+        difficulty: { type: [string, "null"], enum: [easy, medium, hard, null] }
+
+    PracticeAnswer:
+      type: object
+      required: [subject, module, position, answer, seconds]
+      properties:
+        subject: { type: string, enum: [english, math] }
+        module: { type: integer, enum: [1, 2] }
+        position: { type: integer }
+        answer: { type: [string, "null"], description: "A letter, or a grid-in answer as typed" }
+        seconds: { type: integer, minimum: 0, maximum: 21600, description: Time spent on the question }
+
+    PracticeAttempt:
+      type: object
+      required: [id, test, title, version, sections, started_at, finished_at, scores, total]
+      properties:
+        id: { type: string, format: uuid }
+        test: { type: string }
+        title: { type: string }
+        version: { type: integer }
+        sections: { type: array, items: { type: string, enum: [english, math] } }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+        scores:
+          type: object
+          description: Per section taken (english, math)
+          additionalProperties:
+            type: object
+            required: [raw, questions, score]
+            properties:
+              raw: { type: integer, description: Questions right }
+              questions: { type: integer }
+              score: { type: integer, description: "Estimated, 200–800" }
+        total: { type: [integer, "null"], description: "Both sections' sum (400–1600) when both were taken" }
+
+    PracticePlace:
+      type: object
+      required: [test, subject, module, position]
+      properties:
+        test: { type: string }
+        subject: { type: string, enum: [math, english] }
+        module: { type: integer, enum: [1, 2] }
+        position: { type: integer }
+
+    PracticeQuestionSummary:
+      type: object
+      required: [id, subject, type, status, ai_risk, preview, version, places]
+      properties:
+        id: { type: string, format: uuid }
+        subject: { type: string, enum: [math, english] }
+        type: { type: string, enum: [mcq, grid_in] }
+        status: { type: string, enum: [draft, review, approved] }
+        ai_risk: { type: [string, "null"], enum: [red, yellow, green, null] }
+        preview: { type: string, description: The start of the question as plain text }
+        version: { type: integer }
+        places: { type: array, items: { $ref: "#/components/schemas/PracticePlace" } }
+        position: { $ref: "#/components/schemas/PracticePlace" }
+
+    PracticeFigure:
+      type: object
+      required: [key, kind, alt]
+      properties:
+        key: { type: string, description: R2 object key }
+        kind: { type: string }
+        alt: { type: string }
+
+    PracticeContent:
+      type: object
+      description: |
+        Text fields use the content format: paragraphs, `\( \)` and `\[ \]` math,
+        `*italic*`, `**bold**`, `<u>underline</u>`, `- ` lists, pipe tables and
+        `![alt](r2:key)` figures.
+      required: [passage, stem, choices, figures, correct, accepted, explanation, domain, skill, difficulty]
+      properties:
+        passage: { type: [string, "null"] }
+        stem: { type: string }
+        choices:
+          type: [object, "null"]
+          description: A–D, for mcq
+          additionalProperties: { type: string }
+        figures: { type: array, items: { $ref: "#/components/schemas/PracticeFigure" } }
+        correct: { type: [string, "null"], description: The letter, for mcq }
+        accepted: { type: [array, "null"], items: { type: string }, description: Every accepted form, for grid-in }
+        explanation: { type: string }
+        domain: { type: string }
+        skill: { type: string }
+        difficulty: { type: [string, "null"], enum: [easy, medium, hard, null], description: An estimate }
+
+    PracticeQuestion:
+      allOf:
+        - $ref: "#/components/schemas/PracticeContent"
+        - type: object
+          required: [id, subject, type, status, ai_risk, version, updated_at, approved_at, auto_approved, approved_by, places, reviews, versions]
+          properties:
+            id: { type: string, format: uuid }
+            subject: { type: string, enum: [math, english] }
+            type: { type: string, enum: [mcq, grid_in] }
+            status: { type: string, enum: [draft, review, approved] }
+            ai_risk: { type: [string, "null"], enum: [red, yellow, green, null] }
+            version: { type: integer }
+            updated_at: { type: string, format: date-time }
+            approved_at: { type: [string, "null"], format: date-time }
+            auto_approved:
+              type: boolean
+              description: Approved on import because its AI review was green. A worse review of a repeat or an editor's change takes it back.
+            approved_by: { type: [string, "null"], description: The person who approved it in the editor. }
+            places: { type: array, items: { $ref: "#/components/schemas/PracticePlace" } }
+            reviews:
+              type: array
+              items:
+                type: object
+                required: [test, qid, risk, verdict, record, imported_at]
+                properties:
+                  test: { type: string }
+                  qid: { type: string }
+                  risk: { type: string, enum: [red, yellow, green] }
+                  verdict: { type: string }
+                  record: { type: object, description: "The AI review's whole record (makonbook-questionbank format)" }
+                  imported_at: { type: string, format: date-time }
+            versions:
+              type: array
+              description: Newest first
+              items:
+                type: object
+                required: [version, source, created_by, created_at, content]
+                properties:
+                  version: { type: integer }
+                  source: { type: string, enum: [import, ai_fix, editor], description: "ai_fix: the fix the AI review proposed, applied to a question it approved" }
+                  created_by: { type: [string, "null"] }
+                  created_at: { type: string, format: date-time }
+                  content: { type: object }
+
+    PracticeQuestionEdit:
+      type: object
+      required: [version, stem, explanation, domain, skill]
+      properties:
+        version: { type: integer, description: The version the edit was made on }
+        passage: { type: [string, "null"] }
+        stem: { type: string }
+        choices: { type: [object, "null"], additionalProperties: { type: string } }
+        figures: { type: [array, "null"], items: { $ref: "#/components/schemas/PracticeFigure" } }
+        correct: { type: string }
+        accepted: { type: [array, "null"], items: { type: string } }
+        explanation: { type: string }
+        domain: { type: string }
+        skill: { type: string }
+        difficulty: { type: string, enum: [easy, medium, hard, ""] }
+
+    AdminLoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, maxLength: 100, description: HolliHop login }
+        password: { type: string, maxLength: 256 }
+
+    AdminProfile:
+      type: object
+      required: [name, member_type, member_id, super, editor, offices]
+      properties:
+        name: { type: string }
+        member_type: { type: string, enum: [Employee, Teacher], description: As HolliHop reports it }
+        member_id: { type: integer, description: HolliHop employee or teacher id }
+        super: { type: boolean, description: Sees every branch and manages the access list }
+        editor: { type: boolean, description: "May edit practice tests (true for super admins)" }
+        offices:
+          type: array
+          description: The branches this admin can see (all of them, for a super admin).
+          items: { $ref: "#/components/schemas/Office" }
+
+    Office:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, description: HolliHop office id }
+        name: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          description: Phone number in any common format (`+998901234567`, `90 123 45 67`) or username.
+          maxLength: 100
+        password: { type: string, maxLength: 256 }
+        device_id:
+          type: string
+          maxLength: 100
+          description: Random id the app generates once per install.
+
+    LoginResponse:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token: { type: string, description: Bearer token. Store it in secure storage. }
+        expires_at:
+          type: string
+          format: date-time
+          description: Extended on use; a session unused for 30 days expires.
+        user: { $ref: "#/components/schemas/Profile" }
+
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string }
+        new_password: { type: string, minLength: 8, maxLength: 128 }
+
+    Username:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          pattern: "^[a-zA-Z][a-zA-Z0-9_.]{2,29}$"
+
+    Profile:
+      type: object
+      required: [kind, id, first_name, last_name, username, must_change_password, groups]
+      properties:
+        kind: { type: string, enum: [student, teacher] }
+        id: { type: integer, description: HolliHop client id (students) or teacher id }
+        first_name: { type: string }
+        last_name: { type: string }
+        username: { type: [string, "null"] }
+        must_change_password: { type: boolean }
+        groups:
+          type: array
+          description: Current and upcoming groups (enrolled in, or teaching).
+          items: { $ref: "#/components/schemas/Group" }
+
+    Group:
+      type: object
+      required: [id, name, discipline, learning_type, office, schedule]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        discipline: { type: string, example: PRE SAT MATH }
+        learning_type: { type: string, example: GROUP }
+        session:
+          description: The lesson's attendance session, once opened
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [id, status]
+              properties:
+                id: { type: string, format: uuid }
+                status: { type: string, enum: [open, finished] }
+        office: { type: string, example: NOVZA }
+        schedule:
+          type: array
+          items: { $ref: "#/components/schemas/Slot" }
+
+    Slot:
+      type: object
+      required: [weekdays, begin_time, end_time, classroom, teachers]
+      properties:
+        weekdays:
+          type: array
+          items: { type: string, enum: [mon, tue, wed, thu, fri, sat, sun] }
+        begin_time: { type: string, example: "14:00", description: School time zone }
+        end_time: { type: string, example: "15:30" }
+        classroom: { type: string }
+        begin_date: { type: string, format: date, description: Absent when open-ended }
+        end_date: { type: string, format: date, description: Absent when open-ended }
+        teachers: { type: array, items: { type: string } }
+
+    Lesson:
+      type: object
+      required: [group_id, group_name, discipline, office, classroom, begin_time, end_time, starts_at, ends_at, students, attendance_enabled, learning_type, session]
+      properties:
+        group_id: { type: integer }
+        group_name: { type: string }
+        discipline: { type: string, example: PRE SAT MATH }
+        office: { type: string, example: NOVZA }
+        classroom: { type: string }
+        begin_time: { type: string, example: "14:00", description: School time }
+        end_time: { type: string, example: "15:30" }
+        starts_at: { type: string, format: date-time, example: "2026-10-12T14:00:00+05:00" }
+        ends_at: { type: string, format: date-time }
+        students: { type: integer, description: "Roster size on this date: enrollments current that day, of active students" }
+        attendance_enabled: { type: boolean }
+        learning_type: { type: string, example: GROUP }
+        session:
+          type: [object, "null"]
+          description: The lesson's attendance, once a teacher started it.
+          required: [id, status]
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string, enum: [open, finished] }
+
+    AttendanceSession:
+      type: object
+      required: [id, group_id, group_name, date, starts_at, ends_at, late_after, opened_at, finished_at, status, editable_until, counts, marks]
+      properties:
+        id: { type: string, format: uuid }
+        group_id: { type: integer }
+        group_name: { type: string }
+        date: { type: string, format: date }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        late_after: { type: string, format: date-time, description: Scans after this are late }
+        opened_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        status: { type: string, enum: [open, finished] }
+        editable_until: { type: string, format: date-time, description: Teacher corrections allowed until then }
+        qr: { $ref: "#/components/schemas/AttendanceQR" }
+        counts:
+          type: object
+          required: [total, present, late, absent, pending]
+          properties:
+            total: { type: integer }
+            present: { type: integer }
+            late: { type: integer }
+            absent: { type: integer }
+            pending: { type: integer }
+        marks:
+          type: array
+          items:
+            type: object
+            required: [client_id, first_name, last_name, state, source, scanned_at]
+            properties:
+              client_id: { type: integer }
+              first_name: { type: string }
+              last_name: { type: string }
+              state: { type: string, enum: [pending, present, late, absent] }
+              source: { type: [string, "null"], enum: [scan, teacher, admin, auto, null], description: "admin = corrected by the office in the admin panel" }
+              scanned_at: { type: [string, "null"], format: date-time }
+              hollihop:
+                description: Admin panel only — where this mark's latest write to HolliHop stands.
+                type: object
+                required: [status, error]
+                properties:
+                  status: { $ref: "#/components/schemas/WriteStatus" }
+                  error: { type: [string, "null"] }
+
+    AttendanceQR:
+      type: object
+      description: |
+        Present only while the session is open. The teacher's app draws a new
+        code every `window_seconds`:
+
+            window = floor(unix_seconds / 10)      (use server_time to correct the device clock)
+            sig    = first 16 chars of base64url_nopad(HMAC-SHA256(secret_bytes, "<id>:<window>"))
+
+        `secret` is base64url without padding; `<id>` is the session id as a
+        lowercase UUID string. The server accepts the current window ±1.
+      required: [secret, window_seconds, server_time]
+      properties:
+        secret: { type: string }
+        window_seconds: { type: integer, example: 10 }
+        server_time: { type: string, format: date-time }
+
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, const: ok }
+
+    AppConfig:
+      type: object
+      required: [min_app_version]
+      properties:
+        min_app_version:
+          type: object
+          required: [android, ios]
+          properties:
+            android: { type: string, example: "1.0.0" }
+            ios: { type: string, example: "1.0.0" }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code.
+              enum:
+                - not_found
+                - internal
+                - unavailable
+                - bad_request
+                - unauthorized
+                - forbidden
+                - rate_limited
+                - invalid_credentials
+                - account_locked
+                - password_change_required
+                - wrong_password
+                - weak_password
+                - invalid_username
+                - username_taken
+                - attendance_disabled
+                - too_early
+                - lesson_over
+                - session_closed
+                - invalid_code
+                - code_expired
+                - not_in_roster
+                - device_already_used
+                - marked_absent
+                - edit_window_closed
+                - not_admin
+                - set_by_admin
+                - super_admin_protected
+                - fired
+                - version_conflict
+                - invalid_question
+            message:
+              type: string
+              description: Human-readable explanation; may change.
+            fields:
+              type: object
+              additionalProperties: { type: string }
+              description: "For a rejected form (`invalid_question`): what is wrong, per field (e.g. `stem`, `choices.B`)."
+            request_id:
+              type: string
+
+  parameters:
+    OfficeFilter:
+      name: office_id
+      in: query
+      description: Only this branch (one outside the admin's branches yields nothing).
+      schema: { type: integer }
+    AdminCSRF:
+      name: X-MakonBook-Admin
+      in: header
+      required: true
+      description: Any value. Proves the request comes from the admin panel's own page.
+      schema: { type: string }
+    SessionID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    PracticeQuestion:
+      description: The question
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PracticeQuestion" }
+    AdminAttendanceSession:
+      description: The session as the admin panel shows it
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AdminAttendanceSession" }
+    AccessList:
+      description: The access list (after the change)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [access]
+            properties:
+              access: { type: array, items: { $ref: "#/components/schemas/AdminAccess" } }
+    AttendanceSession:
+      description: The session as the teacher's screen shows it
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AttendanceSession" }
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }

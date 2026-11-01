@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+landing/public/vendor/
+*.log
+.DS_Store
+*.tsbuildinfo
