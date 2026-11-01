@@ -22,7 +22,7 @@ RUN npm run build && npm run precompress
 # container runs read-only with a tmpfs on /tmp (deploy/docker-compose.yml).
 FROM nginxinc/nginx-unprivileged:1.30-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker/security-headers.conf docker/app-csp.conf /etc/nginx/mb/
+COPY docker/security-headers.conf docker/app-csp.conf docker/calculator-headers.conf /etc/nginx/mb/
 COPY --from=build /src/landing/dist /srv/landing
 COPY --from=build /src/app/dist /srv/app
 EXPOSE 8080

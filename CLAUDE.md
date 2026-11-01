@@ -36,7 +36,11 @@ app's route guards; `AppShell` is the frame with the four tabs), `screens/`,
 there first; `practice/local.ts` and `hooks.ts` are this browser's storage
 and queries). Question text is rendered by `components/practice/RichContent`
 with MathJax from `/vendor` (`app/scripts/vendor.mjs`), formulas only, never
-`$…$`. The Desmos calculator needs `VITE_DESMOS_API_KEY` in `app/.env`.
+`$…$`. The Desmos calculator runs in its own page (`app/calculator.html`,
+`src/calculator-frame.ts`), framed by the test screen, with its own policy
+(`calculatorCsp` in `app/csp.ts`, `docker/calculator-headers.conf`); the app's
+pages keep the strict one. It needs `VITE_DESMOS_API_KEY` in `app/.env` (and
+as a GitHub secret for the image).
 The test screen (`screens/PracticeRun`) follows Bluebook's layout; its
 highlights and notes (`components/practice/Annotations`) are character
 offsets into a block's text, painted with the CSS Custom Highlight API and

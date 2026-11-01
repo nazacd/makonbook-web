@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
+import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, Highlighter, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
@@ -8,7 +8,7 @@ import { Notice } from '@/components/Notice';
 import { useMe } from '@/api/queries';
 import { Annotated, HighlightsToggle, type TextHighlight } from '@/components/practice/Annotations';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
-import { Calculator } from '@/components/practice/Calculator';
+import { Calculator, dragging } from '@/components/practice/Calculator';
 import { Directions } from '@/components/practice/Directions';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { NavigatorLegend, QuestionNavigatorGrid } from '@/components/practice/QuestionNavigatorGrid';
@@ -276,48 +276,101 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 
   if (!run.ready && brk) {
     const left = breakClock.remainingMs;
+    // Bluebook's break: a dark screen, the time left in a box with Resume,
+    // and how the break works beside it.
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-paper px-5 py-2 pb-4">
-        <CloseButton onClick={pauseBreak} label="Leave and pause the break" />
-        <div className="mb-6 mt-auto">
-          <p className="t-callout text-ink-2">Break</p>
-          <p className="font-title tabular text-[76px] font-bold leading-[84px] tracking-[-1px] text-ink" role="timer" aria-label={`Break, ${Math.ceil(left / 60_000)} minutes left`}>
-            {formatRemainingTime(left)}
-          </p>
-          <div className="mb-2.5 mt-3 h-1.5 overflow-hidden rounded-full bg-track">
-            <div className="h-1.5 rounded-full bg-accent" style={{ width: `${(left / BREAK_MS) * 100}%` }} />
-          </div>
-          <p className="t-callout text-ink-2">{SUBJECT_LABEL[stage.subject]} starts by itself when the break ends.</p>
-          <p className="t-subhead mt-2.5 flex items-center gap-2 text-ink-2">
-            <Icon as={ArrowRight} size={17} className="text-ink-3" />
-            Next: <span className="font-medium text-ink">{moduleLabel}</span> · {minutes} min
-          </p>
+      <div className="flex min-h-dvh flex-col bg-ink text-paper">
+        <div className="flex h-16 shrink-0 items-center justify-between px-4 sm:px-6">
+          <p className="t-headline">{testName(pkg.title)}</p>
+          <button type="button" onClick={pauseBreak} className="t-subhead flex h-10 items-center gap-1.5 rounded-full border border-paper/40 px-4 font-medium active:bg-paper/10">
+            <Icon as={House} size={16} className="text-current" />
+            Leave
+          </button>
         </div>
-        <Button label="Skip break" variant="secondary" onClick={startModule} />
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-10 px-5 py-8 md:flex-row md:items-center md:gap-16">
+          <section className="flex w-full max-w-xs flex-col items-center rounded-panel border border-paper/30 px-6 py-7 text-center">
+            <p className="t-subhead opacity-90">Remaining break time</p>
+            <p className="font-title tabular mt-1 text-[64px] font-bold leading-[72px]" role="timer" aria-label={`Break, ${Math.ceil(left / 60_000)} minutes left`}>
+              {formatRemainingTime(left)}
+            </p>
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-paper/20" aria-hidden="true">
+              <div className="h-1.5 rounded-full bg-paper" style={{ width: `${(left / BREAK_MS) * 100}%` }} />
+            </div>
+            <button type="button" onClick={startModule} className="t-callout mt-6 h-11 w-full rounded-full bg-paper font-semibold text-ink active:opacity-90">
+              Resume testing
+            </button>
+          </section>
+          <section className="w-full max-w-xl">
+            <h1 className="t-title">Practice test break</h1>
+            <p className="t-body mt-3 opacity-90">You can resume as soon as you’re ready to move on. On test day, you’ll wait until the clock counts down.</p>
+            <hr className="my-6 border-paper/20" />
+            <h2 className="t-headline">How this break works</h2>
+            <ul className="t-subhead mt-3 flex list-disc flex-col gap-2 pl-5 opacity-90">
+              <li>
+                {moduleLabel} ({minutes} {minutes === 1 ? 'minute' : 'minutes'}) starts by itself when the break ends.
+              </li>
+              <li>Leaving pauses the break; it carries on when you come back.</li>
+              <li>Your {SUBJECT_LABEL[stages[run.stage - 1]?.subject ?? 'english']} answers are submitted and can’t be changed.</li>
+            </ul>
+          </section>
+        </main>
+        <footer className="flex h-14 shrink-0 items-center px-4 sm:px-6">
+          <p className="t-subhead truncate font-bold uppercase">{studentName}</p>
+        </footer>
       </div>
     );
   }
 
   if (!run.ready) {
     const fullTest = stages.some((s) => s.subject !== stage.subject);
+    // Bluebook's start of a section: the bars, the facts on a card, Start in the footer.
+    const facts: { icon: LucideIcon; title: string; text: string }[] = [
+      { icon: TimerIcon, title: 'Timing', text: `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} for ${questions.length} questions. The clock starts when you press Start and stops while you’re away from the test.` },
+      stage.subject === 'math'
+        ? { icon: CalculatorIcon, title: 'Calculator and reference sheet', text: 'The Desmos graphing calculator and the reference sheet are at the top right, for every question.' }
+        : { icon: Highlighter, title: 'Highlights and notes', text: 'Highlight the passage or the question and add notes. Cross out answer choices with ABC.' },
+      { icon: Bookmark, title: 'Mark for review', text: 'Mark questions to come back to. The question list shows them before you submit the module.' },
+      run.stage === 0 && fullTest
+        ? { icon: Coffee, title: 'Breaks', text: 'Module 2 follows straight on. A 10-minute break comes before Math.' }
+        : run.stage > 0
+          ? { icon: Lock, title: 'Previous module', text: 'It’s submitted. Its answers can’t be changed now.' }
+          : { icon: ListChecks, title: 'Your score', text: 'An estimate from College Board’s practice tests, shown when you finish.' },
+    ];
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-paper px-5 py-2 pb-4">
-        <CloseButton onClick={() => void navigate(testPage)} label="Close" />
-        <div className="mb-7 mt-auto flex flex-col gap-2">
-          <p className="t-callout text-ink-2">
-            {testName(pkg.title)} · {fullTest ? 'Full test' : SUBJECT_LABEL[stage.subject]}
-          </p>
-          <h1 className="t-title mb-2 text-ink">{moduleLabel}</h1>
-          <Fact icon={ListChecks} text={`${questions.length} questions`} />
-          <Fact icon={TimerIcon} text={`${minutes} minutes`} />
-          {stage.subject === 'math' && <Fact icon={CalculatorIcon} text="Calculator allowed" />}
-          {run.stage === 0 && fullTest ? (
-            <Note icon={Coffee} text="Module 2 follows straight on; a 10-minute break comes before Math." />
-          ) : run.stage > 0 ? (
-            <Note icon={Lock} text="The previous module is submitted. Its answers can’t be changed now." />
-          ) : null}
-        </div>
-        <Button label={`Start module ${stage.module.module}`} onClick={startModule} />
+      <div className="flex h-dvh flex-col bg-paper">
+        <header className="grid h-[72px] shrink-0 grid-cols-[1fr_auto] items-center border-b-2 border-dashed border-ink bg-bar px-3 sm:px-5">
+          <div className="min-w-0">
+            <p className="t-headline truncate text-ink">{testName(pkg.title)}</p>
+            <p className="t-subhead text-ink-2">{fullTest ? 'Full test' : SUBJECT_LABEL[stage.subject]}</p>
+          </div>
+          <Tool icon={House} label="Leave" onClick={() => void navigate(testPage)} />
+        </header>
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:py-12">
+          <div className="mx-auto max-w-2xl">
+            <h1 className="t-title mb-6 text-center text-ink">{moduleLabel}</h1>
+            <div className="rounded-panel border border-line bg-paper p-6 shadow-[0_10px_32px_-14px_rgba(18,45,71,0.28)] sm:p-8">
+              <ul className="flex flex-col gap-6">
+                {facts.map((f) => (
+                  <li key={f.title} className="flex gap-4">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-tint">
+                      <Icon as={f.icon} size={20} className="text-accent" />
+                    </span>
+                    <span className="flex flex-col gap-1">
+                      <span className="t-headline text-ink">{f.title}</span>
+                      <span className="t-subhead text-ink-2">{f.text}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </main>
+        <footer className="grid h-16 shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-t-2 border-dashed border-ink bg-bar px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
+          <p className="t-subhead truncate font-bold uppercase text-ink">{studentName}</p>
+          <button type="button" onClick={startModule} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent active:opacity-90">
+            Start module {stage.module.module}
+          </button>
+        </footer>
       </div>
     );
   }
@@ -592,32 +645,6 @@ function Tool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: s
   );
 }
 
-function Fact({ icon, text }: { icon: LucideIcon; text: string }) {
-  return (
-    <p className="t-body flex min-h-8 items-center gap-3 text-ink">
-      <Icon as={icon} size={20} className="text-ink-3" />
-      {text}
-    </p>
-  );
-}
-
-function Note({ icon, text }: { icon: LucideIcon; text: string }) {
-  return (
-    <p className="t-subhead mt-2.5 flex gap-2.5 text-ink-2">
-      <Icon as={icon} size={18} className="text-ink-3" />
-      <span className="flex-1">{text}</span>
-    </p>
-  );
-}
-
-function CloseButton({ onClick, label }: { onClick: () => void; label: string }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} className="-ml-2.5 flex size-11 items-center justify-center rounded-chip active:opacity-60">
-      <Icon as={House} size={22} />
-    </button>
-  );
-}
-
 /** A laptop-sized window: the calculator docks beside the question. */
 function useWide(): boolean {
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 900px)').matches);
@@ -668,11 +695,13 @@ function CalcPane({ children }: { children: ReactNode }) {
     const startW = width;
     let last = startW;
     handle.setPointerCapture(e.pointerId);
+    dragging(true);
     const move = (ev: PointerEvent) => {
       last = clampCalc(startW + ev.clientX - startX);
       setWidth(last);
     };
     const up = () => {
+      dragging(false);
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', up);
       handle.removeEventListener('pointercancel', up);

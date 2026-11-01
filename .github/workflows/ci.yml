@@ -53,6 +53,10 @@ jobs:
           # A missing asset must not be cached (no Cache-Control on a 404).
           ! curl -sSI -H 'Host: sat.makonbook.uz' http://localhost:8080/assets/missing.js | grep -qi '^cache-control:'
           curl -sSI -H 'Host: sat.makonbook.uz' http://localhost:8080/ | grep -qi '^cache-control: no-cache'
+          # The calculator frame: its own policy, framable by our own pages only.
+          curl -fsSI -H 'Host: sat.makonbook.uz' http://localhost:8080/calculator.html | grep -qi '^x-frame-options: SAMEORIGIN'
+          curl -fsSI -H 'Host: sat.makonbook.uz' http://localhost:8080/calculator.html | grep -qi "^content-security-policy:.*unsafe-eval"
+          ! curl -fsSI -H 'Host: sat.makonbook.uz' http://localhost:8080/ | grep -qi "^content-security-policy:.*unsafe-eval"
       - name: nginx log
         if: always()
         run: docker logs web; docker rm -f web
