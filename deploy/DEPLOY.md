@@ -6,8 +6,9 @@ Target: the landing page at `https://makonbook.uz` (on
 `makonbook-api/deploy/DEPLOY.md` for the server itself).
 
 ```
-internet ─► makonbook-nginx (:80/:443, TLS) ─► makonbook-web:8080   landing page + app (this repo)
-                                            ─► makonbook-api:8080   /v1/ of sat.makonbook.uz (the API)
+internet ─► makonbook-nginx (:80/:443, TLS) ─► makonbook-frontend:8080   landing page + app (this repo)
+                                            ─► makonbook-api:8080        /v1/ of sat.makonbook.uz (the API)
+                                            ─► makonbook-web             today's makonbook.uz (the Django site; not ours)
                          sat_makon_network
 ```
 
@@ -68,6 +69,12 @@ scp deploy/docker-compose.yml root@makonbook.uz:/opt/makonbook-web/
 
 No `.env` is needed: the container has no settings (the Desmos key is baked in
 at build time, step 2).
+
+The container is named `makonbook-frontend`. The name `makonbook-web` is taken
+on this VPS by the **Django site's container**, the one serving `makonbook.uz`
+today; it stays until the landing page moves (below). If `docker compose up`
+ever reports a name conflict, check `docker inspect <name>` before removing
+anything.
 
 ## 4. nginx and the certificates
 
@@ -179,9 +186,10 @@ today (decision: it replaces it completely):
 3. `docker exec makonbook-nginx nginx -t && docker exec makonbook-nginx nginx -s reload`
 4. `curl -sI https://makonbook.uz/ | head -1` (200) and
    `curl -sI https://www.makonbook.uz/ | head -1` (301 to makonbook.uz).
-5. The old site's container: stop it only if no remaining block in
-   `default.conf` proxies to it (`grep -n proxy_pass default.conf`); the
-   same container may serve sat-makon.uz or school28.
+5. The old site's container (`makonbook-web`, the Django site): stop it
+   only if no remaining block in `default.conf` proxies to it
+   (`grep -n proxy_pass default.conf`); the same container may serve
+   sat-makon.uz or school28.
 6. In this repo, add `og:url` / `og:image` tags for `https://makonbook.uz/`
    to `landing/index.html` (left out while the page lives on the dev host,
    where they would point link previews at the old site).
@@ -204,7 +212,7 @@ No change to the container is needed: it already answers `makonbook.uz`,
 | Task | Command (in `/opt/makonbook-web`) |
 |---|---|
 | Logs | `docker compose logs -f web` |
-| Health | `docker compose ps`; `docker exec makonbook-web wget -qO- http://127.0.0.1:8080/healthz` |
+| Health | `docker compose ps`; `docker exec makonbook-frontend wget -qO- http://127.0.0.1:8080/healthz` |
 | Try the image locally (your computer) | `docker run --rm --read-only --tmpfs /tmp -p 8080:8080 nazacd/makonbook-web` then `curl -H 'Host: sat.makonbook.uz' http://localhost:8080/` |
 | Stop / start | `docker compose stop` / `docker compose up -d` |
 
