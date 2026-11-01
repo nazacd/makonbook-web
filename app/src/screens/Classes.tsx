@@ -1,0 +1,120 @@
+import { CalendarX, Clock, DoorOpen, User, type LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+import { useMe, useMyAttendance } from '@/api/queries';
+import type { Group, GroupAttendance, Profile } from '@/api/types';
+import { AttendanceBar } from '@/components/AttendanceBar';
+import { Icon } from '@/components/Icon';
+import { EmptyState } from '@/components/States';
+import { useNow } from '@/lib/clock';
+import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber, teacherTitle } from '@/lib/groups';
+import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
+import { useTitle } from '@/lib/title';
+
+// The home screen, built around the next lesson: day and time set large,
+// then each class as type on the page, no cards (MOBILE-DESIGN.md). Teachers
+// see their groups the same way; their day's lessons and attendance come with
+// a later milestone.
+export function Classes() {
+  useTitle('Classes');
+  const profile = useMe().data as Profile; // RequireAuth only renders with a profile
+  const now = useNow();
+  const student = profile.kind === 'student';
+  const attendance = useMyAttendance(student);
+  const next = nextClass(profile.groups, now);
+
+  return (
+    <div className="flex flex-col gap-16">
+      {next && <NextClass next={next} now={now} />}
+      {profile.groups.length === 0 ? (
+        <EmptyState icon={CalendarX} title="No classes yet" message="When the office adds you to a group, it shows up here with its schedule." />
+      ) : (
+        profile.groups.map((group) => (
+          <ClassBlock key={group.id} group={group} teacher={!student} attendance={attendance.data?.groups.find((g) => g.group_id === group.id)} />
+        ))
+      )}
+    </div>
+  );
+}
+
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Day and time set large, with the class and room beneath.
+function NextClass({ next, now }: { next: Occurrence; now: number }) {
+  const name = parseClassName(next.group.name, next.group.discipline);
+  const happening = next.start <= now;
+  const what = [name.title, name.teacher].filter(Boolean).join(' · ');
+  const where = [next.slot.classroom && `Room ${roomNumber(next.slot.classroom)}`, `until ${next.slot.end_time}`].filter(Boolean).join(' · ');
+  return (
+    <section aria-label={`${happening ? 'Happening now' : 'Next class'}: ${happening ? `until ${next.slot.end_time}` : `${describeDay(next.start, now)}, ${next.slot.begin_time}`}. ${what}. ${where}`}>
+      <p className="t-subhead font-medium text-ink-2">{happening ? 'Happening now' : 'Next class'}</p>
+      <p className="mt-0.5 flex flex-wrap items-baseline gap-x-3">
+        {happening ? (
+          <>
+            <span className="t-large-title text-ink">{capital('until')}</span>
+            <span className="t-large-title tabular text-accent">{next.slot.end_time}</span>
+          </>
+        ) : (
+          <>
+            <span className="t-large-title text-ink">{describeDay(next.start, now)}</span>
+            <span className="t-large-title tabular text-accent">{next.slot.begin_time}</span>
+          </>
+        )}
+      </p>
+      <p className="t-callout mt-2.5 font-medium text-ink">{what}</p>
+      {!happening && <p className="t-subhead text-ink-2">{where}</p>}
+    </section>
+  );
+}
+
+// A class, set on the page as type: its name, then teacher, time with days,
+// and room, each on its own line. The attendance bar sits at its bottom right.
+function ClassBlock({ group, attendance, teacher: forTeacher }: { group: Group; attendance?: GroupAttendance; teacher: boolean }) {
+  const name = parseClassName(group.name, group.discipline);
+  const teacher = forTeacher ? null : (name.teacher ?? (group.schedule[0]?.teachers[0] ? normalCase(group.schedule[0].teachers[0]) : null));
+  // One time line per distinct slot; rooms listed once.
+  const times = [...new Map(group.schedule.map((s) => [`${s.begin_time}|${s.weekdays.join()}`, s])).values()];
+  const rooms = [...new Set(group.schedule.map((s) => s.classroom).filter(Boolean).map(roomNumber))];
+  const s = attendance?.summary;
+  const rate = s && s.lessons > 0 ? (s.present + s.late) / s.lessons : null;
+  return (
+    <section className="flex items-end gap-3">
+      <div className="flex flex-1 flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="t-title2 text-ink">{forTeacher ? teacherTitle(name) : name.title}</h2>
+          {name.isPrivate && !forTeacher && <span className="t-caption rounded-lg border-[1.5px] border-ink-2 px-1.5 py-px text-ink-2">1:1</span>}
+        </div>
+        <div className="flex flex-col gap-1">
+          {teacher && (
+            <Line icon={User}>
+              <span className="t-subhead text-ink-2">{teacher}</span>
+            </Line>
+          )}
+          {times.map((slot, i) => (
+            <Line key={i} icon={Clock} label={`${slot.begin_time}, ${daysSpoken(slot.weekdays)}`}>
+              <span className="t-subhead tabular text-ink-2">{slot.begin_time}</span>
+              <span className="t-caption text-ink-2" style={{ letterSpacing: 0.6 }}>
+                {dayLetters(slot.weekdays)}
+              </span>
+            </Line>
+          ))}
+          {rooms.length > 0 && (
+            <Line icon={DoorOpen} label={`Room ${rooms.join(', ')}`}>
+              <span className="t-subhead text-ink-2">{rooms.join(', ')}</span>
+            </Line>
+          )}
+        </div>
+      </div>
+      {rate !== null && <AttendanceBar rate={rate} to={`/attendance/${group.id}`} />}
+    </section>
+  );
+}
+
+function Line({ icon, label, children }: { icon: LucideIcon; label?: string; children: ReactNode }) {
+  return (
+    <p className="flex items-center gap-2" aria-label={label}>
+      <Icon as={icon} size={16} className="text-ink-3" />
+      {children}
+    </p>
+  );
+}

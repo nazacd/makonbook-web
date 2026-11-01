@@ -1,16 +1,20 @@
 # Production stack for makonbook.uz and sat.makonbook.uz — lives on the VPS at
 # /opt/makonbook-web/docker-compose.yml. See deploy/DEPLOY.md.
 #
-# One container, makonbook-web, reached only by the edge nginx
-# (makonbook-nginx) as http://makonbook-web:8080 on sat_makon_network. No
+# One container, makonbook-frontend, reached only by the edge nginx
+# (makonbook-nginx) as http://makonbook-frontend:8080 on sat_makon_network. No
 # host ports are published. The image is nginx with both builds inside.
+#
+# The container is NOT called makonbook-web: that name belongs to the Django
+# site's container, which serves makonbook.uz until the landing page moves
+# there (deploy/DEPLOY.md). Never remove that one.
 
 name: makonbook-web
 
 services:
   web:
     image: ${WEB_IMAGE:-nazacd/makonbook-web:latest}
-    container_name: makonbook-web
+    container_name: makonbook-frontend
     pull_policy: always
     restart: always
     networks:

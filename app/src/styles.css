@@ -48,8 +48,12 @@
   --radius-panel: 20px;
 }
 
+/* Dark: the phone's setting, unless Profile's Appearance says otherwise
+   (lib/appearance.tsx sets data-theme on <html>). The values are the mobile
+   app's dark palette, written twice because CSS can't name a set of variables. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --color-brand: #0b1a2a;
     --color-surface: #122438;
     --color-surface-2: #1a2f46;
@@ -77,14 +81,69 @@
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-brand: #0b1a2a;
+  --color-surface: #122438;
+  --color-surface-2: #1a2f46;
+  --color-line: rgba(242, 234, 218, 0.1);
+  --color-line-strong: rgba(242, 234, 218, 0.2);
+  --color-ink: #f2eada;
+  --color-ink-2: #c2baa9;
+  --color-ink-3: #9a9487;
+  --color-primary: #ede2cc;
+  --color-on-primary: #122d47;
+  --color-accent: #c391d8;
+  --color-on-accent: #0b1a2a;
+  --color-accent-tint: #2a2d48;
+  --color-good: #9dbda2;
+  --color-good-tint: #1d3434;
+  --color-watch: #e0b24e;
+  --color-watch-tint: #2d2f2c;
+  --color-bad: #e58d6b;
+  --color-bad-tint: #302a31;
+  --color-info: #97c1d5;
+  --color-track: #24384e;
+  --color-fill-good: #7fc28e;
+  --color-fill-watch: #e0b24e;
+  --color-fill-bad: #e58d6b;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 @layer base {
   html {
     background: var(--color-brand);
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    color-scheme: light dark;
   }
   body {
     min-height: 100dvh;
   }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+/* The type scale, the mobile app's src/design/typography.ts: size, weight and
+   leading as a set. Titles and big numbers in Bitter, the rest in the system
+   font. Use these instead of mixing text-* and font-* classes. */
+@layer components {
+  .t-large-title { font-family: var(--font-title); font-weight: 700; font-size: 34px; line-height: 41px; letter-spacing: -0.4px; }
+  .t-title { font-family: var(--font-title); font-weight: 700; font-size: 28px; line-height: 34px; letter-spacing: -0.3px; }
+  .t-title2 { font-family: var(--font-title); font-weight: 700; font-size: 22px; line-height: 28px; letter-spacing: -0.1px; }
+  .t-title3 { font-family: var(--font-title); font-weight: 600; font-size: 20px; line-height: 26px; }
+  .t-headline { font-size: 17px; line-height: 22px; font-weight: 600; }
+  .t-body { font-size: 17px; line-height: 24px; font-weight: 400; }
+  .t-callout { font-size: 16px; line-height: 22px; font-weight: 400; }
+  .t-subhead { font-size: 15px; line-height: 20px; font-weight: 400; }
+  .t-footnote { font-size: 13px; line-height: 18px; font-weight: 400; }
+  .t-caption { font-size: 12px; line-height: 16px; font-weight: 500; }
+  .tabular { font-variant-numeric: tabular-nums; }
 }

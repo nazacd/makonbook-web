@@ -28,6 +28,17 @@ The app's dev server proxies `/v1` to `https://api.makonbook.uz` (or
 `VITE_API_URL` from `app/.env`, see `app/.env.example`), so page and API share
 one origin, as in production.
 
+Without the real API (no network, or nothing to sign in with), a fictional one
+with three accounts is in `app/mock/api.cjs`:
+
+```bash
+npm run dev:mock -w app
+```
+
+```bash
+VITE_API_URL=http://127.0.0.1:8081 npm run dev:app
+```
+
 Checks, all of which CI runs:
 
 ```bash
