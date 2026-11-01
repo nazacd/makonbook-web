@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Calculator</title>
+  </head>
+  <body>
+    <div id="calculator"></div>
+    <div id="loading" class="overlay">
+      <div class="spinner"></div>
+      <p>Loading the calculator…</p>
+      <p id="slow" class="small" hidden>Slow connection. Still loading…</p>
+    </div>
+    <div id="failed" class="overlay" hidden>
+      <p>The calculator didn’t load.</p>
+      <ul id="details" class="small"></ul>
+      <button id="retry" type="button">Try again</button>
+      <p class="small">If it keeps happening, check the connection, or ask staff to check that the Desmos key allows this site.</p>
+    </div>
+    <div id="unconfigured" class="overlay" hidden>
+      <p>The calculator isn’t set up on this site yet. Ask staff to set the Desmos key.</p>
+    </div>
+    <script type="module" src="/src/calculator-frame.ts"></script>
+  </body>
+</html>
