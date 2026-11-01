@@ -351,6 +351,17 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
       onConfirm: submitModule,
     });
 
+  const backButton = (
+    <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent disabled:opacity-30">
+      Back
+    </button>
+  );
+  const backToQuestion = (
+    <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+      Back
+    </button>
+  );
+
   const questionBody = (
     <>
       {/* The question strip, as in Bluebook: the number, Mark for Review beside it, the cross-out tool at the right. */}
@@ -501,8 +512,9 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
       </div>
 
       <footer className="relative grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t-2 border-dashed border-ink bg-paper px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
+        {/* A laptop shows the name here; a phone has no room for it, so Back takes the left side. */}
         <p className="t-subhead hidden truncate font-bold uppercase text-ink sm:block">{studentName}</p>
-        <span className="sm:hidden" />
+        <div className="flex sm:hidden">{showReview ? backToQuestion : backButton}</div>
         <button type="button" onClick={() => setShowNavigator((v) => !v)} aria-haspopup="dialog" aria-expanded={showNavigator} className="t-subhead flex h-10 items-center gap-1.5 rounded-lg bg-ink px-3 font-semibold text-paper sm:px-4">
           <span className="hidden sm:inline">Question </span>
           {run.index + 1} of {questions.length}
@@ -511,18 +523,14 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         <div className="flex items-center justify-end gap-2">
           {showReview ? (
             <>
-              <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent">
-                Back
-              </button>
+              <span className="hidden sm:flex">{backToQuestion}</span>
               <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
                 {run.stage + 1 < stages.length ? 'Submit module' : 'Submit the test'}
               </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent disabled:opacity-30">
-                Back
-              </button>
+              <span className="hidden sm:flex">{backButton}</span>
               <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
                 Next
               </button>
