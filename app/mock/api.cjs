@@ -16,7 +16,8 @@ const people = {
   'temp.student': { kind: 'student', id: 1002, first_name: 'Temur', last_name: 'Rashidov', username: null, must_change_password: true, groups: [] },
   'demo.teacher': { kind: 'teacher', id: 77, first_name: 'Nodira', last_name: 'Aliyeva', username: 'demo.teacher', must_change_password: false,
     groups: [{ id: 502, name: 'MS NODIRA PRE SAT ENGLISH 14:00 MWF', discipline: 'PRE SAT ENGLISH', learning_type: 'GROUP', office: 'NOVZA', session: null, schedule: [sched(['mon', 'wed', 'fri'], '14:00', '15:30', '7', ['NODIRA ALIYEVA'])] },
-      { id: 504, name: 'MS NODIRA IV ALI VALIYEV 12:00 TT', discipline: 'PRE SAT ENGLISH', learning_type: 'INDIVIDUAL', office: 'NOVZA', session: null, schedule: [sched(['tue', 'thu'], '12:00', '13:00', '4', ['NODIRA ALIYEVA'])] }] },
+      { id: 504, name: 'MS NODIRA IV ALI VALIYEV 12:00 TT', discipline: 'PRE SAT ENGLISH', learning_type: 'INDIVIDUAL', office: 'NOVZA', session: null, schedule: [sched(['tue', 'thu'], '12:00', '13:00', '4', ['NODIRA ALIYEVA'])] },
+      { id: 505, name: 'MS NODIRA DEMO OPEN ALL DAY', discipline: 'SAT PRACTICE', learning_type: 'GROUP', office: 'NOVZA', session: null, schedule: [sched(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], '00:00', '23:59', '1', ['NODIRA ALIYEVA'])] }] },
 };
 const tokens = new Map();
 function days(n, states) { const out = []; const d = new Date(); for (let i = 0; i < n; i++) { d.setDate(d.getDate() - 2); out.push({ date: d.toISOString().slice(0, 10), state: states[i % states.length] }); } return out; }
@@ -57,6 +58,43 @@ function grade(pkg, sections, answers) {
   return scores;
 }
 
+// --- Vocabulary (fictional words) ---
+const vw = (list, i, word, pos, definition, example) => ({ id: `0000000${list}-0000-4000-8000-${String(i).padStart(12, '0')}`, word, part_of_speech: pos, definition, example, image: null });
+const deck = { version: 'demo-1', lists: [
+  { slug: 'unit-1', title: 'SAT Words: Unit 1', words: [
+    vw(1, 1, 'abate', 'verb', 'To become less strong or intense.', 'The storm abated by morning.'),
+    vw(1, 2, 'candid', 'adjective', 'Truthful and straightforward.', 'Her candid reply surprised the committee.'),
+    vw(1, 3, 'diligent', 'adjective', 'Working carefully and steadily.', 'A diligent student checks every answer.'),
+    vw(1, 4, 'ephemeral', 'adjective', 'Lasting a very short time.', 'Fame on the internet is often ephemeral.'),
+  ] },
+  { slug: 'unit-2', title: 'SAT Words: Unit 2', words: [
+    vw(2, 1, 'lucid', 'adjective', 'Clear and easy to understand.', 'The teacher gave a lucid explanation.'),
+    vw(2, 2, 'meticulous', 'adjective', 'Very careful about details.', 'He kept meticulous notes.'),
+    vw(2, 3, 'novel', 'adjective', 'New and original.', 'She proposed a novel approach to the problem.'),
+  ] },
+] };
+const reviews = new Map(); // login -> [{seq, ...review}]
+let seq = 0;
+
+// --- Teacher: lessons, attendance sessions, groups' results ---
+const roster = [[2001, 'Ali', 'Valiyev'], [2002, 'Madina', 'Karimova'], [2003, 'Jasur', 'Rahimov'], [2004, 'Nilufar', 'Tosheva'], [2005, 'Bekzod', 'Yusupov']];
+const sessions = new Map();
+const today = () => { const d = new Date(Date.now() + 5 * 3600e3); return d.toISOString().slice(0, 10); };
+function lessonsFor(date) {
+  return [
+    { group_id: 502, group_name: 'MS NODIRA PRE SAT ENGLISH 14:00 MWF', discipline: 'PRE SAT ENGLISH', office: 'NOVZA', classroom: '7', begin_time: '14:00', end_time: '15:30', starts_at: `${date}T14:00:00+05:00`, ends_at: `${date}T15:30:00+05:00`, students: 5, attendance_enabled: true, learning_type: 'GROUP', session: [...sessions.values()].filter((x) => x.group_id === 502 && x.date === date).map((x) => ({ id: x.id, status: x.status }))[0] || null },
+    { group_id: 505, group_name: 'MS NODIRA DEMO OPEN ALL DAY', discipline: 'SAT PRACTICE', office: 'NOVZA', classroom: '1', begin_time: '00:00', end_time: '23:59', starts_at: `${date}T00:00:00+05:00`, ends_at: `${date}T23:59:00+05:00`, students: 5, attendance_enabled: true, learning_type: 'GROUP', session: [...sessions.values()].filter((x) => x.group_id === 505 && x.date === date).map((x) => ({ id: x.id, status: x.status }))[0] || null },
+    { group_id: 504, group_name: 'MS NODIRA IV ALI VALIYEV 12:00 TT', discipline: 'PRE SAT ENGLISH', office: 'NOVZA', classroom: '4', begin_time: '12:00', end_time: '13:00', starts_at: `${date}T12:00:00+05:00`, ends_at: `${date}T13:00:00+05:00`, students: 1, attendance_enabled: false, learning_type: 'INDIVIDUAL', session: null },
+  ];
+}
+function counts(marks) { const c = { total: marks.length, present: 0, late: 0, absent: 0, pending: 0 }; for (const m of marks) c[m.state]++; return c; }
+const sessionOut = (x) => ({ ...x, counts: counts(x.marks) });
+const groupPractice = { students: roster.map(([client_id, first_name, last_name], i) => ({ client_id, first_name, last_name, attempts: i < 3 ? [
+  { id: `0000000a-0000-4000-8000-00000000000${i}`, test: 'DAY2', title: 'DAY2', version: 1, sections: ['english', 'math'], started_at: new Date(Date.now() - 3600e3 * (i + 1)).toISOString(), finished_at: new Date(Date.now() - 3600e3 * i - 1800e3).toISOString(), scores: { english: { raw: 4, questions: 6, score: 600 }, math: { raw: 3 + i, questions: 6, score: 500 + 100 * i } }, total: 1100 + 100 * i },
+  { id: `0000000b-0000-4000-8000-00000000000${i}`, test: 'DAY1', title: 'DAY1', version: 2, sections: ['math'], started_at: new Date(Date.now() - 86400e3 * 3).toISOString(), finished_at: new Date(Date.now() - 86400e3 * 3 + 3600e3).toISOString(), scores: { math: { raw: 2, questions: 6, score: 400 } }, total: null },
+] : [] })) };
+const groupVocab = { words: 1220, students: roster.map(([client_id, first_name, last_name], i) => ({ client_id, first_name, last_name, started: i * 20, learned: i * 7, reviews_week: i < 3 ? 30 - i * 10 : 0, last_review: i < 4 ? new Date(Date.now() - 86400e3 * i).toISOString() : null })) };
+
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
 http.createServer(async (req, res) => {
@@ -94,6 +132,34 @@ http.createServer(async (req, res) => {
     attempts.set(key, stored); const { answers: _a, ...out } = stored; return json(res, 200, out);
   }
   if (url === '/v1/me/practice/attempts') return me.kind === 'student' ? json(res, 200, { attempts: [...attempts.values()].filter((a) => [...attempts.keys()].some((k) => k === `${login}:${a.id}`)).sort((a, b) => b.finished_at.localeCompare(a.finished_at)) }) : err(res, 403, 'forbidden', 'not a student');
+  if (url === '/v1/vocab/deck') { const have = new URL(req.url, 'http://x').searchParams.get('have'); return json(res, 200, have === deck.version ? { version: deck.version, unchanged: true } : { version: deck.version, unchanged: false, lists: deck.lists }); }
+  if (/^\/v1\/vocab\/lists\/[^/]+\/images$/.test(url)) return json(res, 200, { images: {}, expires_at: new Date(Date.now() + 6 * 3600e3).toISOString() });
+  if (url === '/v1/vocab/reviews' && req.method === 'POST') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    const mine = reviews.get(login) || []; let added = 0;
+    for (const r of body.reviews || []) { if (!mine.some((x) => x.id === r.id)) { mine.push({ seq: ++seq, ...r }); added++; } }
+    reviews.set(login, mine); return json(res, 200, { received: (body.reviews || []).length, added });
+  }
+  if (url === '/v1/me/vocab/reviews') { const after = Number(new URL(req.url, 'http://x').searchParams.get('after') || 0); const mine = (reviews.get(login) || []).filter((r) => r.seq > after); return json(res, 200, { reviews: mine.slice(0, 1000), next: mine.length > 1000 ? mine[999].seq : null }); }
+  if (url === '/v1/teacher/lessons') { if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'not a teacher'); const date = new URL(req.url, 'http://x').searchParams.get('date') || today(); return json(res, 200, { date, lessons: lessonsFor(date) }); }
+  if (url === '/v1/attendance/sessions' && req.method === 'POST') {
+    if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'not a teacher');
+    const date = body.date || today(); const lesson = lessonsFor(date).find((l) => l.group_id === body.group_id);
+    if (!lesson) return err(res, 404, 'not_found', 'not your lesson'); if (!lesson.attendance_enabled) return err(res, 422, 'attendance_disabled', 'one-to-one');
+    let x = [...sessions.values()].find((y) => y.group_id === body.group_id && y.date === date);
+    if (!x) { const id = `a0000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`; x = { id, group_id: lesson.group_id, group_name: lesson.group_name, date, starts_at: lesson.starts_at, ends_at: lesson.ends_at, late_after: lesson.starts_at.replace('T00:00', 'T00:10').replace('T14:00', 'T14:10'), opened_at: new Date().toISOString(), finished_at: null, status: 'open', editable_until: new Date(Date.now() + 86400e3).toISOString(), qr: { secret: 'c2VjcmV0LXNlY3JldC1zZWNyZXQtc2VjcmV0', window_seconds: 10, server_time: new Date().toISOString() }, marks: roster.map(([client_id, first_name, last_name], i) => ({ client_id, first_name, last_name, state: i === 0 ? 'present' : 'pending', source: i === 0 ? 'scan' : null, scanned_at: i === 0 ? new Date().toISOString() : null })) }; sessions.set(id, x); }
+    return json(res, 200, sessionOut({ ...x, qr: { ...x.qr, server_time: new Date().toISOString() } }));
+  }
+  const sm = /^\/v1\/attendance\/sessions\/([^/]+)(\/finish|\/marks\/(\d+))?$/.exec(url);
+  if (sm) {
+    const x = sessions.get(sm[1]); if (!x) return err(res, 404, 'not_found', 'no such session');
+    if (sm[2] === '/finish') { if (x.status === 'open') { x.status = 'finished'; x.finished_at = new Date().toISOString(); delete x.qr; for (const m of x.marks) if (m.state === 'pending') { m.state = 'absent'; m.source = 'auto'; } } return json(res, 200, sessionOut(x)); }
+    if (sm[3]) { const m = x.marks.find((y) => y.client_id === Number(sm[3])); if (!m) return err(res, 403, 'not_in_roster', 'not in roster'); if (m.source === 'admin') return err(res, 409, 'set_by_admin', 'the office set it'); m.state = body.state; m.source = 'teacher'; return json(res, 200, sessionOut(x)); }
+    if (x.status === 'open' && x.marks[1].state === 'pending' && Date.now() - Date.parse(x.opened_at) > 4000) { x.marks[1].state = 'late'; x.marks[1].source = 'scan'; x.marks[1].scanned_at = new Date().toISOString(); }
+    return json(res, 200, sessionOut(x.qr ? { ...x, qr: { ...x.qr, server_time: new Date().toISOString() } } : x));
+  }
+  const gm = /^\/v1\/teacher\/groups\/(\d+)\/(practice|vocab)$/.exec(url);
+  if (gm) { if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'not a teacher'); return json(res, 200, gm[2] === 'practice' ? groupPractice : groupVocab); }
   if (url === '/v1/me/parent-code') return me.kind === 'student' ? json(res, 200, { code: '48213' }) : err(res, 403, 'forbidden', 'not a student');
   err(res, 404, 'not_found', 'no such route');
 }).listen(8081, '127.0.0.1', () => console.log('mock api on 8081'));

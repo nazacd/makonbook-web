@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, ArrowUp, BookOpen, ChevronDown, ChevronUp, CloudUpload, Lock, RefreshCw, Users } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, BookOpen, ChevronDown, ChevronUp, CloudUpload, Lock, RefreshCw } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
@@ -12,6 +12,8 @@ import { SUBJECT_LABEL, SUBJECT_SHORT, testName, testRange } from '@/lib/practic
 import type { CatalogTest } from '@/lib/practice/types';
 import { useTitle } from '@/lib/title';
 
+import { TeacherPractice } from './TeacherPractice';
+
 /** A run of this many finished tests in a row folds into one node. */
 const FOLD_AT = 4;
 
@@ -22,15 +24,12 @@ type Node = TestNode | { kind: 'fold'; tests: TestNode[] };
 // full-test score, then the program as a path, test by test in order. Tests
 // not open yet are one locked line at the end.
 export function Practice() {
-  useTitle('Practice');
-  const me = useMe().data;
-  if (me?.kind === 'teacher') {
-    return <EmptyState icon={Users} title="Your groups’ practice is coming to the web" message="Until then, it is in the MakonBook app on your phone." />;
-  }
-  return <StudentPractice />;
+  const kind = useMe().data?.kind;
+  return kind === 'teacher' ? <TeacherPractice /> : <StudentPractice />;
 }
 
 function StudentPractice() {
+  useTitle('Practice');
   const catalog = useCatalog();
   const runs = useRuns();
   const attempts = useLocalAttempts();
