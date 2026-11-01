@@ -23,10 +23,10 @@ export function QuestionNavigatorGrid(props: Props) {
             aria-current={item.current || undefined}
             aria-label={`Question ${item.id}${item.answered ? ', answered' : ', blank'}${item.marked ? ', marked for review' : ''}`}
             className={`relative flex size-11 items-center justify-center rounded-lg border t-subhead font-semibold ${
-              item.current ? 'border-primary bg-primary text-on-primary' : item.answered ? 'border-good bg-good-tint text-ink' : 'border-line bg-surface text-ink'
+              item.current ? 'border-accent bg-accent text-on-accent' : item.answered ? 'border-accent bg-accent-tint text-ink' : 'border-dashed border-line-strong bg-paper text-ink'
             }`}>
             {item.id}
-            {item.marked && <span className="absolute right-1 top-1 size-2 rounded-full bg-fill-watch" />}
+            {item.marked && <span className={`absolute -right-1 -top-1 size-2.5 rounded-full ${item.current ? 'bg-fill-watch' : 'bg-accent'}`} />}
           </button>
         ))}
       </div>

@@ -38,6 +38,8 @@
   --color-fill-good: #2f7444;
   --color-fill-watch: #a87810;
   --color-fill-bad: #9e4527;
+  --color-paper: #fdfcfa;          /* the test page: near white, like Bluebook */
+  --color-paper-2: #f4f2ed;
 
   --font-title: "Bitter", Georgia, "Times New Roman", serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -78,6 +80,8 @@
     --color-fill-good: #7fc28e;
     --color-fill-watch: #e0b24e;
     --color-fill-bad: #e58d6b;
+    --color-paper: #0e1c2c;
+    --color-paper-2: #15253a;
   }
 }
 
@@ -107,6 +111,8 @@
   --color-fill-good: #7fc28e;
   --color-fill-watch: #e0b24e;
   --color-fill-bad: #e58d6b;
+  --color-paper: #0e1c2c;
+  --color-paper-2: #15253a;
 }
 
 :root[data-theme="light"] {

@@ -266,7 +266,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   if (!run.ready && brk) {
     const left = breakClock.remainingMs;
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-2 pb-4">
+      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-paper px-5 py-2 pb-4">
         <CloseButton onClick={pauseBreak} label="Leave and pause the break" />
         <div className="mb-6 mt-auto">
           <p className="t-callout text-ink-2">Break</p>
@@ -274,7 +274,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
             {formatRemainingTime(left)}
           </p>
           <div className="mb-2.5 mt-3 h-1.5 overflow-hidden rounded-full bg-track">
-            <div className="h-1.5 rounded-full bg-primary" style={{ width: `${(left / BREAK_MS) * 100}%` }} />
+            <div className="h-1.5 rounded-full bg-accent" style={{ width: `${(left / BREAK_MS) * 100}%` }} />
           </div>
           <p className="t-callout text-ink-2">{SUBJECT_LABEL[stage.subject]} starts by itself when the break ends.</p>
           <p className="t-subhead mt-2.5 flex items-center gap-2 text-ink-2">
@@ -290,7 +290,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   if (!run.ready) {
     const fullTest = stages.some((s) => s.subject !== stage.subject);
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-2 pb-4">
+      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-paper px-5 py-2 pb-4">
         <CloseButton onClick={() => void navigate(testPage)} label="Close" />
         <div className="mb-7 mt-auto flex flex-col gap-2">
           <p className="t-callout text-ink-2">
@@ -322,16 +322,16 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const twoColumns = !!question.passage;
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col bg-paper">
       {note && (
         <div role="status" className="absolute left-1/2 top-16 z-30 flex -translate-x-1/2 items-center gap-2.5 rounded-control bg-primary px-3.5 py-3 text-on-primary">
           <Icon as={Check} size={18} className="text-on-primary" />
           <span className="t-subhead font-medium">{note}</span>
         </div>
       )}
-      <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line bg-brand px-2 sm:px-4">
+      <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line bg-paper px-2 sm:px-4">
         <div className="flex min-w-0 items-center gap-1">
-          <button type="button" onClick={leave} aria-label="Leave the test" className="flex size-11 items-center justify-center rounded-chip active:bg-surface-2">
+          <button type="button" onClick={leave} aria-label="Leave the test" className="flex size-11 items-center justify-center rounded-chip active:bg-paper-2">
             <Icon as={House} size={20} />
           </button>
           <span className="t-subhead hidden truncate font-medium text-ink sm:block">{moduleLabel}</span>
@@ -346,34 +346,39 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         </div>
         <div className="flex items-center justify-end gap-1">
           {stage.subject === 'math' && (
-            <button type="button" onClick={() => setShowCalculator((v) => !v)} aria-pressed={showCalculator} aria-label="Calculator" className={`flex h-11 items-center gap-1.5 rounded-chip px-3 active:bg-surface-2 ${showCalculator ? 'bg-surface-2' : ''}`}>
+            <button type="button" onClick={() => setShowCalculator((v) => !v)} aria-pressed={showCalculator} aria-label="Calculator" className={`flex h-11 items-center gap-1.5 rounded-chip px-3 active:bg-paper-2 ${showCalculator ? 'bg-accent-tint text-accent' : ''}`}>
               <Icon as={CalculatorIcon} size={20} />
               <span className="t-subhead hidden text-ink sm:block">Calculator</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => update((r) => ({ ...r, marked: r.marked.includes(qKey) ? r.marked.filter((k) => k !== qKey) : [...r.marked, qKey] }))}
-            aria-pressed={marked}
-            aria-label={marked ? 'Unmark for review' : 'Mark for review'}
-            className="flex h-11 items-center gap-1.5 rounded-chip px-3 active:bg-surface-2">
-            <Bookmark size={20} strokeWidth={1.75} className={marked ? 'text-fill-watch' : 'text-ink'} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
-            <span className="t-subhead hidden text-ink sm:block">{marked ? 'Marked' : 'Mark for review'}</span>
-          </button>
         </div>
       </header>
 
-      <main key={qKey} className={`min-h-0 flex-1 ${twoColumns ? 'md:grid md:grid-cols-2' : ''} overflow-y-auto md:overflow-hidden`}>
+      {/* One scrolling page on a phone and for Math; on a laptop a passage and
+          its question scroll on their own, so the row must take the main's
+          height exactly (minmax(0, 1fr)), or the columns would grow past it. */}
+      <main key={qKey} className={`min-h-0 flex-1 overflow-y-auto ${twoColumns ? 'md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden' : ''}`}>
         {twoColumns && (
-          <div className="border-line p-5 md:overflow-y-auto md:border-r md:p-8">
+          <div className="border-b border-line p-5 md:min-h-0 md:overflow-y-auto md:border-b-0 md:border-r md:p-8">
             <RichContent text={question.passage} images={pkg.images} links={links} />
           </div>
         )}
-        <div className={`p-5 md:overflow-y-auto md:p-8 ${twoColumns ? '' : 'mx-auto w-full max-w-2xl'}`}>
-          <p className="t-footnote mb-4 flex items-center gap-2 text-ink-2">
-            <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-primary px-1.5 t-subhead font-semibold text-on-primary">{run.index + 1}</span>
-            {moduleLabel} · Question {run.index + 1} of {questions.length}
-          </p>
+        <div className={`p-5 md:p-8 ${twoColumns ? 'md:min-h-0 md:overflow-y-auto' : 'mx-auto w-full max-w-2xl'}`}>
+          {/* The question strip, as in Bluebook: the number, then Mark for Review beside it. */}
+          <div className="mb-5 flex items-center gap-3 border-b border-dashed border-line-strong pb-2.5">
+            <span className="flex h-8 min-w-8 items-center justify-center rounded-md bg-accent px-2 t-subhead font-bold text-on-accent" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
+              {run.index + 1}
+            </span>
+            <button
+              type="button"
+              onClick={() => update((r) => ({ ...r, marked: r.marked.includes(qKey) ? r.marked.filter((k) => k !== qKey) : [...r.marked, qKey] }))}
+              aria-pressed={marked}
+              className={`flex h-9 items-center gap-1.5 rounded-chip px-2 t-subhead font-medium active:bg-paper-2 ${marked ? 'text-accent' : 'text-ink-2'}`}>
+              <Bookmark size={18} strokeWidth={1.75} className={marked ? 'text-accent' : 'text-ink-2'} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
+              {marked ? 'Marked for review' : 'Mark for review'}
+            </button>
+            <span className="t-footnote ml-auto text-ink-3 sm:hidden">{run.index + 1} of {questions.length}</span>
+          </div>
           <RichContent text={question.stem} images={pkg.images} links={links} className="rich rich-lg" />
           {question.type === 'mcq' && question.choices ? (
             <div role="radiogroup" aria-label="Answer choices" className="mt-5 flex flex-col gap-3">
@@ -405,21 +410,21 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         </div>
       </main>
 
-      <footer className="flex h-16 shrink-0 items-center justify-between border-t border-line bg-brand px-4 pb-[env(safe-area-inset-bottom)]">
-        <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-lg px-4 font-medium text-ink disabled:opacity-30">
+      <footer className="flex h-16 shrink-0 items-center justify-between border-t border-line bg-paper px-4 pb-[env(safe-area-inset-bottom)]">
+        <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-medium text-accent disabled:opacity-30">
           Back
         </button>
-        <button type="button" onClick={() => setShowNavigator(true)} aria-haspopup="dialog" className="t-subhead h-10 rounded-lg bg-surface-2 px-4 font-medium text-ink">
-          {run.index + 1} of {questions.length} ▾
+        <button type="button" onClick={() => setShowNavigator(true)} aria-haspopup="dialog" className="t-subhead h-10 rounded-lg bg-ink px-4 font-semibold text-paper">
+          Question {run.index + 1} of {questions.length} ▴
         </button>
-        <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-lg bg-primary px-5 font-medium text-on-primary">
+        <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
           {isLast ? 'Review' : 'Next'}
         </button>
       </footer>
 
       {(showNavigator || showReview) && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center" onClick={() => (setShowNavigator(false), setShowReview(false))}>
-          <div role="dialog" aria-label={showReview ? 'Check your work' : moduleLabel} className="flex max-h-[85dvh] w-full max-w-xl flex-col gap-4 rounded-t-panel bg-brand p-5 sm:rounded-panel" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-label={showReview ? 'Check your work' : moduleLabel} className="flex max-h-[85dvh] w-full max-w-xl flex-col gap-4 rounded-t-panel bg-paper p-5 sm:rounded-panel" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="t-headline text-ink">{showReview ? 'Check your work' : moduleLabel}</h2>
               <button type="button" onClick={() => (setShowNavigator(false), setShowReview(false))} className="t-callout font-medium text-accent">

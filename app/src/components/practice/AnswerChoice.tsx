@@ -16,7 +16,7 @@ type AnswerChoiceProps = {
 // its own target (Bluebook's "cross out" tool).
 export function AnswerChoice({ letter, content, selected, eliminated, onSelect, onToggleEliminate }: AnswerChoiceProps) {
   return (
-    <div className={`relative flex items-stretch gap-1 rounded-control border bg-surface ${selected ? 'border-accent bg-accent-tint' : 'border-line'}`}>
+    <div className={`relative flex items-stretch gap-1 rounded-control border ${selected ? 'border-accent bg-accent-tint' : 'border-line-strong bg-paper'}`}>
       <button
         type="button"
         role="radio"
