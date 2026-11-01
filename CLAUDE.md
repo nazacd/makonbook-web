@@ -37,6 +37,10 @@ there first; `practice/local.ts` and `hooks.ts` are this browser's storage
 and queries). Question text is rendered by `components/practice/RichContent`
 with MathJax from `/vendor` (`app/scripts/vendor.mjs`), formulas only, never
 `$…$`. The Desmos calculator needs `VITE_DESMOS_API_KEY` in `app/.env`.
+The test screen (`screens/PracticeRun`) follows Bluebook's layout; its
+highlights and notes (`components/practice/Annotations`) are character
+offsets into a block's text, painted with the CSS Custom Highlight API and
+kept in the run, never uploaded.
 Vocabulary: `lib/vocab/{types,scheduler,progress}.ts` are copies from the
 phone; `ts-fsrs` stays pinned to exactly 5.4.2 (no fuzz, 90 % retention) so
 replaying the same review log gives the same cards on every device. The deck

@@ -1,3 +1,5 @@
+import type { TextHighlight } from '@/components/practice/Annotations';
+
 import type { AnswerInput, OwnAttempt, Package, Score, ServerAttempt, Subject } from './types';
 
 // What this browser keeps about practice tests, per person (a shared computer
@@ -25,6 +27,8 @@ export type Run = {
   seconds: Record<string, number>;
   marked: string[];
   eliminated: Record<string, string[]>;
+  /** Highlights and notes per block ("<question key>/p" the passage, "/q" the question); the browser's own, not uploaded. */
+  highlights?: Record<string, TextHighlight[]>;
   /**
    * The break between a full test's sections, while it's on: time left as of
    * `since` (when it last ran on), or paused (`since` null).
