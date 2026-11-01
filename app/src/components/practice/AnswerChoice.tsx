@@ -1,5 +1,5 @@
 import { Undo2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 type AnswerChoiceProps = {
   letter: string;
@@ -16,14 +16,23 @@ type AnswerChoiceProps = {
 // circled letter); with the cross-out tool on, a strike button sits on the
 // right, and a struck choice shows an undo in its place.
 export function AnswerChoice({ letter, content, selected, eliminated, crossOut, onSelect, onToggleEliminate }: AnswerChoiceProps) {
+  const struckId = useId();
   return (
     <div className="flex items-center gap-3">
       <div className={`relative flex min-w-0 flex-1 items-stretch rounded-control border bg-paper ${selected ? 'border-2 border-accent' : 'border-ink-3'} ${eliminated ? 'opacity-50' : ''}`}>
-        <button type="button" role="radio" aria-checked={selected} aria-label={eliminated ? `Choice ${letter}, struck out` : `Choice ${letter}`} onClick={eliminated ? undefined : onSelect} className={`flex min-h-[52px] flex-1 items-center gap-3 px-3 py-2 text-left ${eliminated ? 'cursor-default' : 'active:bg-paper-2'}`}>
+        {/* Named by its letter and text (the content), so a screen reader reads the answer. */}
+        <button type="button" role="radio" aria-checked={selected} aria-describedby={eliminated ? struckId : undefined} onClick={eliminated ? undefined : onSelect} className={`flex min-h-[52px] flex-1 items-center gap-3 px-3 py-2 text-left ${eliminated ? 'cursor-default' : 'active:bg-paper-2'}`}>
           <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border t-footnote font-bold ${selected ? 'border-accent bg-accent text-on-accent' : 'border-ink-3 text-ink'}`}>{letter}</span>
           <span className="min-w-0 flex-1">{content}</span>
         </button>
-        {eliminated && <span aria-hidden="true" className="pointer-events-none absolute inset-x-2 top-1/2 h-0.5 bg-ink" />}
+        {eliminated && (
+          <>
+            <span aria-hidden="true" className="pointer-events-none absolute inset-x-2 top-1/2 h-0.5 bg-ink" />
+            <span id={struckId} className="sr-only">
+              Struck out
+            </span>
+          </>
+        )}
       </div>
       {crossOut &&
         (eliminated ? (

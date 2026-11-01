@@ -28,18 +28,23 @@ tokens in `app/src/styles.css`), `docker/` (the container's nginx),
 `deploy/` (the VPS: compose file, edge nginx blocks, `DEPLOY.md`).
 
 In `app/src`: `api/` (client, generated `schema.d.ts`, queries, the error
-wording), `auth/session.tsx` (who is signed in; the token in localStorage),
+wording), `auth/session.tsx` (who is signed in; the token in localStorage,
+read once per tab: a sign-in or sign-out in another tab restarts this one,
+and multi-request jobs check `sameSession()` before each request),
 `layouts/` (`RequireAuth`/`RequireGuest` decide who sees what, like the mobile
 app's route guards; `AppShell` is the frame with the four tabs), `screens/`,
 `components/`, `lib/` (`schedule.ts`, `groups.ts`, `clock.ts` and
 `practice/{types,grade,run}.ts` are copies from the mobile app: change them
 there first; `practice/local.ts` and `hooks.ts` are this browser's storage
-and queries). Question text is rendered by `components/practice/RichContent`
+and queries: runs and attempts in localStorage, packages in IndexedDB; a run
+written by another tab stops this tab's runner, and a hidden tab's clock is
+paused). Question text is rendered by `components/practice/RichContent`
 with MathJax from `/vendor` (`app/scripts/vendor.mjs`), formulas only, never
 `$…$`. The Desmos calculator runs in its own page (`app/calculator.html`,
 `src/calculator-frame.ts`), framed by the test screen, with its own policy
 (`calculatorCsp` in `app/csp.ts`, `docker/calculator-headers.conf`); the app's
-pages keep the strict one. It needs `VITE_DESMOS_API_KEY` in `app/.env` (and
+pages keep the strict one. The frame is same-origin, so it is no security
+boundary (its scripts could read the token). It needs `VITE_DESMOS_API_KEY` in `app/.env` (and
 as a GitHub secret for the image).
 The test screen (`screens/PracticeRun`) follows Bluebook's layout; its
 highlights and notes (`components/practice/Annotations`) are character

@@ -2,6 +2,7 @@ import { Highlighter, StickyNote, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import { uuid } from '@/lib/device-id';
+import { useDialog } from '@/lib/dialog';
 
 // Bluebook's "Highlights & Notes" for Reading and Writing: with the tool on,
 // selecting text in the passage or the question offers three colours and a
@@ -51,14 +52,11 @@ function pointOffset(nodes: { node: Text; start: number }[], node: Node, offset:
     const hit = nodes.find((n) => n.node === node);
     return hit ? hit.start + offset : null;
   }
-  // A point between elements: the start of the first text node at or after it.
-  const child = node.childNodes[offset];
-  if (child) {
-    const r = document.createRange();
-    r.setStart(child, 0);
-    for (const n of nodes) if (r.comparePoint(n.node, 0) >= 0) return n.start;
-    return nodes.reduce((sum, n) => sum + n.node.data.length, 0);
-  }
+  // A point between elements (the end of an <em>, just after a formula): the
+  // start of the first text node at or after it, or the end of the text.
+  const r = document.createRange();
+  r.setStart(node, offset);
+  for (const n of nodes) if (r.comparePoint(n.node, 0) >= 0) return n.start;
   return nodes.reduce((sum, n) => sum + n.node.data.length, 0);
 }
 
@@ -235,9 +233,10 @@ export function Annotated({
 
 function NoteEditor({ highlight, onSave, onRemove, onClose }: { highlight: TextHighlight; onSave: (note: string) => void; onRemove: () => void; onClose: () => void }) {
   const [note, setNote] = useState(highlight.note);
+  const dialog = useDialog<HTMLDivElement>(onClose);
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 p-4 sm:items-center" onClick={onClose}>
-      <div role="dialog" aria-label="Note" className="flex w-full max-w-md flex-col gap-3 rounded-panel bg-paper p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Note" className="flex outline-none w-full max-w-md flex-col gap-3 rounded-panel bg-paper p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <p className="t-footnote line-clamp-3 border-l-4 pl-3 text-ink-2" style={{ borderColor: COLORS.find((c) => c.color === highlight.color)?.swatch }}>
           {highlight.text}
         </p>

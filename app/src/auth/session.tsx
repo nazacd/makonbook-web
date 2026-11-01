@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, use, useEffect, useState, type ReactNode } from 'react';
+import { createContext, Fragment, use, useEffect, useState, type ReactNode } from 'react';
 
-import { api, call, getToken, setSignedOutHandler, setToken } from '@/api/client';
+import { adoptToken, api, call, getToken, setSignedOutHandler, setToken, TOKEN_KEY } from '@/api/client';
 import { meKey } from '@/api/queries';
 import { deviceId } from '@/lib/device-id';
 
@@ -9,6 +9,8 @@ export type AuthStatus = 'signedOut' | 'signedIn';
 
 type AuthContextValue = {
   status: AuthStatus;
+  /** Someone signed out in this tab (or another tab changed who is signed in): the next person starts at Classes, not on the last page. */
+  leftOnPurpose: boolean;
   signIn: (login: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -22,13 +24,32 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>(() => (getToken() ? 'signedIn' : 'signedOut'));
+  const [leftOnPurpose, setLeftOnPurpose] = useState(false);
+  // Changes when another tab signs in or out: everything below starts over,
+  // so nothing keeps showing (or saving for) the person who was here.
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     setSignedOutHandler(() => {
       queryClient.clear();
       setStatus('signedOut');
     });
-    return () => setSignedOutHandler(null);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== TOKEN_KEY && e.key !== null) return; // null: all of storage was cleared
+      const next = e.key === null ? null : e.newValue;
+      if (next === getToken()) return;
+      adoptToken(next);
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      setStatus(next ? 'signedIn' : 'signedOut');
+      setLeftOnPurpose(true);
+      setGeneration((g) => g + 1);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      setSignedOutHandler(null);
+      window.removeEventListener('storage', onStorage);
+    };
   }, [queryClient]);
 
   async function signIn(login: string, password: string) {
@@ -38,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(response.token);
     queryClient.setQueryData(meKey, response.user);
     setStatus('signedIn');
+    setLeftOnPurpose(false);
   }
 
   async function signOut() {
@@ -47,11 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getToken();
     if (token) api.POST('/v1/auth/logout', { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setToken(null);
+    void queryClient.cancelQueries();
     queryClient.clear();
     setStatus('signedOut');
+    setLeftOnPurpose(true);
   }
 
-  return <AuthContext value={{ status, signIn, signOut }}>{children}</AuthContext>;
+  return (
+    <AuthContext value={{ status, leftOnPurpose, signIn, signOut }}>
+      <Fragment key={generation}>{children}</Fragment>
+    </AuthContext>
+  );
 }
 
 export function useAuth(): AuthContextValue {

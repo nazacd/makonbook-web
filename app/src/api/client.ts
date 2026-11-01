@@ -7,9 +7,9 @@ export type Schemas = components['schemas'];
 // Same origin: the edge nginx (and the dev server) pass /v1/ to the API, so
 // the base URL is empty. The bearer token is kept in localStorage for now
 // (docs/handoff.md section 6) and added to every request here.
-const TOKEN_KEY = 'mb.token';
+export const TOKEN_KEY = 'mb.token';
 
-export function getToken(): string | null {
+function stored(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY);
   } catch {
@@ -17,13 +17,39 @@ export function getToken(): string | null {
   }
 }
 
+// This tab's session: read once, then changed only by signing in or out here,
+// or when another tab does (AuthProvider listens and calls adoptToken). Not
+// read from storage on every request, so a sign-in in another tab can't make
+// this tab's requests go out as someone else.
+let current: string | null = stored();
+
+export function getToken(): string | null {
+  return current;
+}
+
 export function setToken(token: string | null): void {
+  current = token;
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
     // Storage blocked: the session lasts as long as the page.
   }
+}
+
+/** Another tab signed in or out: follow it, without writing it back. */
+export function adoptToken(token: string | null): void {
+  current = token;
+}
+
+/**
+ * For work that takes several requests (uploads, syncs): call at the start,
+ * then check before each request and each write that the person it started
+ * for is still the one signed in here.
+ */
+export function sameSession(): () => boolean {
+  const at = current;
+  return () => at !== null && current === at;
 }
 
 /** Called on any 401 of a signed-in request: the session is gone. */
@@ -36,16 +62,17 @@ export const api = createClient<paths>({ baseUrl: '' });
 
 api.use({
   onRequest({ request }) {
-    const token = getToken();
-    if (token && !request.headers.has('Authorization')) {
-      request.headers.set('Authorization', `Bearer ${token}`);
+    if (current && !request.headers.has('Authorization')) {
+      request.headers.set('Authorization', `Bearer ${current}`);
     }
     return request;
   },
   onResponse({ request, response }) {
     // A 401 on an authenticated call means the session ended (logged out,
     // password changed elsewhere, person no longer active): sign out locally.
-    if (response.status === 401 && request.headers.has('Authorization')) {
+    // Only for the token in use now: a late answer to a request made before
+    // someone else signed in doesn't end their session.
+    if (response.status === 401 && current && request.headers.get('Authorization') === `Bearer ${current}`) {
       setToken(null);
       onSignedOut?.();
     }

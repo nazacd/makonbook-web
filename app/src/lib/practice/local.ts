@@ -1,4 +1,7 @@
 import type { TextHighlight } from '@/components/practice/Annotations';
+import { idbGet, idbSet } from '@/lib/idb';
+
+import { calculatorStateKey } from './calculator-state';
 
 import type { AnswerInput, OwnAttempt, Package, Score, ServerAttempt, Subject } from './types';
 
@@ -67,11 +70,13 @@ function read<T>(k: string, fallback: T): T {
   }
 }
 
-function write(k: string, value: unknown) {
+/** False when it couldn't be kept (storage full or blocked): the page keeps working from memory. */
+function write(k: string, value: unknown): boolean {
   try {
     localStorage.setItem(k, JSON.stringify(value));
+    return true;
   } catch {
-    // Storage full or blocked: the page keeps working from memory.
+    return false;
   }
 }
 
@@ -97,7 +102,9 @@ function keysWithPrefix(prefix: string): string[] {
 }
 
 export const loadRun = (p: Person, code: string) => read<Run | null>(key(p, `run.${code}`), null);
-export const saveRun = (p: Person, run: Run) => write(key(p, `run.${run.code}`), run);
+/** Where a run is kept; another tab writing it means the test went on there. */
+export const runKey = (p: Person, code: string) => key(p, `run.${code}`);
+export const saveRun = (p: Person, run: Run): boolean => write(runKey(p, run.code), run);
 export const clearRun = (p: Person, code: string) => remove(key(p, `run.${code}`));
 
 /** Every test in progress, by code. */
@@ -113,9 +120,16 @@ export function loadRuns(p: Person): Record<string, Run> {
 /** Finished attempts, latest first. */
 export const loadAttempts = (p: Person) => read<LocalAttempt[]>(key(p, 'attempts'), []);
 
-export function saveAttempt(p: Person, attempt: LocalAttempt) {
-  const rest = loadAttempts(p).filter((a) => a.id !== attempt.id);
-  write(key(p, 'attempts'), [...rest, attempt].sort((a, b) => b.finished_at.localeCompare(a.finished_at)));
+/** False when it couldn't be kept, even after making room. */
+export function saveAttempt(p: Person, attempt: LocalAttempt): boolean {
+  const k = key(p, 'attempts');
+  const save = () => {
+    const rest = loadAttempts(p).filter((a) => a.id !== attempt.id);
+    return write(k, [...rest, attempt].sort((a, b) => b.finished_at.localeCompare(a.finished_at)));
+  };
+  if (save()) return true;
+  freeSpace();
+  return save();
 }
 
 /** Records the server's grading of an uploaded attempt. */
@@ -179,14 +193,51 @@ export function mergeFromServer(p: Person, server: OwnAttempt[]): number {
   return changed;
 }
 
-// Packages are the same for everyone, so they are kept once, by code and
-// version. The latest fetched version of a code replaces the older ones.
-const pkgKey = (code: string, version: number) => `mb.practice.pkg.${code}.v${version}`;
+// Packages are the same for everyone, so they are kept once, by code, in
+// IndexedDB (a full test's text runs to a few hundred kB; localStorage holds
+// about 5 MB in all). The latest fetched version of a code replaces the
+// older one.
+const pkgKey = (code: string) => `practice.pkg.${code}`;
 
-export const loadPackage = (code: string, version: number) => read<StoredPackage | null>(pkgKey(code, version), null);
+export async function loadPackage(code: string, version: number): Promise<StoredPackage | null> {
+  dropOldPackages();
+  try {
+    const stored = await idbGet<StoredPackage>(pkgKey(code));
+    return stored?.package.version === version ? stored : null;
+  } catch {
+    return null;
+  }
+}
 
-export function savePackage(stored: StoredPackage) {
-  const { code, version } = stored.package;
-  for (const k of keysWithPrefix(`mb.practice.pkg.${code}.v`)) if (k !== pkgKey(code, version)) remove(k);
-  write(pkgKey(code, version), stored);
+export async function savePackage(stored: StoredPackage): Promise<void> {
+  try {
+    await idbSet(pkgKey(stored.package.code), stored);
+  } catch {
+    // Not kept: fetched again next time.
+  }
+}
+
+// Packages used to be kept in localStorage, where they filled it up.
+let droppedOld = false;
+function dropOldPackages() {
+  if (droppedOld) return;
+  droppedOld = true;
+  for (const k of keysWithPrefix('mb.practice.pkg.')) remove(k);
+}
+
+/**
+ * Makes room in localStorage: packages from before they moved, and the
+ * calculator work of tests no longer in progress (for anyone).
+ */
+export function freeSpace() {
+  dropOldPackages();
+  const running = new Set<string>();
+  for (const k of keysWithPrefix('mb.practice.')) {
+    if (!k.includes('.run.')) continue;
+    const run = read<Run | null>(k, null);
+    if (run) running.add(run.id);
+  }
+  for (const k of keysWithPrefix(calculatorStateKey(''))) {
+    if (!running.has(k.slice(calculatorStateKey('').length))) remove(k);
+  }
 }

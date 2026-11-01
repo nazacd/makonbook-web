@@ -1,4 +1,6 @@
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router';
 
 import { api, call } from '@/api/client';
 import type { Group } from '@/api/types';
@@ -102,7 +104,7 @@ export function useLastVisit(): number | null {
 export function useMarkVisited() {
   const person = usePerson();
   const queryClient = useQueryClient();
-  return () => {
+  return useCallback(() => {
     const at = new Date().toISOString();
     queryClient.setQueryData(lastVisitQueryKey(person), at);
     try {
@@ -110,5 +112,22 @@ export function useMarkVisited() {
     } catch {
       // Not kept: next time everything counts as new.
     }
-  };
+  }, [person, queryClient]);
+}
+
+const inPractice = (path: string) => path === '/practice' || path.startsWith('/practice/');
+
+/**
+ * For teachers, in the app's frame: "new" results are new since the Practice
+ * tab was last left for another tab. Opening a group or the new results
+ * stays in the tab (the phone's pushed screens), so it doesn't count.
+ */
+export function useTrackPracticeVisits(teacher: boolean) {
+  const { pathname } = useLocation();
+  const markVisited = useMarkVisited();
+  const last = useRef(pathname);
+  useEffect(() => {
+    if (teacher && inPractice(last.current) && !inPractice(pathname)) markVisited();
+    last.current = pathname;
+  }, [teacher, pathname, markVisited]);
 }

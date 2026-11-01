@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Card, Grade } from 'ts-fsrs';
 
-import { api, call } from '@/api/client';
+import { api, ApiError, call, sameSession } from '@/api/client';
 import { uuid } from '@/lib/device-id';
 import { usePerson } from '@/lib/practice/hooks';
 
@@ -19,12 +19,22 @@ const deckKey = ['vocab-deck'] as const;
 const stateKey = (person: string) => ['vocab-state', person] as const;
 const settingsKey = (person: string) => ['vocab-settings', person] as const;
 
-// The pending list is changed by ratings and by uploads; one at a time.
-let lock: Promise<unknown> = Promise.resolve();
-function locked<T>(fn: () => Promise<T>): Promise<T> {
-  const run = lock.then(fn, fn);
-  lock = run.catch(() => {});
-  return run;
+// The upload queue (localStorage) is only ever read and written back in one
+// go, with no wait in between, so ratings and uploads (and other tabs) can't
+// lose each other's changes, and a rating never waits on the network.
+function unqueue(person: string, ids: string[]) {
+  if (ids.length === 0) return;
+  const gone = new Set(ids);
+  savePending(person, loadPending(person).filter((id) => !gone.has(id)));
+}
+
+/** The log as saved, plus ratings made here that are still being written. */
+function merged(saved: Review[], shown: VocabState | undefined): VocabState | undefined {
+  const ids = new Set(saved.map((r) => r.id));
+  const extra = (shown?.log ?? []).filter((r) => !ids.has(r.id));
+  if (shown && saved.length + extra.length === shown.log.length) return shown; // nothing new
+  const log = [...saved, ...extra];
+  return { log, cards: replay(log) };
 }
 
 /** The deck in this browser (null until the first download). */
@@ -78,10 +88,9 @@ export function useRecordReview() {
       cards.set(wordId, next);
       return { log: [...(s?.log ?? []), review], cards };
     });
-    await locked(async () => {
-      await appendLog(person, [review]);
-      savePending(person, [...loadPending(person), review.id]);
-    });
+    // In the log first, then queued: an id in the queue always has its line.
+    await appendLog(person, [review]);
+    savePending(person, [...loadPending(person), review.id]);
     return review;
   };
 }
@@ -104,8 +113,14 @@ export function useVocabSync(enabled: boolean) {
     staleTime: 0,
     retry: false,
     queryFn: async () => {
+      // Stops (quietly) if someone else signs in meanwhile: nothing of this
+      // person's goes up under their account, nothing of theirs comes down.
+      const same = sameSession();
+      const stopped = { pending: 0 };
+
       // The deck.
       const have = queryClient.getQueryData<Deck | null>(deckKey) ?? (await readDeck());
+      if (!same()) return stopped;
       const res = await call(api.GET('/v1/vocab/deck', { params: { query: have?.version ? { have: have.version } : {} } }));
       let deck = have;
       if (!res.unchanged && res.lists) {
@@ -114,44 +129,57 @@ export function useVocabSync(enabled: boolean) {
         queryClient.setQueryData(deckKey, deck);
       }
 
-      // Reviews made here, up to the server.
-      await locked(async () => {
-        const pending = loadPending(person);
-        if (pending.length === 0) return;
+      // Reviews made here, up to the server. A repeat (another tab, or a
+      // sync started twice) is skipped by the server.
+      const pending = loadPending(person);
+      if (pending.length > 0) {
         const waiting = new Set(pending);
-        const log = await readLog(person);
-        const toSend = log.filter((r) => waiting.has(r.id));
+        const toSend = (await readLog(person)).filter((r) => waiting.has(r.id));
+        // Ids with no log line (a cut-short write) can't be sent.
+        const found = new Set(toSend.map((r) => r.id));
+        unqueue(person, pending.filter((id) => !found.has(id)));
         for (let i = 0; i < toSend.length; i += CHUNK) {
           const batch = toSend.slice(i, i + CHUNK);
-          await call(api.POST('/v1/vocab/reviews', { body: { reviews: batch } }));
-          for (const r of batch) waiting.delete(r.id);
-          savePending(person, pending.filter((id) => waiting.has(id)));
+          if (!same()) return stopped;
+          try {
+            await call(api.POST('/v1/vocab/reviews', { body: { reviews: batch } }));
+          } catch (e) {
+            if (!(e instanceof ApiError && e.code === 'invalid_reviews')) throw e;
+            // One review the server can't take refuses the whole batch: send
+            // them one by one and give up on those refused, so the rest (and
+            // every later rating) still go up.
+            for (const r of batch) {
+              if (!same()) return stopped;
+              try {
+                await call(api.POST('/v1/vocab/reviews', { body: { reviews: [r] } }));
+              } catch (e2) {
+                if (!(e2 instanceof ApiError && e2.code === 'invalid_reviews')) throw e2;
+              }
+              unqueue(person, [r.id]);
+            }
+            continue;
+          }
+          unqueue(person, batch.map((r) => r.id));
         }
-        // Ids with no log line (a cut-short write) can't be sent.
-        savePending(person, []);
-      });
+      }
 
       // Reviews made on other devices, down to this one.
       let after = loadCursor(person);
-      const log = await readLog(person);
-      const known = new Set(log.map((r) => r.id));
       const fresh: Review[] = [];
       for (;;) {
+        if (!same()) return stopped;
         const page = await call(api.GET('/v1/me/vocab/reviews', { params: { query: { after } } }));
         for (const { seq, ...r } of page.reviews) {
           after = Math.max(after, seq ?? 0);
-          if (!known.has(r.id)) {
-            known.add(r.id);
-            fresh.push(r as Review);
-          }
+          fresh.push(r as Review);
         }
         if (page.next == null) break;
       }
-      if (fresh.length > 0) {
-        await locked(() => appendLog(person, fresh));
-        const all = [...log, ...fresh];
-        queryClient.setQueryData<VocabState>(stateKey(person), { log: all, cards: replay(all) });
-      }
+      if (!same()) return stopped;
+      // The log as saved, with what came down (each review once) and what
+      // another tab added: the screen shows all of it.
+      const saved = fresh.length > 0 ? await appendLog(person, fresh) : await readLog(person);
+      queryClient.setQueryData<VocabState>(stateKey(person), (shown) => merged(saved, shown));
       saveCursor(person, after);
 
       // Images of the lists turned on: their links, good for six hours.
@@ -159,7 +187,7 @@ export function useVocabSync(enabled: boolean) {
       const state = queryClient.getQueryData<VocabState>(stateKey(person));
       const active = deck ? activeLists(settings, deck, state?.cards ?? replay(await readLog(person))) : [];
       for (const list of deck?.lists ?? []) {
-        if (!active.includes(list.slug)) continue;
+        if (!active.includes(list.slug) || !same()) continue;
         if (list.words.every((w) => !w.image || hasImage(w.image.file))) continue;
         try {
           const res = await call(api.GET('/v1/vocab/lists/{slug}/images', { params: { path: { slug: list.slug } } }));

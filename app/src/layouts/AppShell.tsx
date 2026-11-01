@@ -2,10 +2,11 @@ import { BookOpen, Calendar, Layers, User, type LucideIcon } from 'lucide-react'
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router';
 
+import { useMe } from '@/api/queries';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { PageLoading } from '@/components/PageLoading';
-
 import { Icon } from '@/components/Icon';
+import { PageLoading } from '@/components/PageLoading';
+import { useTrackPracticeVisits } from '@/lib/practice/summary';
 
 // The signed-in frame: the brand and the four tabs across the top on a
 // laptop, a tab bar along the bottom on a phone (the phone's tabs: calendar,
@@ -18,6 +19,7 @@ const TABS: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
 ];
 
 export function AppShell() {
+  useTrackPracticeVisits(useMe().data?.kind === 'teacher');
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-line bg-brand/90 backdrop-blur">

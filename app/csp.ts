@@ -8,7 +8,8 @@
 // run time. Styles allow inline: MathJax writes style attributes. Images
 // allow https: because practice packages link presigned R2 URLs. The Desmos
 // calculator is not loaded here but in a frame of its own (calculator.html),
-// hence frame-src 'self'.
+// hence frame-src 'self'; that frame is on the same origin, so it keeps the
+// relaxed policy off these pages but doesn't wall Desmos off from storage.
 export function csp({ dev }: { dev: boolean }): string {
   const script = ["'self'", ...(dev ? ["'unsafe-inline'"] : [])];
   return [

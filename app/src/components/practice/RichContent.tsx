@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from 'react';
 
+import { useDialog } from '@/lib/dialog';
 import { texToSvg } from '@/lib/mathjax';
 import type { PackageImage } from '@/lib/practice/types';
 
@@ -76,15 +77,20 @@ function Figure({ imageKey, alt, ctx }: { imageKey: string; alt: string; ctx: Ct
         style={{ aspectRatio: `${img.width} / ${img.height}`, maxHeight: 420 }}>
         <img src={src} alt={alt} width={img.width} height={img.height} className="h-full w-full object-contain" />
       </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setOpen(false)} role="dialog" aria-label={alt || 'Figure'}>
-          <img src={src} alt={alt} className="max-h-full max-w-full rounded-lg bg-white" />
-          <button type="button" className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-black" onClick={() => setOpen(false)}>
-            Close
-          </button>
-        </div>
-      )}
+      {open && <Lightbox src={src} alt={alt} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
+  return (
+    <div ref={dialog} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 outline-none" onClick={onClose} role="dialog" aria-modal="true" aria-label={alt || 'Figure'}>
+      <img src={src} alt={alt} className="max-h-full max-w-full rounded-lg bg-white" />
+      <button type="button" className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-black" onClick={onClose}>
+        Close
+      </button>
+    </div>
   );
 }
 

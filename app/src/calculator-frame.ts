@@ -1,11 +1,15 @@
 import './calculator-frame.css';
 
 // The Desmos graphing calculator, in its own page (calculator.html) that the
-// test screen shows in a frame. It lives apart from the app on purpose: the
-// app's security policy stays strict (the sign-in token is in this origin's
-// storage), while this page's policy (docker/calculator-headers.conf) allows
-// what Desmos needs to run. The key comes from VITE_DESMOS_API_KEY at build
-// time and is restricted to our domain by Desmos.
+// test screen shows in a frame. It lives apart from the app so the app's own
+// pages keep their strict policy (no code compiled at run time), while this
+// page's (docker/calculator-headers.conf) allows what Desmos needs to run.
+// It is not a security boundary: the frame is on the same origin, so its
+// scripts (ours and Desmos's) can read this origin's storage, the sign-in
+// token included, as they could if Desmos ran in the app itself. Nothing but
+// Desmos's code and the calculator's own saved state is loaded here. The key
+// comes from VITE_DESMOS_API_KEY at build time and is restricted to our
+// domain by Desmos.
 
 type DesmosCalculator = {
   resize: () => void;

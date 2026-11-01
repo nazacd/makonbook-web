@@ -1,5 +1,6 @@
 import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, Highlighter, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, Spinner } from '@/components/Button';
@@ -15,10 +16,11 @@ import { NavigatorLegend, QuestionNavigatorGrid } from '@/components/practice/Qu
 import { Reference } from '@/components/practice/Reference';
 import { RichContent } from '@/components/practice/RichContent';
 import { confirm } from '@/lib/confirm';
-import { usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
-import { saveAttempt, type Run, type StoredPackage } from '@/lib/practice/local';
+import { postAttempt, usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
+import { runKey, saveAttempt, type LocalAttempt, type Run, type StoredPackage } from '@/lib/practice/local';
 import { finishRun, questionKey, stagesOf, SUBJECT_LABEL, SUBJECT_SHORT, testName } from '@/lib/practice/run';
 import { formatRemainingTime, useRemainingTime } from '@/lib/timer';
+import { useDialog } from '@/lib/dialog';
 import { useTitle } from '@/lib/title';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -58,7 +60,26 @@ export function PracticeRun() {
       </div>
     );
   }
+  // Sections the test doesn't have (a one-subject test): nothing to run.
+  if (stagesOf(pkg.data.package, stored.data.sections).length === 0) {
+    return <NothingToRun code={code} />;
+  }
   return <Runner initial={stored.data} stored={pkg.data} />;
+}
+
+function NothingToRun({ code }: { code: string }) {
+  const navigate = useNavigate();
+  const runs = useRunStore();
+  const discard = () => {
+    runs.clear(code);
+    void navigate(`/practice/test/${encodeURIComponent(code)}`, { replace: true });
+  };
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+      <Notice tone="error" title="This test has none of those questions" message="The sections chosen aren’t in this test. Discard this attempt and choose again." />
+      <Button label="Discard and choose again" onClick={discard} />
+    </div>
+  );
 }
 
 function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
@@ -142,7 +163,8 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   // the tab) saves the time used, coming back carries on from it.
   useEffect(() => {
     const r = latest.current.run;
-    if (r.ready) {
+    // A tab opened behind others starts paused.
+    if (r.ready && document.visibilityState === 'visible') {
       setStartTs(Date.now() - r.elapsedMs);
       shownAt.current = Date.now();
     } else if (r.brk && r.brk.since == null) {
@@ -154,6 +176,11 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     const onVisibility = () => {
       if (document.visibilityState !== 'visible') {
         persist();
+        // Paused: nothing counts until the tab is in front again, so a tab
+        // closed from behind others (pagehide) saves the same time.
+        shownAt.current = null;
+        latest.current.startTs = null;
+        setStartTs(null);
         setVisible(false);
       } else {
         if (latest.current.run.ready) {
@@ -178,6 +205,38 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     const id = setInterval(persist, PERSIST_INTERVAL_MS);
     return () => clearInterval(id);
   }, [visible, run.ready, persist]);
+
+  // The same test open in another tab, and carried on (or finished) there:
+  // this tab stops writing, so closing it doesn't put back older answers.
+  const [elsewhere, setElsewhere] = useState(false);
+  const wentOnElsewhere = useEffectEvent(() => {
+    if (finished.current) return;
+    finished.current = true;
+    shownAt.current = null;
+    setElsewhere(true);
+    void refresh(); // the test's page here shows the run as it is now
+  });
+  useEffect(() => {
+    const k = runKey(person, initial.code);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === k || e.key === null) wentOnElsewhere();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [person, initial.code]);
+
+  // Finished, but this browser couldn't keep the attempt (storage full): it
+  // goes straight to the server, and the run stays until it's there.
+  const queryClient = useQueryClient();
+  const [unsaved, setUnsaved] = useState<LocalAttempt | null>(null);
+  const sendUnsaved = useMutation({
+    mutationFn: postAttempt,
+    onSuccess: (_, attempt) => {
+      runs.clear(attempt.code);
+      void queryClient.invalidateQueries({ queryKey: ['practice-mine'] });
+      void navigate(`/practice/result/${attempt.id}`, { replace: true });
+    },
+  });
 
   const startModule = () => {
     shownAt.current = Date.now();
@@ -218,7 +277,11 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     finished.current = true;
     setFinishing(true);
     const attempt = finishRun(pkg, r, new Date());
-    saveAttempt(person, attempt);
+    if (!saveAttempt(person, attempt)) {
+      setUnsaved(attempt);
+      sendUnsaved.mutate(attempt);
+      return;
+    }
     runs.clear(r.code);
     void refresh();
     sendNow.mutate();
@@ -264,6 +327,29 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const leave = () => confirm({ title: 'Leave the test?', message: 'Your answers are saved and the clock stops until you come back.', onConfirm: () => void navigate(testPage) });
 
   const moduleLabel = `${SUBJECT_LABEL[stage.subject]} · Module ${stage.module.module}`;
+
+  if (elsewhere) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+        <Notice tone="info" title="This test went on in another tab" message="Your answers from there are saved. To carry on here instead, reload this page." />
+        <Button label="Reload" onClick={() => window.location.reload()} />
+        <Button label="Back to the test’s page" variant="secondary" onClick={() => void navigate(testPage)} />
+      </div>
+    );
+  }
+
+  if (unsaved && !sendUnsaved.isPending && sendUnsaved.isError) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+        <Notice
+          tone="error"
+          title="Your answers aren’t saved yet"
+          message="This browser’s storage is full, and MakonBook can’t be reached to save them there. Keep this page open, check the connection and try again."
+        />
+        <Button label="Try again" onClick={() => sendUnsaved.mutate(unsaved)} />
+      </div>
+    );
+  }
 
   if (finishing) {
     return (
@@ -595,7 +681,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         </div>
 
         {showNavigator && (
-          <div role="dialog" aria-label={`${moduleLabel} questions`} className="absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-[min(600px,calc(100vw-24px))] -translate-x-1/2 rounded-panel border border-line bg-paper p-5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)]">
+          <Popover label={`${moduleLabel} questions`} onClose={() => setShowNavigator(false)}>
             <span aria-hidden="true" className="absolute -bottom-2 left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-line bg-paper" />
             <div className="mb-3 flex items-center justify-between">
               <h2 className="t-headline text-ink">{moduleLabel} questions</h2>
@@ -626,7 +712,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
                 Go to review page
               </button>
             </div>
-          </div>
+          </Popover>
         )}
       </footer>
 
@@ -737,5 +823,15 @@ function CalcPane({ children, hidden }: { children: ReactNode; hidden: boolean }
         <span className="absolute h-12 w-1.5 rounded-full bg-ink-3 transition-colors group-hover:bg-accent group-focus-visible:bg-accent" />
       </div>
     </aside>
+  );
+}
+
+// The question navigator above the footer (Bluebook's popover).
+function Popover({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
+  return (
+    <div ref={dialog} tabIndex={-1} role="dialog" aria-label={label} className="absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-[min(600px,calc(100vw-24px))] -translate-x-1/2 rounded-panel border border-line bg-paper p-5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)] outline-none">
+      {children}
+    </div>
   );
 }

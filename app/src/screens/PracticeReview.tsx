@@ -25,7 +25,9 @@ export function PracticeReview() {
   useTitle('Question');
 
   if (!shown || !pkg.data) {
-    if ((local.isPending || server.isPending || pkg.isPending) && !pkg.isError) return <Skeleton height={120} />;
+    // Waiting on the attempt, then on its test; neither found ends in the notice.
+    const waiting = shown ? pkg.isPending : local.isPending || server.isPending;
+    if (waiting) return <Skeleton height={120} />;
     return <Notice tone="error" message="This question isn’t here any more." />;
   }
   const { package: p, images: links } = pkg.data;

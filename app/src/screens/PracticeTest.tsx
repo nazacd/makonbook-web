@@ -55,6 +55,7 @@ export function PracticeTest() {
 
   const begin = (sections: Subject[]) => {
     if (!pkg.data) return;
+    if (run) runStore.clear(code); // with its calculator work
     runStore.save(newRun(pkg.data.package, sections, uuid(), new Date()));
     void navigate(`/practice/run/${encodeURIComponent(code)}`);
   };
@@ -117,7 +118,8 @@ export function PracticeTest() {
             key={subject}
             type="button"
             onClick={() => start([subject])}
-            disabled={!ready}
+            // A test with one subject only has nothing to run for the other.
+            disabled={!ready || !pkg.data?.package.sections.some((s) => s.subject === subject)}
             aria-label={`${SUBJECT_LABEL[subject]} only, ${minutes(subject)} minutes`}
             className={`flex flex-1 flex-col items-start pt-4 text-left active:bg-surface-2 disabled:opacity-50 ${i ? 'border-l border-line pl-4' : 'pr-2'}`}>
             <span className="t-title3 text-[17px] leading-[22px] text-ink">{subject === 'english' ? 'Reading & Writing' : 'Math'}</span>

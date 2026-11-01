@@ -1,10 +1,12 @@
+// A plain text keyboard: a phone's number pad has no "-" or "/" (the phone
+// app does the same). A decimal comma, as Uzbek and Russian keyboards type
+// it, becomes a point, which is what the answer key and the grading use.
 export function GridInInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <input
       type="text"
-      inputMode="decimal"
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value.replace(/,/g, '.'))}
       placeholder="Enter a number or fraction (e.g. 1/2)"
       aria-label="Your answer"
       autoComplete="off"
