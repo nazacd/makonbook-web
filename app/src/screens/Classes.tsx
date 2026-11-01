@@ -1,5 +1,5 @@
 import { CalendarX, Clock, DoorOpen, User, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { lazy, type ReactNode } from 'react';
 
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Group, GroupAttendance, Profile } from '@/api/types';
@@ -11,7 +11,7 @@ import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber } from '
 import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
 
-import { TeacherToday } from './TeacherToday';
+const TeacherToday = lazy(() => import('./TeacherToday').then((m) => ({ default: m.TeacherToday })));
 
 // "/": students see their classes, teachers their lessons for the day.
 // The student's home is built around the next lesson: day and time set

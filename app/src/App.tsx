@@ -1,30 +1,42 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { AuthProvider } from '@/auth/session';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PageLoading } from '@/components/PageLoading';
 import { AppShell } from '@/layouts/AppShell';
 import { RequireAuth, RequireGuest } from '@/layouts/RequireAuth';
 import { AppearanceProvider } from '@/lib/appearance';
 import { Attendance } from '@/screens/Attendance';
-import { AttendanceSession } from '@/screens/AttendanceSession';
 import { ChoosePassword } from '@/screens/ChoosePassword';
 import { Classes } from '@/screens/Classes';
 import { Password } from '@/screens/Password';
-import { Practice } from '@/screens/Practice';
-import { PracticeHistory } from '@/screens/PracticeHistory';
-import { PracticeResult } from '@/screens/PracticeResult';
-import { PracticeReview } from '@/screens/PracticeReview';
-import { PracticeRun } from '@/screens/PracticeRun';
-import { PracticeTest } from '@/screens/PracticeTest';
 import { Profile } from '@/screens/Profile';
 import { SignIn } from '@/screens/SignIn';
-import { Study } from '@/screens/Study';
-import { GroupPractice, NewResults } from '@/screens/TeacherPractice';
-import { GroupVocab } from '@/screens/TeacherWords';
 import { Username } from '@/screens/Username';
-import { Words } from '@/screens/Words';
-import { WordsList } from '@/screens/WordsList';
+
+// Sign-in, Classes and Profile come with the first load; the rest arrives
+// when first opened (the test runner with MathJax and the calculator, Words
+// with its scheduler, the teacher's screens with the QR code), so a phone
+// downloads only what it uses.
+function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) {
+  return lazy(() => load().then((m) => ({ default: m[name] })));
+}
+const Practice = page(() => import('@/screens/Practice'), 'Practice');
+const PracticeTest = page(() => import('@/screens/PracticeTest'), 'PracticeTest');
+const PracticeRun = page(() => import('@/screens/PracticeRun'), 'PracticeRun');
+const PracticeResult = page(() => import('@/screens/PracticeResult'), 'PracticeResult');
+const PracticeReview = page(() => import('@/screens/PracticeReview'), 'PracticeReview');
+const PracticeHistory = page(() => import('@/screens/PracticeHistory'), 'PracticeHistory');
+const Words = page(() => import('@/screens/Words'), 'Words');
+const WordsList = page(() => import('@/screens/WordsList'), 'WordsList');
+const Study = page(() => import('@/screens/Study'), 'Study');
+const AttendanceSession = page(() => import('@/screens/AttendanceSession'), 'AttendanceSession');
+const NewResults = page(() => import('@/screens/TeacherPractice'), 'NewResults');
+const GroupPractice = page(() => import('@/screens/TeacherPractice'), 'GroupPractice');
+const GroupVocab = page(() => import('@/screens/TeacherWords'), 'GroupVocab');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +56,8 @@ export function App() {
       <AppearanceProvider>
         <AuthProvider>
           <BrowserRouter>
+            <ErrorBoundary>
+            <Suspense fallback={<PageLoading full />}>
             <Routes>
               <Route element={<RequireGuest />}>
                 <Route path="/sign-in" element={<SignIn />} />
@@ -74,6 +88,8 @@ export function App() {
                 </Route>
               </Route>
             </Routes>
+            </Suspense>
+            </ErrorBoundary>
           </BrowserRouter>
         </AuthProvider>
       </AppearanceProvider>

@@ -1,5 +1,9 @@
 import { BookOpen, Calendar, Layers, User, type LucideIcon } from 'lucide-react';
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router';
+
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PageLoading } from '@/components/PageLoading';
 
 import { Icon } from '@/components/Icon';
 
@@ -41,7 +45,12 @@ export function AppShell() {
         </div>
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-28 pt-6 sm:pb-16">
-        <Outlet />
+        {/* A page that crashes or is still loading keeps the tabs around it. */}
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-brand/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden" aria-label="Sections">
         <ul className="flex">
