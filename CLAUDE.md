@@ -26,3 +26,13 @@ redesign it), `app/` (Vite, React, TypeScript strict, React Router, TanStack
 Query, openapi-fetch + generated types, Tailwind 4 with the mobile app's
 tokens in `app/src/styles.css`), `docker/` (the container's nginx),
 `deploy/` (the VPS: compose file, edge nginx blocks, `DEPLOY.md`).
+
+In `app/src`: `api/` (client, generated `schema.d.ts`, queries, the error
+wording), `auth/session.tsx` (who is signed in; the token in localStorage),
+`layouts/` (`RequireAuth`/`RequireGuest` decide who sees what, like the mobile
+app's route guards; `AppShell` is the frame with the four tabs), `screens/`,
+`components/`, `lib/` (`schedule.ts`, `groups.ts` and `clock.ts` are copies
+from the mobile app: change them there first). Type comes from the `t-*`
+classes in `styles.css` (the phone's type scale), colours from the tokens,
+never `dark:` variants. `app/mock/api.cjs` is a fictional API for working
+without the real one (README).
