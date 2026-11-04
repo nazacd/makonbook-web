@@ -16,7 +16,8 @@ import { useDeck, useRecordReview, useSettings, useVocabState, useVocabSync } fr
 import { activeLists, GRADES, newToday, preview, queue } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
 
-const GRADE_COLOR: Record<number, string> = { 1: 'text-bad', 2: 'text-watch', 3: 'text-good', 4: 'text-accent' };
+// The four ratings in their own colours (Again red, Hard orange, Good green, Easy blue), tinted.
+const GRADE_BG: Record<number, string> = { 1: 'bg-bad-tint text-bad', 2: 'bg-watch-tint text-watch', 3: 'bg-good-tint text-good', 4: 'bg-info-tint text-info' };
 const KEYS = ['1', '2', '3', '4'];
 
 // The word in the example sentence in bold: "abate" also in "abated".
@@ -162,9 +163,11 @@ export function Study() {
                     type="button"
                     onClick={() => void answer(g.rating, Date.now())}
                     aria-label={`${g.label}, comes back in ${gaps[g.rating]}`}
-                    className="flex h-16 flex-1 flex-col items-center justify-center gap-0.5 rounded-control border border-line bg-surface active:scale-[0.97]">
-                    <span className={`t-callout font-semibold ${GRADE_COLOR[g.rating]}`}>{g.label}</span>
-                    <span className="t-caption tabular font-normal text-ink-3">{gaps[g.rating]}</span>
+                    className={`flex h-16 flex-1 flex-col items-center justify-center gap-0.5 rounded-control transition-transform active:scale-[0.97] ${GRADE_BG[g.rating]}`}>
+                    <span className="t-callout font-bold">
+                      {g.label} <span className="t-caption font-semibold opacity-60">{g.rating}</span>
+                    </span>
+                    <span className="t-caption tabular font-semibold opacity-75">{gaps[g.rating]}</span>
                   </button>
                 ))}
               </div>
