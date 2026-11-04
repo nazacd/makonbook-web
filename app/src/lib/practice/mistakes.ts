@@ -183,3 +183,27 @@ export function summarize(answered: Answered[], resolved: Record<string, string>
   }
   return [...domains.values()].sort((a, b) => b.repair - a.repair || a.domain.localeCompare(b.domain));
 }
+
+// A drill session (/training-hall/drill): the questions to repair, narrowed
+// to a subject, a domain or a skill (none: every mistake), at most DRILL_SIZE.
+
+export const DRILL_SIZE = 20;
+
+export type DrillFilter = { subject?: Subject; domain?: string; skill?: string };
+
+/** The drill's address for a filter: "/training-hall/drill?subject=math&domain=Algebra". */
+export function drillHref(f: DrillFilter = {}): string {
+  const q = (['subject', 'domain', 'skill'] as const)
+    .filter((k) => f[k])
+    .map((k) => `${k}=${encodeURIComponent(f[k]!)}`)
+    .join('&');
+  return q ? `/training-hall/drill?${q}` : '/training-hall/drill';
+}
+
+/** The questions of a drill session: to repair, matching the filter, grouped by skill. */
+export function drillQueue(answered: Answered[], resolved: Record<string, string>, f: DrillFilter = {}): Answered[] {
+  return toRepair(answered, resolved)
+    .filter((a) => (!f.subject || a.subject === f.subject) && (!f.domain || a.domain === f.domain) && (!f.skill || a.skill === f.skill))
+    .sort((a, b) => a.subject.localeCompare(b.subject) || a.domain.localeCompare(b.domain) || a.skill.localeCompare(b.skill) || b.at.localeCompare(a.at))
+    .slice(0, DRILL_SIZE);
+}
