@@ -19,10 +19,10 @@ export function AnswerChoice({ letter, content, selected, eliminated, crossOut, 
   const struckId = useId();
   return (
     <div className="flex items-center gap-3">
-      <div className={`relative flex min-w-0 flex-1 items-stretch rounded-control border bg-paper ${selected ? 'border-2 border-accent' : 'border-ink-3'} ${eliminated ? 'opacity-50' : ''}`}>
+      <div className={`relative flex min-w-0 flex-1 items-stretch rounded-control border bg-paper ${selected ? 'border-2 border-engine' : 'border-[1.5px] border-ink'} ${eliminated ? 'opacity-50' : ''}`}>
         {/* Named by its letter and text (the content), so a screen reader reads the answer. */}
         <button type="button" role="radio" aria-checked={selected} aria-describedby={eliminated ? struckId : undefined} onClick={eliminated ? undefined : onSelect} className={`flex min-h-[52px] flex-1 items-center gap-3 px-3 py-2 text-left ${eliminated ? 'cursor-default' : 'active:bg-paper-2'}`}>
-          <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border t-footnote font-bold ${selected ? 'border-accent bg-accent text-on-accent' : 'border-ink-3 text-ink'}`}>{letter}</span>
+          <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border t-footnote font-bold ${selected ? 'border-engine bg-engine text-white' : 'border-ink text-ink'}`}>{letter}</span>
           <span className="min-w-0 flex-1">{content}</span>
         </button>
         {eliminated && (

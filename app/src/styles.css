@@ -60,6 +60,9 @@
   --color-paper: #ffffff;
   --color-paper-2: #f1f1f3;
   --color-bar: #f7f3fc;
+  /* The test screen's own blue (Bluebook's): the chosen answer, Back and Next. */
+  --color-engine: #2f44b7;
+  --color-engine-soft: #8392d7;
 
   --font-title: "Nunito Variable", "Nunito", system-ui, sans-serif;
   --font-sans: "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -124,6 +127,8 @@
     --color-paper: #1b1b1e;
     --color-paper-2: #27272b;
     --color-bar: #221d2c;
+    --color-engine: #7d8cff;
+    --color-engine-soft: #4b558f;
   }
 }
 
@@ -174,6 +179,8 @@
   --color-paper: #1b1b1e;
   --color-paper-2: #27272b;
   --color-bar: #221d2c;
+  --color-engine: #7d8cff;
+  --color-engine-soft: #4b558f;
 }
 
 :root[data-theme="light"] {
