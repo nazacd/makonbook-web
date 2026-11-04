@@ -19,8 +19,8 @@ const TEACHER_COLORS: [string, string][] = [
 
 type AvatarProps = { kind: 'student' | 'teacher'; firstName: string; lastName: string; id: number; size?: number };
 
-export function Avatar({ kind, firstName, lastName, id, size = 44 }: AvatarProps) {
-  const circle = { width: size, height: size, borderRadius: size / 2 };
+export function Avatar({ kind, firstName, lastName, id, size = 44, square = false }: AvatarProps & { square?: boolean }) {
+  const circle = { width: size, height: size, borderRadius: square ? 16 : size / 2 };
   if (kind === 'student') {
     const n = String(avatarIndex(firstName) + 1).padStart(2, '0');
     return <img src={`/avatars/${n}.webp`} alt="" width={size} height={size} style={circle} className="shrink-0 object-cover" />;

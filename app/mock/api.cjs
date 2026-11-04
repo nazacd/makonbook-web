@@ -74,6 +74,9 @@ const deck = { version: 'demo-1', lists: [
   ] },
 ] };
 const reviews = new Map(); // login -> [{seq, ...review}]
+const parked = new Map(); // id -> parked question (with login)
+const reports = new Map(); // id -> report
+const goals = new Map(); // login -> goals
 let seq = 0;
 
 // --- Teacher: lessons, attendance sessions, groups' results ---
@@ -123,6 +126,50 @@ http.createServer(async (req, res) => {
   if (url === '/v1/practice/tests') return json(res, 200, catalog);
   const pm = /^\/v1\/practice\/tests\/([^/]+)\/package$/.exec(url);
   if (pm) { const pkg = packages[decodeURIComponent(pm[1])]; if (!pkg) return err(res, 404, 'not_found', 'no such test'); return json(res, 200, { package: pkg, images: {}, expires_at: new Date(Date.now() + 6 * 3600e3).toISOString() }); }
+  // Question statistics, Ask later, issue reports and goals (fictional data).
+  const statsMatch = /^\/v1\/practice\/tests\/([^/]+)\/stats$/.exec(url);
+  if (statsMatch) {
+    const pkg = packages[decodeURIComponent(statsMatch[1])]; if (!pkg) return err(res, 404, 'not_found', 'no such test');
+    const questions = pkg.sections.flatMap((s) => s.modules.flatMap((m) => m.questions)).map((q, i) => ({ id: q.id, answered: 40 + (i * 7) % 30, correct: 8 + (i * 13) % 30 }));
+    return json(res, 200, { questions });
+  }
+  if (url === '/v1/practice/reports' && req.method === 'POST') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    if (!body.id || !['question', 'technical'].includes(body.kind)) return err(res, 422, 'invalid_report', 'bad report');
+    const seen = reports.has(body.id); reports.set(body.id, { ...body, login }); return json(res, seen ? 200 : 201, { id: body.id });
+  }
+  if (url === '/v1/me/parked' && req.method === 'GET') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    return json(res, 200, { items: [...parked.values()].filter((p) => p.login === login).map(({ login: _l, ...p }) => p).sort((a, b) => b.created_at.localeCompare(a.created_at)) });
+  }
+  const pk = /^\/v1\/me\/parked\/([^/]+)$/.exec(url);
+  if (pk) {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    const id = decodeURIComponent(pk[1]); const old = parked.get(id);
+    if (old && old.login !== login) return err(res, 404, 'not_found', 'not yours');
+    if (req.method === 'DELETE') { if (!old) return err(res, 404, 'not_found', 'none'); parked.delete(id); return json(res, 204); }
+    if (!body.folder || !String(body.folder).trim()) return err(res, 422, 'invalid_parked', 'folder is empty');
+    const now = new Date().toISOString();
+    const item = { ...body, folder: String(body.folder).trim().slice(0, 40), id, login, created_at: old?.created_at ?? now, updated_at: now };
+    parked.set(id, item); const { login: _l, ...out } = item; return json(res, 200, out);
+  }
+  const tp = /^\/v1\/teacher\/groups\/(\d+)\/parked$/.exec(url);
+  if (tp) {
+    if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'not a teacher');
+    return json(res, 200, { items: [...parked.values()].map(({ login: l, ...p }) => ({ ...p, student: { id: people[l]?.id ?? 0, first_name: people[l]?.first_name ?? '', last_name: people[l]?.last_name ?? '' } })) });
+  }
+  if (url === '/v1/me/goals') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    if (req.method === 'PUT') {
+      const ok = (v) => v == null || (Number.isInteger(v) && v >= 200 && v <= 800 && v % 10 === 0);
+      if (!ok(body.target_math) || !ok(body.target_rw)) return err(res, 422, 'invalid_goals', 'scores are 200–800, in tens');
+      if (body.exam_date && body.exam_date < new Date().toISOString().slice(0, 10)) return err(res, 422, 'invalid_goals', 'the exam date is in the past');
+      const g = { target_math: body.target_math ?? null, target_rw: body.target_rw ?? null, exam_date: body.exam_date ?? null, updated_at: new Date().toISOString() };
+      goals.set(login, g);
+    }
+    const g = goals.get(login) ?? { target_math: null, target_rw: null, exam_date: null, updated_at: null };
+    return json(res, 200, { ...g, target_total: g.target_math != null && g.target_rw != null ? g.target_math + g.target_rw : null });
+  }
   if (url === '/v1/practice/attempts' && req.method === 'POST') {
     if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
     const key = `${login}:${body.id}`; if (attempts.has(key)) return json(res, 200, attempts.get(key));

@@ -1,24 +1,29 @@
-import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, Highlighter, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, CircleCheck, CircleQuestionMark, Coffee, EllipsisVertical, Eye, EyeOff, Flag, Hand, Highlighter, House, ListChecks, Lock, RefreshCw, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 
 import { Button, Spinner } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
+import { useParked } from '@/api/learning';
 import { useMe } from '@/api/queries';
 import { Annotated, HighlightsToggle, type TextHighlight } from '@/components/practice/Annotations';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
+import { AskLater, foldersOf, sameQuestion, type QuestionRef } from '@/components/practice/AskLater';
 import { Calculator, dragging } from '@/components/practice/Calculator';
 import { Directions } from '@/components/practice/Directions';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { NavigatorLegend, QuestionNavigatorGrid } from '@/components/practice/QuestionNavigatorGrid';
 import { Reference } from '@/components/practice/Reference';
+import { ReportIssue } from '@/components/practice/ReportIssue';
 import { RichContent } from '@/components/practice/RichContent';
 import { confirm } from '@/lib/confirm';
-import { usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
-import { saveAttempt, type Run, type StoredPackage } from '@/lib/practice/local';
+import { postAttempt, usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
+import { runKey, saveAttempt, type LocalAttempt, type Run, type StoredPackage } from '@/lib/practice/local';
 import { finishRun, questionKey, stagesOf, SUBJECT_LABEL, SUBJECT_SHORT, testName } from '@/lib/practice/run';
 import { formatRemainingTime, useRemainingTime } from '@/lib/timer';
+import { useDialog } from '@/lib/dialog';
 import { useTitle } from '@/lib/title';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -28,6 +33,8 @@ const PERSIST_INTERVAL_MS = 5000;
 const BREAK_MS = 10 * 60_000;
 /** How long "Module 2 started" stays. */
 const NOTE_MS = 3200;
+/** How long the header reads "Saving" after a change. */
+const SAVING_MS = 600;
 
 // Taking a practice test (the phone's practice/run/[code], laid out like
 // Bluebook on a laptop): its modules one after another, each with its own
@@ -58,7 +65,26 @@ export function PracticeRun() {
       </div>
     );
   }
+  // Sections the test doesn't have (a one-subject test): nothing to run.
+  if (stagesOf(pkg.data.package, stored.data.sections).length === 0) {
+    return <NothingToRun code={code} />;
+  }
   return <Runner initial={stored.data} stored={pkg.data} />;
+}
+
+function NothingToRun({ code }: { code: string }) {
+  const navigate = useNavigate();
+  const runs = useRunStore();
+  const discard = () => {
+    runs.clear(code);
+    void navigate(`/practice/test/${encodeURIComponent(code)}`, { replace: true });
+  };
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+      <Notice tone="error" title="This test has none of those questions" message="The sections chosen aren’t in this test. Discard this attempt and choose again." />
+      <Button label="Discard and choose again" onClick={discard} />
+    </div>
+  );
 }
 
 function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
@@ -87,6 +113,23 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const studentName = me ? `${me.first_name} ${me.last_name}` : '';
   const [finishing, setFinishing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Ask later and Issue: the question they were opened on (kept, so a module
+  // ending underneath doesn't change what they are about), and the phone's ⋮ menu.
+  const [askFor, setAskFor] = useState<QuestionRef | null>(null);
+  const [reportFor, setReportFor] = useState<QuestionRef | null>(null);
+  const [showMore, setShowMore] = useState(false);
+  const student = me?.kind === 'student';
+  const parked = useParked(student);
+  // The student's changes, each saved in this browser at once: the header
+  // reads "Saving" for a moment after each, then "Saved".
+  const [saves, setSaves] = useState(0);
+  const [settled, setSettled] = useState(0);
+  const saving = saves !== settled;
+  useEffect(() => {
+    if (saves === settled) return;
+    const id = setTimeout(() => setSettled(saves), SAVING_MS);
+    return () => clearTimeout(id);
+  }, [saves, settled]);
 
   const stages = stagesOf(pkg, run.sections);
   const stage = stages[run.stage]!;
@@ -136,13 +179,15 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     latest.current.run = r;
     setRun(r);
     runs.save(r);
+    setSaves((n) => n + 1);
   };
 
   // The clock runs only while the page is in front: leaving it (or hiding
   // the tab) saves the time used, coming back carries on from it.
   useEffect(() => {
     const r = latest.current.run;
-    if (r.ready) {
+    // A tab opened behind others starts paused.
+    if (r.ready && document.visibilityState === 'visible') {
       setStartTs(Date.now() - r.elapsedMs);
       shownAt.current = Date.now();
     } else if (r.brk && r.brk.since == null) {
@@ -154,6 +199,11 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     const onVisibility = () => {
       if (document.visibilityState !== 'visible') {
         persist();
+        // Paused: nothing counts until the tab is in front again, so a tab
+        // closed from behind others (pagehide) saves the same time.
+        shownAt.current = null;
+        latest.current.startTs = null;
+        setStartTs(null);
         setVisible(false);
       } else {
         if (latest.current.run.ready) {
@@ -178,6 +228,38 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     const id = setInterval(persist, PERSIST_INTERVAL_MS);
     return () => clearInterval(id);
   }, [visible, run.ready, persist]);
+
+  // The same test open in another tab, and carried on (or finished) there:
+  // this tab stops writing, so closing it doesn't put back older answers.
+  const [elsewhere, setElsewhere] = useState(false);
+  const wentOnElsewhere = useEffectEvent(() => {
+    if (finished.current) return;
+    finished.current = true;
+    shownAt.current = null;
+    setElsewhere(true);
+    void refresh(); // the test's page here shows the run as it is now
+  });
+  useEffect(() => {
+    const k = runKey(person, initial.code);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === k || e.key === null) wentOnElsewhere();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [person, initial.code]);
+
+  // Finished, but this browser couldn't keep the attempt (storage full): it
+  // goes straight to the server, and the run stays until it's there.
+  const queryClient = useQueryClient();
+  const [unsaved, setUnsaved] = useState<LocalAttempt | null>(null);
+  const sendUnsaved = useMutation({
+    mutationFn: postAttempt,
+    onSuccess: (_, attempt) => {
+      runs.clear(attempt.code);
+      void queryClient.invalidateQueries({ queryKey: ['practice-mine'] });
+      void navigate(`/practice/result/${attempt.id}`, { replace: true });
+    },
+  });
 
   const startModule = () => {
     shownAt.current = Date.now();
@@ -218,7 +300,11 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     finished.current = true;
     setFinishing(true);
     const attempt = finishRun(pkg, r, new Date());
-    saveAttempt(person, attempt);
+    if (!saveAttempt(person, attempt)) {
+      setUnsaved(attempt);
+      sendUnsaved.mutate(attempt);
+      return;
+    }
     runs.clear(r.code);
     void refresh();
     sendNow.mutate();
@@ -264,6 +350,29 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const leave = () => confirm({ title: 'Leave the test?', message: 'Your answers are saved and the clock stops until you come back.', onConfirm: () => void navigate(testPage) });
 
   const moduleLabel = `${SUBJECT_LABEL[stage.subject]} · Module ${stage.module.module}`;
+
+  if (elsewhere) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+        <Notice tone="info" title="This test went on in another tab" message="Your answers from there are saved. To carry on here instead, reload this page." />
+        <Button label="Reload" onClick={() => window.location.reload()} />
+        <Button label="Back to the test’s page" variant="secondary" onClick={() => void navigate(testPage)} />
+      </div>
+    );
+  }
+
+  if (unsaved && !sendUnsaved.isPending && sendUnsaved.isError) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+        <Notice
+          tone="error"
+          title="Your answers aren’t saved yet"
+          message="This browser’s storage is full, and SATMAKON can’t be reached to save them there. Keep this page open, check the connection and try again."
+        />
+        <Button label="Try again" onClick={() => sendUnsaved.mutate(unsaved)} />
+      </div>
+    );
+  }
 
   if (finishing) {
     return (
@@ -377,6 +486,28 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 
   const answer = run.answers[qKey];
   const marked = run.marked.includes(qKey);
+  const here: QuestionRef = { test: run.code, title: pkg.title, version: pkg.version, subject: stage.subject, module: stage.module.module, position: question.position, question_id: question.id };
+  const parkedHere = parked.data?.find((p) => sameQuestion(p, here));
+  const askingAbout = askFor ? parked.data?.find((p) => sameQuestion(p, askFor)) : undefined;
+  const openAskLater = () => {
+    setShowMore(false);
+    setAskFor(here);
+  };
+  const openReport = () => {
+    setShowMore(false);
+    setReportFor(here);
+  };
+  const timerToggle = (
+    <button
+      type="button"
+      onClick={() => setHideTimer((h) => !h)}
+      aria-pressed={hideTimer}
+      aria-label={hideTimer ? 'Show the time' : 'Hide the time'}
+      title={hideTimer ? 'Show the time' : 'Hide the time'}
+      className="flex size-6 items-center justify-center rounded-full text-ink-2 hover:text-ink active:bg-paper-2 sm:size-7">
+      {hideTimer ? <Eye size={18} strokeWidth={1.75} aria-hidden="true" /> : <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />}
+    </button>
+  );
   const eliminated = run.eliminated[qKey] ?? [];
   const keyOf = (i: number) => questionKey(stage, questions[i]!);
   const grid = questions.map((_, i) => ({ id: i + 1, current: i === run.index, answered: !!run.answers[keyOf(i)]?.trim(), marked: run.marked.includes(keyOf(i)) }));
@@ -405,12 +536,12 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     });
 
   const backButton = (
-    <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent disabled:opacity-30">
+    <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full bg-engine px-5 font-semibold text-white disabled:bg-engine-soft">
       Back
     </button>
   );
   const backToQuestion = (
-    <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+    <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full bg-engine px-5 font-semibold text-white">
       Back
     </button>
   );
@@ -419,7 +550,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     <>
       {/* The question strip, as in Bluebook: the number, Mark for Review beside it, the cross-out tool at the right. */}
       <div className="mb-4 flex items-center gap-3 border-b-2 border-dashed border-ink bg-paper-2 pr-2">
-        <span className="flex h-9 min-w-9 items-center justify-center bg-accent px-2 t-subhead font-bold text-on-accent" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
+        <span className="flex h-9 min-w-9 items-center justify-center bg-ink px-2 t-subhead font-bold text-surface" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
           {run.index + 1}
         </span>
         <button type="button" onClick={toggleMark} aria-pressed={marked} className={`flex h-9 items-center gap-1.5 rounded-chip px-1 t-subhead font-medium ${marked ? 'text-accent' : 'text-ink'}`}>
@@ -433,7 +564,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
             aria-pressed={crossOut}
             aria-label="Cross out answer choices"
             title="Cross out answer choices"
-            className={`ml-auto flex h-6 items-center rounded-[4px] border px-1 text-[11px] font-bold tracking-wide line-through ${crossOut ? 'border-accent bg-accent text-on-accent' : 'border-ink text-ink'}`}>
+            className={`ml-auto flex h-6 items-center rounded-[4px] border px-1 text-[11px] font-bold tracking-wide line-through ${crossOut ? 'border-engine bg-engine text-white' : 'border-ink text-ink'}`}>
             ABC
           </button>
         )}
@@ -495,21 +626,35 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
             <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
+        {/* The clock with its hide toggle beside it, and under it whether the work is saved
+            (a phone has no room beside the clock: the toggle goes under it, the status as its icon). */}
         <div className="flex flex-col items-center">
-          {hideTimer && !low ? (
-            <span className="flex h-7 items-center text-ink" aria-label="Time hidden">
-              <TimerIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+          <div className="flex items-center gap-1">
+            {hideTimer && !low ? (
+              <span className="flex h-7 items-center text-ink" aria-label="Time hidden">
+                <TimerIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+              </span>
+            ) : (
+              <span className={`tabular font-title text-[22px] font-bold leading-7 ${low ? 'text-bad' : 'text-ink'}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
+                {formatRemainingTime(remainingMs)}
+              </span>
+            )}
+            <span className="hidden sm:flex">{timerToggle}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="flex sm:hidden">{timerToggle}</span>
+            <span title="Your answers are saved in this browser as you go" className={`t-caption flex h-4 items-center gap-1 font-semibold ${saving ? 'text-info' : 'text-good'}`}>
+              {saving ? (
+                <RefreshCw size={12} strokeWidth={2.2} aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <CircleCheck size={12} strokeWidth={2.2} aria-hidden="true" />
+              )}
+              <span className="sr-only sm:not-sr-only">{saving ? 'Saving' : 'Saved'}</span>
             </span>
-          ) : (
-            <span className={`tabular font-title text-[22px] font-bold leading-7 ${low ? 'text-bad' : 'text-ink'}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
-              {formatRemainingTime(remainingMs)}
-            </span>
-          )}
-          <button type="button" onClick={() => setHideTimer((h) => !h)} className="t-caption mt-0.5 h-6 rounded-full border border-ink px-2.5 font-medium text-ink active:bg-paper-2">
-            {hideTimer ? 'Show' : 'Hide'}
-          </button>
+          </div>
         </div>
-        <div className="flex items-center justify-end gap-1">
+        {/* A laptop shows every tool; narrower windows put Ask later and Issue (and, on a phone, Leave) under More. */}
+        <div className="flex items-center justify-end gap-0.5 sm:gap-1">
           {english && <HighlightsToggle on={annotating} onToggle={() => setAnnotating((v) => !v)} />}
           {stage.subject === 'math' && (
             <>
@@ -517,15 +662,52 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
               <Tool icon={BookOpen} label="Reference" on={showReference} onClick={() => setShowReference((v) => !v)} />
             </>
           )}
-          <Tool icon={House} label="Leave" onClick={leave} />
+          {student && (
+            <span className="hidden lg:contents">
+              <Tool
+                icon={parkedHere ? Hand : CircleQuestionMark}
+                label={parkedHere ? 'Asked' : 'Ask later'}
+                ariaLabel={parkedHere ? `Asked later, in ${parkedHere.folder}. Change it` : 'Ask about this later'}
+                accent={!!parkedHere}
+                onClick={openAskLater}
+              />
+              <Tool icon={Flag} label="Issue" ariaLabel="Report an issue" onClick={openReport} />
+            </span>
+          )}
+          <div className={`relative ${student ? 'lg:hidden' : 'md:hidden'}`}>
+            <Tool icon={EllipsisVertical} label="More" ariaLabel="More tools" on={showMore} menu onClick={() => setShowMore((v) => !v)} />
+            {showMore && (
+              <MoreMenu onClose={() => setShowMore(false)}>
+                {student && (
+                  <>
+                    <MenuItem icon={parkedHere ? Hand : CircleQuestionMark} label={parkedHere ? 'Asked' : 'Ask later'} accent={!!parkedHere} onClick={openAskLater} />
+                    <MenuItem icon={Flag} label="Issue" onClick={openReport} />
+                  </>
+                )}
+                <MenuItem
+                  icon={House}
+                  label="Leave"
+                  className="md:hidden"
+                  onClick={() => {
+                    setShowMore(false);
+                    leave();
+                  }}
+                />
+              </MoreMenu>
+            )}
+          </div>
+          <span className="hidden md:contents">
+            <Tool icon={House} label="Leave" onClick={leave} />
+          </span>
         </div>
         {showDirections && <Directions subject={stage.subject} onClose={() => setShowDirections(false)} />}
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {stage.subject === 'math' && showCalculator && wide && (
-          <CalcPane>
-            <Calculator visible docked onClose={() => setShowCalculator(false)} />
+        {/* Mounted for the whole Math module and only hidden when closed, so the calculator keeps its work. */}
+        {stage.subject === 'math' && wide && (
+          <CalcPane hidden={!showCalculator}>
+            <Calculator visible docked runId={run.id} onClose={() => setShowCalculator(false)} />
           </CalcPane>
         )}
         {showReview ? (
@@ -579,14 +761,14 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
           {showReview ? (
             <>
               <span className="hidden sm:flex">{backToQuestion}</span>
-              <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+              <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-engine px-6 font-semibold text-white">
                 {run.stage + 1 < stages.length ? 'Submit module' : 'Submit the test'}
               </button>
             </>
           ) : (
             <>
               <span className="hidden sm:flex">{backButton}</span>
-              <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+              <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-engine px-6 font-semibold text-white">
                 Next
               </button>
             </>
@@ -594,7 +776,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         </div>
 
         {showNavigator && (
-          <div role="dialog" aria-label={`${moduleLabel} questions`} className="absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-[min(600px,calc(100vw-24px))] -translate-x-1/2 rounded-panel border border-line bg-paper p-5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)]">
+          <Popover label={`${moduleLabel} questions`} onClose={() => setShowNavigator(false)}>
             <span aria-hidden="true" className="absolute -bottom-2 left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-line bg-paper" />
             <div className="mb-3 flex items-center justify-between">
               <h2 className="t-headline text-ink">{moduleLabel} questions</h2>
@@ -621,26 +803,93 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
                   setShowNavigator(false);
                   setShowReview(true);
                 }}
-                className="t-subhead h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+                className="t-subhead h-10 rounded-full border border-engine px-5 font-semibold text-engine">
                 Go to review page
               </button>
             </div>
-          </div>
+          </Popover>
         )}
       </footer>
 
-      {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} onClose={() => setShowCalculator(false)} />}
+      {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} runId={run.id} onClose={() => setShowCalculator(false)} />}
       {showReference && <Reference onClose={() => setShowReference(false)} />}
+      {askFor && (
+        <AskLater
+          question={askFor}
+          existing={askingAbout}
+          folders={foldersOf(parked.data ?? [])}
+          onClose={() => setAskFor(null)}
+          onSaved={(folder) => {
+            setAskFor(null);
+            setNote(`Parked in ${folder}`);
+          }}
+        />
+      )}
+      {reportFor && <ReportIssue question={reportFor} onClose={() => setReportFor(null)} />}
     </div>
   );
 }
 
-/** A header tool, as Bluebook's: the icon over its label. */
-function Tool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: string; on?: boolean; onClick: () => void }) {
+/**
+ * A header tool, as Bluebook's: the icon over its label. With `on` it is a
+ * toggle (Calculator, Reference); with `menu` it opens a menu (More);
+ * `accent` marks a state (Asked).
+ */
+function Tool({ icon, label, ariaLabel, on, menu = false, accent = false, onClick }: { icon: LucideIcon; label: string; ariaLabel?: string; on?: boolean; menu?: boolean; accent?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-paper text-accent shadow-sm' : 'text-ink active:bg-paper'}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={menu ? undefined : on}
+      aria-haspopup={menu ? 'menu' : undefined}
+      aria-expanded={menu ? !!on : undefined}
+      aria-label={ariaLabel ?? label}
+      title={ariaLabel}
+      className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-paper text-accent shadow-sm' : accent ? 'text-accent active:bg-paper' : 'text-ink active:bg-paper'}`}>
       <Icon as={icon} size={20} className="text-current" />
-      <span className="t-caption hidden font-medium sm:block">{label}</span>
+      <span className="t-caption hidden whitespace-nowrap font-medium sm:block">{label}</span>
+    </button>
+  );
+}
+
+// The ⋮ menu under More: the tools a narrow header has no room for. Escape,
+// a press outside or choosing one closes it; arrow keys move between items.
+function MoreMenu({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const menu = useDialog<HTMLDivElement>(onClose);
+  const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter((el) => el.offsetParent !== null);
+  useEffect(() => {
+    items()[0]?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const list = items();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    list[(at + step + list.length) % list.length]?.focus();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-30" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={menu}
+        tabIndex={-1}
+        role="menu"
+        aria-label="More tools"
+        onKeyDown={onKeyDown}
+        className="pop absolute right-0 top-[calc(100%+6px)] z-40 flex w-60 flex-col rounded-control border border-line bg-paper p-1.5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)] outline-none">
+        {children}
+      </div>
+    </>
+  );
+}
+
+function MenuItem({ icon, label, onClick, accent = false, className = '' }: { icon: LucideIcon; label: string; onClick: () => void; accent?: boolean; className?: string }) {
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className={`t-subhead flex min-h-11 w-full items-center gap-3 rounded-chip px-3 text-left font-semibold hover:bg-paper-2 focus-visible:bg-paper-2 active:bg-paper-2 ${accent ? 'text-accent' : 'text-ink'} ${className}`}>
+      <Icon as={icon} size={18} className="shrink-0 text-current" />
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }
@@ -666,7 +915,7 @@ const clampCalc = (w: number) => Math.round(Math.min(Math.max(w, CALC_MIN), calc
 // The docked calculator's pane. Its right edge is a handle: drag it (or focus
 // it and use the arrow keys) to make the calculator wider or narrower; the
 // width is remembered in this browser.
-function CalcPane({ children }: { children: ReactNode }) {
+function CalcPane({ children, hidden }: { children: ReactNode; hidden: boolean }) {
   const [width, setWidth] = useState(() => {
     let saved = 0;
     try {
@@ -720,7 +969,7 @@ function CalcPane({ children }: { children: ReactNode }) {
     save(next);
   };
   return (
-    <aside className="relative shrink-0" style={{ width }}>
+    <aside className="relative shrink-0" style={{ width }} hidden={hidden}>
       {children}
       <div
         role="separator"
@@ -736,5 +985,15 @@ function CalcPane({ children }: { children: ReactNode }) {
         <span className="absolute h-12 w-1.5 rounded-full bg-ink-3 transition-colors group-hover:bg-accent group-focus-visible:bg-accent" />
       </div>
     </aside>
+  );
+}
+
+// The question navigator above the footer (Bluebook's popover).
+function Popover({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
+  return (
+    <div ref={dialog} tabIndex={-1} role="dialog" aria-label={label} className="absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-[min(600px,calc(100vw-24px))] -translate-x-1/2 rounded-panel border border-line bg-paper p-5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)] outline-none">
+      {children}
+    </div>
   );
 }

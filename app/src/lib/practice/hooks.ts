@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { ApiError, api, call } from '@/api/client';
+import { ApiError, api, call, sameSession } from '@/api/client';
 import { useMe } from '@/api/queries';
 
+import { forgetCalculator } from './calculator-state';
 import {
   clearRun,
   loadAttempts,
@@ -15,6 +16,7 @@ import {
   mergeFromServer,
   savePackage,
   saveRun,
+  type LocalAttempt,
   type Person,
   type Run,
   type StoredPackage,
@@ -61,7 +63,7 @@ async function fetchPackage(code: string, version: number | undefined): Promise<
     api.GET('/v1/practice/tests/{code}/package', { params: { path: { code }, query: version == null ? {} : { version } } }),
   );
   const stored: StoredPackage = { package: res.package, images: res.images, expires_at: res.expires_at };
-  savePackage(stored);
+  await savePackage(stored);
   return stored;
 }
 
@@ -71,10 +73,15 @@ async function fetchPackage(code: string, version: number | undefined): Promise<
  * version, the latest.
  */
 export function usePackage(code: string, version: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: ['practice-package', code, version ?? 'latest'],
+  return useQuery({ ...packageQuery(code, version), enabled: enabled && code !== '' });
+}
+
+/** The query behind usePackage, for screens that need several packages at once (useQueries). */
+export function packageQuery(code: string, version: number | undefined) {
+  return {
+    queryKey: ['practice-package', code, version ?? 'latest'] as const,
     queryFn: async () => {
-      const stored = version == null ? null : loadPackage(code, version);
+      const stored = version == null ? null : await loadPackage(code, version);
       if (stored && Date.parse(stored.expires_at) - Date.now() > LINK_MARGIN_MS) return stored;
       try {
         return await fetchPackage(code, version);
@@ -84,9 +91,11 @@ export function usePackage(code: string, version: number | undefined, enabled = 
         throw e;
       }
     },
-    enabled: enabled && code !== '',
-    staleTime: (query) => (query.state.data ? Math.max(0, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : 0),
-  });
+    staleTime: (query: { state: { data?: StoredPackage } }) => (query.state.data ? Math.max(0, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : 0),
+    // A screen left open (a test runs for hours) gets new links before the
+    // old ones run out, so figures further on still load.
+    refetchInterval: (query: { state: { data?: StoredPackage } }) => (query.state.data ? Math.max(60_000, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : false),
+  };
 }
 
 /**
@@ -112,6 +121,9 @@ export function useRunStore() {
         saveRun(person, run);
       },
       clear: (code: string) => {
+        // The run is over (finished or discarded): its calculator work too.
+        const ending = loadRun(person, code);
+        if (ending) forgetCalculator(ending.id);
         put(code, null);
         clearRun(person, code);
       },
@@ -124,6 +136,23 @@ export function useRefreshLocal() {
   const queryClient = useQueryClient();
   const person = usePerson();
   return () => queryClient.invalidateQueries({ queryKey: localKey(person) });
+}
+
+/** Sends one finished attempt; a repeat (same id) is harmless. */
+export function postAttempt(a: LocalAttempt) {
+  return call(
+    api.POST('/v1/practice/attempts', {
+      body: {
+        id: a.id,
+        test: a.code,
+        version: a.version,
+        sections: a.sections,
+        started_at: a.started_at,
+        finished_at: a.finished_at,
+        answers: a.answers.map((x) => ({ ...x, module: x.module as 1 | 2 })),
+      },
+    }),
+  );
 }
 
 /**
@@ -140,24 +169,16 @@ export function useUploadAttempts(enabled: boolean) {
     queryKey: ['practice-upload', person],
     enabled,
     queryFn: async () => {
+      // Stops if someone else signs in meanwhile, so this person's attempts
+      // don't go up under their account (or theirs come down as this one's).
+      const same = sameSession();
       const pending = loadAttempts(person).filter((a) => !a.uploaded && !a.rejected);
       let sent = 0;
       let online = true;
       for (const a of pending) {
+        if (!same()) return 0;
         try {
-          const server = await call(
-            api.POST('/v1/practice/attempts', {
-              body: {
-                id: a.id,
-                test: a.code,
-                version: a.version,
-                sections: a.sections,
-                started_at: a.started_at,
-                finished_at: a.finished_at,
-                answers: a.answers.map((x) => ({ ...x, module: x.module as 1 | 2 })),
-              },
-            }),
-          );
+          const server = await postAttempt(a);
           markUploaded(person, server as ServerAttempt);
           sent++;
         } catch (e) {
@@ -170,9 +191,10 @@ export function useUploadAttempts(enabled: boolean) {
         }
       }
       let added = 0;
-      if (online) {
+      if (online && same()) {
         try {
           const { attempts } = await call(api.GET('/v1/me/practice/attempts'));
+          if (!same()) return 0;
           added = mergeFromServer(person, attempts as OwnAttempt[]);
           queryClient.setQueryData(['practice-mine'], attempts);
         } catch {

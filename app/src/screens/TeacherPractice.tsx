@@ -1,11 +1,12 @@
 import { Bell, ChevronLeft, ChevronRight, Inbox, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import type { Group, Profile } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
+import { GroupParked } from '@/components/practice/GroupParked';
 import { Icon } from '@/components/Icon';
 import { ScoreChange } from '@/components/practice/ScoreChange';
 import { EmptyState, ErrorState, Skeleton } from '@/components/States';
@@ -14,7 +15,7 @@ import { ScreenTitle } from '@/layouts/AppShell';
 import { useNow } from '@/lib/clock';
 import { normalCase } from '@/lib/groups';
 import { SUBJECT_LABEL, SUBJECT_SHORT, testName } from '@/lib/practice/run';
-import { practicedSince, useGroupPractice, useLastVisit, useMarkVisited, usePracticeSummary, type FreshResult, type GroupSummary } from '@/lib/practice/summary';
+import { practicedSince, useGroupPractice, useLastVisit, usePracticeSummary, type FreshResult, type GroupSummary } from '@/lib/practice/summary';
 import type { GroupStudent, ServerAttempt } from '@/lib/practice/types';
 import { addDays, formatDate, lastClass, pastDay, relativeDay, schoolClock, schoolDate } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
@@ -33,16 +34,14 @@ function sinceLabel(since: number, now: number): string {
 
 // The teacher's Practice tab (the phone's TeacherPractice): what came in
 // since the last visit, then each group with how many of its students have
-// practised. "New" is new since the tab was last left for another tab, so
-// results stay marked until they've been seen.
+// practised. "New" is new since the tab was last left for another tab
+// (useTrackPracticeVisits, in AppShell), so results stay marked until seen.
 export function TeacherPractice() {
   useTitle('Practice');
   const profile = useMe().data as Profile;
   const now = useNow();
   const since = useLastVisit();
-  const markVisited = useMarkVisited();
   const summary = usePracticeSummary(profile.groups, since, now);
-  useEffect(() => () => markVisited(), [markVisited]);
   const fresh = summary.fresh.length;
   return (
     <div className="mx-auto w-full max-w-xl">
@@ -220,6 +219,11 @@ export function GroupPractice() {
             </div>
           )}
         </>
+      )}
+      {group && (
+        <section className="mt-8 rounded-card border border-line bg-surface p-[18px]">
+          <GroupParked groupId={group.id} />
+        </section>
       )}
     </div>
   );

@@ -16,7 +16,7 @@ export function describeError(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.';
   switch (error.code) {
     case 'network':
-      return "Can't reach MakonBook. Check your internet connection and try again.";
+      return "Can't reach SATMAKON. Check your internet connection and try again.";
     case 'account_locked':
       return `Too many wrong passwords. For your security, try again in ${minutes(error.retryAfter)}.`;
     case 'rate_limited':
@@ -28,7 +28,7 @@ export function describeError(error: unknown): string {
     case 'not_found':
       return 'That isn’t here any more.';
     default:
-      if (error.status >= 500) return 'MakonBook is having a problem right now. Please try again in a moment.';
+      if (error.status >= 500) return 'SATMAKON is having a problem right now. Please try again in a moment.';
       return error.requestId
         ? `Something went wrong. If it keeps happening, tell the office this code: ${error.requestId}`
         : 'Something went wrong. Please try again.';

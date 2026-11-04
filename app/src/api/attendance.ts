@@ -50,11 +50,17 @@ export function useOpenSession() {
   });
 }
 
+// A poll on its way when a mark or Finish is saved would bring the session
+// as it was before and put it back on screen: the changes cancel polls, as
+// they start and again before showing the answer.
+
 export function useFinishSession(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => call(api.POST('/v1/attendance/sessions/{id}/finish', { params: { path: { id } } })),
-    onSuccess: (s) => {
+    onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey(id) }),
+    onSuccess: async (s) => {
+      await queryClient.cancelQueries({ queryKey: sessionKey(id) });
       queryClient.setQueryData(sessionKey(id), stamp(s));
       void queryClient.invalidateQueries({ queryKey: lessonsKey(s.date) });
     },
@@ -66,6 +72,10 @@ export function useSetMark(id: string) {
   return useMutation({
     mutationFn: ({ clientId, state }: { clientId: number; state: Exclude<MarkState, 'pending'> }) =>
       call(api.PUT('/v1/attendance/sessions/{id}/marks/{client_id}', { params: { path: { id, client_id: clientId } }, body: { state } })),
-    onSuccess: (s) => queryClient.setQueryData(sessionKey(id), stamp(s)),
+    onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey(id) }),
+    onSuccess: async (s) => {
+      await queryClient.cancelQueries({ queryKey: sessionKey(id) });
+      queryClient.setQueryData(sessionKey(id), stamp(s));
+    },
   });
 }

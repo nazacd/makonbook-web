@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { useDialog } from '@/lib/dialog';
+
 import { Formula } from './RichContent';
 
 // The Math reference sheet, as Bluebook's "Reference Sheet": each figure
@@ -171,9 +173,10 @@ const FIGURES: { id: string; draw: ReactNode; tex: string[]; caption?: string }[
 const NOTES = ['The number of degrees of arc in a circle is 360.', 'The number of radians of arc in a circle is 2π.', 'The sum of the measures in degrees of the angles of a triangle is 180.'];
 
 export function Reference({ onClose }: { onClose: () => void }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/30 p-3 sm:items-center sm:p-6" onClick={onClose}>
-      <div role="dialog" aria-label="Reference sheet" className="my-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-panel bg-paper shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Reference sheet" className="my-auto flex outline-none w-full max-w-2xl flex-col overflow-hidden rounded-panel bg-paper shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-12 items-center justify-between bg-ink px-4">
           <h2 className="t-headline text-paper">Reference Sheet</h2>
           <button type="button" onClick={onClose} aria-label="Close the reference sheet" className="flex size-9 items-center justify-center rounded-chip text-paper active:bg-ink-2">

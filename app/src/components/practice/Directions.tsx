@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 
+import { useDialog } from '@/lib/dialog';
 import type { Subject } from '@/lib/practice/types';
 
 // The section's directions, behind "Directions" in the header, as in Bluebook.
@@ -15,8 +16,9 @@ const TEXT: Record<Subject, string[]> = {
 };
 
 export function Directions({ subject, onClose }: { subject: Subject; onClose: () => void }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
   return (
-    <div className="absolute inset-x-0 top-full z-30 px-4 pt-1" role="dialog" aria-label="Directions">
+    <div ref={dialog} tabIndex={-1} className="absolute inset-x-0 top-full z-30 px-4 pt-1 outline-none" role="dialog" aria-label="Directions">
       <div className="max-w-xl rounded-panel border border-line bg-paper p-5 shadow-xl">
         <div className="mb-2 flex items-start justify-between gap-4">
           <h2 className="t-headline text-ink">Directions</h2>

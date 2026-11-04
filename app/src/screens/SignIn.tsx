@@ -3,6 +3,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
+import { AuthCard } from '@/components/brand/AuthCard';
 import { Button } from '@/components/Button';
 import { Notice } from '@/components/Notice';
 import { TextField } from '@/components/TextField';
@@ -42,13 +43,8 @@ export function SignIn() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <div className="mb-8 flex items-center gap-3">
-        <img src="/logo.png" alt="" width={40} height={40} />
-        <h1 className="t-title text-ink">Sign in</h1>
-      </div>
-      <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
-        <p className="t-body text-ink-2">Use the phone number the office has for you, or your username if you set one.</p>
+    <AuthCard title="Sign in" subtitle="Use the phone number SATMAKON has for you, or your username." aside={<p className="t-footnote text-ink-3">Forgot your password, or your number changed? Ask the office to reset it.</p>}>
+      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <TextField
           label="Phone number or username"
           value={login}
@@ -78,9 +74,8 @@ export function SignIn() {
           hint="First time? Your password is the last 4 digits of your phone number."
         />
         {problem && <Notice tone="error" message={problem} />}
-        <Button type="submit" label="Sign in" loading={busy} disabled={!canSubmit && !busy} className="mt-1" />
-        <p className="t-footnote text-center text-ink-3">Forgot your password, or your number changed? Ask the office to reset it.</p>
+        <Button type="submit" label="Sign in" loading={busy} disabled={!canSubmit && !busy} className="mt-1 w-full" />
       </form>
-    </div>
+    </AuthCard>
   );
 }

@@ -1,4 +1,4 @@
-import { idbGet, idbSet } from '@/lib/idb';
+import { idbGet, idbSet, idbUpdate } from '@/lib/idb';
 
 import type { Deck, Review } from './types';
 
@@ -36,8 +36,22 @@ export async function readLog(person: string): Promise<Review[]> {
   return (await idbGet<Review[]>(logKey(person))) ?? [];
 }
 
-export async function appendLog(person: string, reviews: Review[]): Promise<void> {
-  await idbSet(logKey(person), [...(await readLog(person)), ...reviews]);
+/**
+ * Adds reviews to the person's log, leaving out any it has already (two
+ * syncs, or two tabs, fetching the same ones), and answers the whole log.
+ */
+export function appendLog(person: string, reviews: Review[]): Promise<Review[]> {
+  return idbUpdate<Review[]>(logKey(person), (old) => {
+    const log = old ?? [];
+    const have = new Set(log.map((r) => r.id));
+    const add: Review[] = [];
+    for (const r of reviews) {
+      if (have.has(r.id)) continue;
+      have.add(r.id);
+      add.push(r);
+    }
+    return add.length > 0 ? [...log, ...add] : log;
+  });
 }
 
 /** Whether an image's link is here and still good. */

@@ -11,11 +11,13 @@ import { Notice } from '@/components/Notice';
 // temporary password is in use, /choose-password is the only screen; once it
 // is changed, that screen sends people on to Classes.
 export function RequireAuth() {
-  const { status, signOut } = useAuth();
+  const { status, leftOnPurpose, signOut } = useAuth();
   const location = useLocation();
   const me = useMe(status === 'signedIn');
 
-  if (status === 'signedOut') return <Navigate to="/sign-in" replace state={{ from: location }} />;
+  // A link opened while signed out comes back after signing in; after a sign
+  // out, the next person (perhaps someone else) starts at Classes.
+  if (status === 'signedOut') return <Navigate to="/sign-in" replace state={leftOnPurpose ? undefined : { from: location }} />;
 
   // A cold start with a saved session: wait for the profile before showing
   // anything that depends on it. Once loaded it is kept, so a failed refetch

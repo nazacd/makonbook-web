@@ -4,7 +4,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/', '**/node_modules/', 'app/src/api/schema.d.ts', 'landing/public/'] },
+  { ignores: ['**/dist/', '**/node_modules/', 'app/src/api/schema.d.ts', 'landing/public/', '.claude/'] },
   {
     // Build scripts (Node).
     files: ['scripts/**/*.mjs', 'landing/scripts/**/*.mjs', 'landing/vite.config.js'],

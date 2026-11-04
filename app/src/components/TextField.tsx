@@ -27,7 +27,7 @@ export function TextField({ label, error, hint, secure = false, prefix, ref, ...
       <label htmlFor={id} className="t-footnote text-ink-2">
         {label}
       </label>
-      <div className={`flex h-[52px] items-center overflow-hidden rounded-control border-[1.5px] bg-surface ${border}`}>
+      <div className={`flex h-12 items-center overflow-hidden rounded-control border-[1.5px] bg-surface-2 ${border}`}>
         {prefix && <span className="t-body pl-4 text-ink-3">{prefix}</span>}
         <input
           ref={ref}

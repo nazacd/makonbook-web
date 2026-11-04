@@ -4,17 +4,20 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { Grade } from 'ts-fsrs';
 
+import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { Notice } from '@/components/Notice';
 import { Skeleton } from '@/components/States';
 import { usePerson } from '@/lib/practice/hooks';
 import { useTitle } from '@/lib/title';
 import { hasImage, imageUri } from '@/lib/vocab/files';
-import { useDeck, useRecordReview, useSettings, useVocabState } from '@/lib/vocab/hooks';
+import { useDeck, useRecordReview, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
 import { activeLists, GRADES, newToday, preview, queue } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
 
-const GRADE_COLOR: Record<number, string> = { 1: 'text-bad', 2: 'text-watch', 3: 'text-good', 4: 'text-accent' };
+// The four ratings in their own colours (Again red, Hard orange, Good green, Easy blue), tinted.
+const GRADE_BG: Record<number, string> = { 1: 'bg-bad-tint text-bad', 2: 'bg-watch-tint text-watch', 3: 'bg-good-tint text-good', 4: 'bg-info-tint text-info' };
 const KEYS = ['1', '2', '3', '4'];
 
 // The word in the example sentence in bold: "abate" also in "abated".
@@ -42,6 +45,10 @@ export function Study() {
   const state = useVocabState();
   const settings = useSettings();
   const record = useRecordReview();
+  // Opened straight from a link before Words ever downloaded the deck.
+  const needDeck = deck.isSuccess && deck.data == null;
+  const sync = useVocabSync(needDeck);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [shown, setShown] = useState(false);
   const [done, setDone] = useState(0);
   const [newDone, setNewDone] = useState(0);
@@ -54,11 +61,32 @@ export function Study() {
     void navigate('/words');
   };
 
+  const closeButton = (
+    <button type="button" onClick={close} aria-label="Finish studying" className="-ml-2.5 flex size-11 items-center justify-center rounded-chip active:opacity-60">
+      <Icon as={X} size={22} />
+    </button>
+  );
+
   if (!deck.data || !state.data || !settings.data) {
+    const failed = deck.isError || state.isError || settings.isError || (needDeck && sync.isError);
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-4 px-5 pt-[120px]">
-        <Skeleton width={180} height={48} />
-        <Skeleton width={90} />
+      <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-5">
+        <div className="flex h-[52px] shrink-0 items-center">{closeButton}</div>
+        {failed ? (
+          <div className="flex flex-1 flex-col justify-center gap-4 pb-[52px]">
+            <Notice
+              tone="error"
+              title="Couldn’t load your words"
+              message={needDeck && sync.isError ? describeError(sync.error) : 'This browser couldn’t open the words it keeps. Check that it lets this site keep data.'}
+            />
+            <Button label="Back to Words" onClick={close} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 pt-[68px]">
+            <Skeleton width={180} height={48} />
+            <Skeleton width={90} />
+          </div>
+        )}
       </div>
     );
   }
@@ -76,7 +104,11 @@ export function Study() {
     if (!word) return;
     setShown(false);
     const wasNew = !card;
-    await record(word.id, card, rating, at - shownAt);
+    try {
+      await record(word.id, card, rating, at - shownAt);
+    } catch {
+      setSaveFailed(true); // shown on screen; the session goes on
+    }
     setDone((n) => n + 1);
     if (wasNew) setNewDone((n) => n + 1);
     setNow(new Date(at));
@@ -87,15 +119,16 @@ export function Study() {
     <div className="mx-auto flex h-dvh w-full max-w-xl flex-col px-5">
       <Keys shown={shown} hasWord={!!word} onShow={() => setShown(true)} onRate={(g, at) => void answer(g, at)} />
       <div className="flex h-[52px] shrink-0 items-center gap-3">
-        <button type="button" onClick={close} aria-label="Finish studying" className="-ml-2.5 flex size-11 items-center justify-center rounded-chip active:opacity-60">
-          <Icon as={X} size={22} />
-        </button>
+        {closeButton}
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-track" role="progressbar" aria-label={`${done} done, ${left} left`} aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
           <div className="h-1.5 rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
         </div>
         <span className="t-subhead tabular min-w-12 text-right font-medium text-ink-2">{left} left</span>
       </div>
 
+      {saveFailed && (
+        <Notice tone="error" title="Answers aren’t being saved" message="This browser didn’t let SATMAKON keep your last answer. Check that it lets this site keep data." />
+      )}
       {!word ? (
         <Finish done={done} newDone={newDone} onClose={close} />
       ) : (
@@ -130,9 +163,11 @@ export function Study() {
                     type="button"
                     onClick={() => void answer(g.rating, Date.now())}
                     aria-label={`${g.label}, comes back in ${gaps[g.rating]}`}
-                    className="flex h-16 flex-1 flex-col items-center justify-center gap-0.5 rounded-control border border-line bg-surface active:scale-[0.97]">
-                    <span className={`t-callout font-semibold ${GRADE_COLOR[g.rating]}`}>{g.label}</span>
-                    <span className="t-caption tabular font-normal text-ink-3">{gaps[g.rating]}</span>
+                    className={`flex h-16 flex-1 flex-col items-center justify-center gap-0.5 rounded-control transition-transform active:scale-[0.97] ${GRADE_BG[g.rating]}`}>
+                    <span className="t-callout font-bold">
+                      {g.label} <span className="t-caption font-semibold opacity-60">{g.rating}</span>
+                    </span>
+                    <span className="t-caption tabular font-semibold opacity-75">{gaps[g.rating]}</span>
                   </button>
                 ))}
               </div>

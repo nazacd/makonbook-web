@@ -1,36 +1,32 @@
-import { ChevronLeft, Clock, History, RotateCcw } from 'lucide-react';
+import { ChevronLeft, History, Info, RotateCcw } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { describeError } from '@/api/errors';
-import { Button } from '@/components/Button';
-import { Icon } from '@/components/Icon';
+import { Spinner } from '@/components/Button';
 import { Notice } from '@/components/Notice';
+import { SAT_MODULE_MINUTES } from '@/components/practice/cards/modules';
+import { minutesLong, SECTION_LABEL } from '@/components/practice/results/format';
 import { Skeleton } from '@/components/States';
 import { confirm } from '@/lib/confirm';
 import { uuid } from '@/lib/device-id';
 import { useCatalog, useLocalAttempts, usePackage, useRuns, useRunStore } from '@/lib/practice/hooks';
-import { newRun, SUBJECT_LABEL, testName } from '@/lib/practice/run';
+import { newRun, testName } from '@/lib/practice/run';
 import type { Subject } from '@/lib/practice/types';
 import { useTitle } from '@/lib/title';
 
-// The Digital SAT's sections: two modules each, 32 min for Reading and
-// Writing and 35 for Math. Shown until the package (with its own times) is here.
-const SAT_MINUTES: Record<Subject, number> = { english: 64, math: 70 };
+type Choice = 'full' | Subject;
 
-/** "2 h 14 min", or "64 min" under an hour (or always, when `short`). */
-function duration(minutes: number, short = false): string {
-  if (short || minutes < 60) return `${minutes} min`;
-  return minutes % 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes / 60} h`;
-}
-
-/** "Math, Part 1" for one section, "Full test, Part 3" for both. */
+/** "Full test, Part 3" for both sections, "Math, Part 1" for one. */
 function progressLine(sections: Subject[], stage: number): string {
-  return `${sections.length > 1 ? 'Full test' : SUBJECT_LABEL[sections[0]!]}, Part ${stage + 1}`;
+  return `${sections.length > 1 ? 'Full test' : SECTION_LABEL[sections[0]!]}, Part ${stage + 1}`;
 }
 
-// One test (the phone's practice/test/[code]): the full test leads, with its
-// action below; each section on its own; the history. The package is fetched
-// when the page opens; there is nothing to download by hand in a browser.
+// A test's start page, as the design reference's: a bar with the way back and
+// the title, a hint, the Timing and Scores card, and the button. Here the
+// student also picks the full test or one section (a section the test lacks
+// can't be picked), and a test in progress continues or is discarded. The
+// package is fetched when the page opens; there is nothing to download by hand.
 export function PracticeTest() {
   const { code = '' } = useParams();
   const navigate = useNavigate();
@@ -45,19 +41,30 @@ export function PracticeTest() {
   const lastFull = mine.find((a) => a.total != null);
   const title = testName(test?.title ?? run?.title ?? code);
   useTitle(title);
+  const [choice, setChoice] = useState<Choice>('full');
   const ready = !!pkg.data;
+
+  const has = (subject: Subject) => (pkg.data ? pkg.data.package.sections.some((s) => s.subject === subject) : test ? test[subject] > 0 : true);
   const minutes = (subject?: Subject) =>
     pkg.data
       ? pkg.data.package.sections.filter((s) => !subject || s.subject === subject).reduce((n, s) => n + s.modules.reduce((m, mod) => m + mod.minutes, 0), 0)
-      : subject
-        ? SAT_MINUTES[subject]
-        : SAT_MINUTES.english + SAT_MINUTES.math;
+      : (['english', 'math'] as const).filter((s) => (!subject || s === subject) && has(s)).reduce((n, s) => n + 2 * SAT_MODULE_MINUTES[s], 0);
+  const questions = (subject?: Subject) =>
+    pkg.data
+      ? pkg.data.package.sections.filter((s) => !subject || s.subject === subject).reduce((n, s) => n + s.modules.reduce((m, mod) => m + mod.questions.length, 0), 0)
+      : test
+        ? subject
+          ? test[subject]
+          : test.questions
+        : 0;
 
   const begin = (sections: Subject[]) => {
     if (!pkg.data) return;
+    if (run) runStore.clear(code); // with its calculator work
     runStore.save(newRun(pkg.data.package, sections, uuid(), new Date()));
     void navigate(`/practice/run/${encodeURIComponent(code)}`);
   };
+  const sectionsOf = (c: Choice): Subject[] => (c === 'full' ? ['english', 'math'] : [c]);
   // One test in progress per test: starting another asks first.
   const start = (sections: Subject[]) =>
     run ? confirm({ title: 'Discard your progress?', message: 'The answers you gave in this attempt are deleted.', onConfirm: () => begin(sections) }) : begin(sections);
@@ -65,100 +72,145 @@ export function PracticeTest() {
 
   if (catalog.isPending && !run) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-        <Skeleton width={160} height={44} />
-        <Skeleton width="50%" height={24} />
-      </div>
+      <Page title={<Skeleton width={120} height={20} />}>
+        <Skeleton height={52} radius={8} />
+        <Skeleton height={200} radius={12} />
+        <div className="flex justify-center">
+          <Skeleton width={208} height={46} radius={8} />
+        </div>
+      </Page>
     );
   }
   if (!test && !run) {
     return (
-      <div className="mx-auto w-full max-w-xl">
-        <Back />
+      <Page title="Mock tests">
         <Notice tone="error" title="No such test" message={catalog.isError ? describeError(catalog.error) : 'This test isn’t in the catalog.'} />
-      </div>
+      </Page>
     );
   }
   const locked = !run && test && test.version == null;
+  const options: { value: Choice; label: string; off: boolean }[] = [
+    { value: 'full', label: 'Full test', off: false },
+    { value: 'english', label: SECTION_LABEL.english, off: !has('english') },
+    { value: 'math', label: SECTION_LABEL.math, off: !has('math') },
+  ];
+  const picked = options.find((o) => o.value === choice && !o.off) ? choice : 'full';
+  const hint = locked ? 'This test opens once all its questions are checked.' : run ? 'Press “Continue” to pick up where you left off.' : 'Press “Start” to begin the test.';
 
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <Back />
-      <h1 className="font-title text-[44px] font-bold leading-[50px] text-ink">{title}</h1>
+    <Page title={title}>
+      <p className="flex min-h-[52px] items-center gap-3 rounded-[8px] border border-line-strong bg-surface px-4 py-3 text-[16px] font-medium leading-6 text-ink" role="note">
+        <Info size={17} strokeWidth={2} aria-hidden="true" className="shrink-0 text-ink" />
+        {hint}
+      </p>
+
+      <section className="rounded-[12px] border border-line bg-surface px-[22px] py-[22px] shadow-[0_1px_4px_rgba(16,19,26,0.06)]">
+        <h2 className="text-[17px] font-semibold leading-6 text-ink">Timing</h2>
+        <p className="mt-2 text-[14px] leading-[23px] text-ink-3">This full-length assessment is timed like the real SAT, and the clock only stops if you leave the test. It is not a game but life!</p>
+        <h2 className="mt-5 text-[17px] font-semibold leading-6 text-ink">Scores</h2>
+        <p className="mt-2 text-[14px] leading-[23px] text-ink-3">When you finish the assessment test, your scores will be displayed, and you can begin to review the test to master the topics you were weaker on.</p>
+      </section>
+
       {run ? (
-        <p className="mt-4 flex items-center gap-3" aria-label={`In progress: ${progressLine(run.sections, run.stage)}`}>
-          <span className="flex size-[22px] items-center justify-center rounded-full bg-accent-tint">
-            <span className="size-3.5 rounded-full border-[3px] border-accent" />
-          </span>
-          <span className="font-title text-[26px] font-semibold leading-8 text-accent">{progressLine(run.sections, run.stage)}</span>
+        <p className="text-center text-[14px] font-semibold text-accent" aria-label={`In progress: ${progressLine(run.sections, run.stage)}`}>
+          In progress · {progressLine(run.sections, run.stage)}
         </p>
       ) : (
-        <>
-          <div className="mt-4 flex items-end gap-3">
-            <h2 className="font-title flex-1 text-[26px] font-semibold leading-8 text-ink">Full test</h2>
-            {lastFull && (
-              <Link to={`/practice/result/${lastFull.id}`} className="relative" aria-label={`Last full test ${lastFull.total}, opens the result`}>
-                <span className="t-footnote absolute bottom-full right-0 text-ink-3">Last</span>
-                <span className="font-title tabular text-[30px] font-bold leading-[34px] text-ink">{lastFull.total}</span>
-              </Link>
-            )}
-          </div>
-          <p className="t-callout tabular mt-1 flex items-center gap-1.5 text-ink-2">
-            <Icon as={Clock} size={16} className="text-ink-3" />
-            {duration(minutes())}
-          </p>
-        </>
+        !locked && (
+          <fieldset>
+            <legend className="sr-only">What to take</legend>
+            <div className="grid grid-cols-3 gap-2">
+              {options.map((o) => {
+                const on = picked === o.value;
+                const subject = o.value === 'full' ? undefined : o.value;
+                return (
+                  <label
+                    key={o.value}
+                    className={`relative flex cursor-pointer flex-col gap-0.5 rounded-[10px] border px-3 py-2.5 transition-colors duration-150 has-[:disabled]:cursor-default has-[:disabled]:opacity-45 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${on ? 'border-primary bg-accent-tint' : 'border-line bg-surface hover:border-line-strong'}`}>
+                    <input type="radio" name="sections" value={o.value} checked={on} disabled={o.off} onChange={() => setChoice(o.value)} className="sr-only" />
+                    <span className={`truncate text-[14px] font-semibold ${on ? 'text-accent' : 'text-ink'}`}>{o.label}</span>
+                    <span className="truncate text-[12px] text-ink-2 tabular">
+                      {o.off ? 'Not in this test' : `${minutesLong(minutes(subject))} · ${questions(subject)} q`}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )
       )}
 
-      <p className="t-subhead mb-2.5 mt-9 text-ink-2">Or one section</p>
-      <div className="flex h-[120px] border-y border-line">
-        {(['english', 'math'] as const).map((subject, i) => (
-          <button
-            key={subject}
-            type="button"
-            onClick={() => start([subject])}
-            disabled={!ready}
-            aria-label={`${SUBJECT_LABEL[subject]} only, ${minutes(subject)} minutes`}
-            className={`flex flex-1 flex-col items-start pt-4 text-left active:bg-surface-2 disabled:opacity-50 ${i ? 'border-l border-line pl-4' : 'pr-2'}`}>
-            <span className="t-title3 text-[17px] leading-[22px] text-ink">{subject === 'english' ? 'Reading & Writing' : 'Math'}</span>
-            <span className="t-subhead tabular mt-1 flex items-center gap-1.5 text-ink-2">
-              <Icon as={Clock} size={15} className="text-ink-3" />
-              {duration(minutes(subject), true)}
-            </span>
-          </button>
-        ))}
-      </div>
+      {pkg.isError && <Notice tone="error" message={describeError(pkg.error)} />}
 
-      {mine.length > 0 && (
-        <Link to={`/practice/history/${encodeURIComponent(code)}`} className="t-subhead mt-2 flex min-h-12 items-center gap-2 font-medium text-ink-2">
-          <Icon as={History} size={17} className="text-ink-3" />
-          History
-          <span className="font-normal text-ink-3">· {mine.length}</span>
-        </Link>
-      )}
-
-      <div className="mt-8 flex flex-col gap-2.5 border-t border-line pt-4">
-        {pkg.isError && <Notice tone="error" message={describeError(pkg.error)} />}
-        {locked ? (
-          <p className="t-footnote text-center text-ink-2">This test opens once its questions are checked.</p>
-        ) : run ? (
+      <div className="flex flex-col items-center gap-2">
+        {run ? (
           <>
-            <Button label="Continue" onClick={() => void navigate(`/practice/run/${encodeURIComponent(code)}`)} disabled={!ready} loading={pkg.isPending} />
-            <Button label="Discard progress" variant="destructive" onClick={discard} icon={<Icon as={RotateCcw} size={16} className="text-bad" />} />
+            <BigButton onClick={() => void navigate(`/practice/run/${encodeURIComponent(code)}`)} disabled={!ready} loading={pkg.isPending}>
+              Continue
+            </BigButton>
+            <button type="button" onClick={discard} className="inline-flex h-10 items-center gap-1.5 rounded-control px-3 text-[14px] font-semibold text-bad hover:bg-bad-tint">
+              <RotateCcw size={15} strokeWidth={2} aria-hidden="true" />
+              Discard progress
+            </button>
+            <button type="button" onClick={() => start(run.sections)} disabled={!ready} className="t-footnote h-8 rounded-control px-3 font-semibold text-ink-2 hover:text-ink disabled:opacity-40">
+              Start over instead
+            </button>
           </>
         ) : (
-          <Button label="Start full test" onClick={() => start(['english', 'math'])} disabled={!ready} loading={pkg.isPending} />
+          <BigButton onClick={() => start(sectionsOf(picked))} disabled={!ready || !!locked} loading={pkg.isPending && !locked}>
+            {picked === 'full' ? 'Start test' : 'Start section'}
+          </BigButton>
         )}
       </div>
+
+      {(mine.length > 0 || lastFull) && (
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[14px]">
+          {lastFull && (
+            <Link to={`/practice/result/${lastFull.id}`} className="font-semibold text-ink-2 hover:text-ink">
+              Last full test <span className="font-bold text-ink tabular">{lastFull.total}</span>
+            </Link>
+          )}
+          {mine.length > 0 && (
+            <Link to={`/practice/history/${encodeURIComponent(code)}`} className="inline-flex items-center gap-1.5 font-semibold text-accent hover:underline">
+              <History size={15} strokeWidth={2} aria-hidden="true" />
+              History · {mine.length}
+            </Link>
+          )}
+        </div>
+      )}
+    </Page>
+  );
+}
+
+/** The bar across the top with the way back, and the centred column under it. */
+function Page({ title, children }: { title: ReactNode; children: ReactNode }) {
+  return (
+    <div>
+      <div className="-mx-4 -mt-4 mb-6 flex h-14 items-center gap-2 border-b border-line bg-surface px-3 md:-mx-7 md:-mt-6 md:px-5">
+        <Link to="/practice" aria-label="Back to mock tests" className="group flex size-9 items-center justify-center rounded-chip text-primary hover:bg-surface-2">
+          <ChevronLeft size={24} strokeWidth={2.4} className="transition-transform duration-200 group-hover:-translate-x-[3px]" aria-hidden="true" />
+        </Link>
+        <h1 className="min-w-0 truncate text-[17px] font-semibold text-ink">{title}</h1>
+      </div>
+      <div className="mx-auto flex w-full max-w-[566px] flex-col gap-5">{children}</div>
     </div>
   );
 }
 
-function Back() {
+function BigButton({ children, onClick, disabled, loading }: { children: ReactNode; onClick: () => void; disabled?: boolean; loading?: boolean }) {
   return (
-    <Link to="/practice" className="t-subhead -ml-1 mb-4 inline-flex h-10 items-center gap-1 rounded-chip pr-2 text-accent">
-      <Icon as={ChevronLeft} size={18} className="text-accent" />
-      Practice
-    </Link>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className="lift relative inline-flex h-[46px] min-w-[208px] items-center justify-center rounded-[8px] bg-primary px-6 text-[15px] font-semibold text-on-primary shadow-[0_6px_16px_-6px_color-mix(in_srgb,var(--color-primary)_60%,transparent)] hover:bg-primary-hover disabled:cursor-default disabled:opacity-45">
+      <span className={loading ? 'invisible' : ''}>{children}</span>
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-label="Loading">
+          <Spinner />
+        </span>
+      )}
+    </button>
   );
 }
