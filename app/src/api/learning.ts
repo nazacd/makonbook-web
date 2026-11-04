@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePerson } from '@/lib/practice/hooks';
 
 import { api, call, type Schemas } from './client';
+import type { paths } from './schema';
 
 // The relaunch's API pieces (makonbook-api docs/platform-spec.md): each
 // question's share of right answers, "Ask later" (parked questions), issue
@@ -11,7 +12,7 @@ import { api, call, type Schemas } from './client';
 export type ParkedQuestion = Schemas['ParkedQuestion'];
 export type ParkedInput = Schemas['ParkedQuestionInput'];
 export type ParkReason = NonNullable<ParkedInput['reason']>;
-export type ReportInput = Schemas['PracticeReportInput'];
+export type ReportInput = paths['/v1/practice/reports']['post']['requestBody']['content']['application/json'];
 export type ReportReason = NonNullable<ReportInput['reason']>;
 export type Goals = Schemas['Goals'];
 

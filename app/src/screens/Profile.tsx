@@ -87,7 +87,7 @@ export function Profile() {
             <div className="rounded-control bg-surface-2 p-3.5">
               <p className="t-micro text-ink-3">Target score</p>
               <p className="t-number mt-1 text-[28px] leading-8 text-ink">{g?.target_total ?? '—'}</p>
-              {g?.target_math != null && g.target_rw != null && <p className="t-footnote text-ink-2">Math {g.target_math} · Reading & Writing {g.target_rw}</p>}
+              {g?.target_math != null && g.target_rw != null && <p className="t-footnote text-ink-2">Math {g.target_math} · English {g.target_rw}</p>}
             </div>
             <div className="mt-2.5 rounded-control bg-surface-2 p-3.5">
               <p className="t-micro text-ink-3">Exam day</p>
@@ -96,12 +96,15 @@ export function Profile() {
                 {days != null && days >= 0 && <Pill tone="primary">{days === 0 ? 'today' : `${days} ${days === 1 ? 'day' : 'days'} left`}</Pill>}
               </p>
             </div>
+            <Link to="/" className="t-footnote mt-3 inline-block text-ink-2 underline underline-offset-2 hover:text-ink">
+              Manage goals on dashboard
+            </Link>
           </section>
         ) : (
           <div />
         )}
 
-        <section className="relative overflow-hidden rounded-card p-5 text-white" style={{ background: 'linear-gradient(150deg, #4c0fae, #3e008e 60%, #2a0063)' }}>
+        <section className="relative overflow-hidden rounded-card bg-[#1a3b73] p-5 text-white">
           <ShieldMark size={140} className="absolute -bottom-6 -right-4 text-white/10" />
           <p className="t-micro flex items-center gap-2 text-white/80">
             Groups <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px]">{profile.groups.length}</span>

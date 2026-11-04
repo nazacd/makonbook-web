@@ -25,7 +25,7 @@ import { GoalsModal } from '@/components/dashboard/GoalsModal';
 import { Skeleton } from '@/components/States';
 import { Progress, Widget, WidgetLabel } from '@/components/ui';
 import { useNow } from '@/lib/clock';
-import { parseClassName, roomNumber } from '@/lib/groups';
+import { normalCase, parseClassName, roomNumber } from '@/lib/groups';
 import { useCatalog, useRuns } from '@/lib/practice/hooks';
 import { toRepair, useAnswered, useResolved, type Answered } from '@/lib/practice/mistakes';
 import { testName } from '@/lib/practice/run';
@@ -72,7 +72,7 @@ export function Dashboard() {
         <span className="text-[30px] leading-none" aria-hidden="true">
           👋
         </span>
-        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em] text-ink">Hi {profile.first_name}</h1>
+        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em] text-ink">Hi {normalCase(`${profile.first_name} ${profile.last_name}`)}</h1>
       </header>
 
       <div className="grid gap-3.5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.85fr)_minmax(0,1fr)]">
@@ -256,7 +256,7 @@ function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number
             <p className="t-number text-[32px] leading-9">{target}</p>
           ) : (
             <button type="button" onClick={onEdit} className="text-[17px] font-bold underline-offset-2 hover:underline">
-              Set a target →
+              Not chosen yet — set one →
             </button>
           )}
           {days != null && days >= 0 ? (
@@ -273,8 +273,8 @@ function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number
       <p className="mt-auto border-t border-white/20 pt-3 text-[13px] text-white/85">
         {latest == null
           ? target
-            ? `Take a full mock test to start the climb to ${target}.`
-            : 'Set a target and take a full mock test to see the gap.'
+            ? `Take your first mock to start the climb to ${target}.`
+            : 'Set a score target →'
           : target
             ? latest >= target
               ? `Your last mock, ${latest}, is on target. Keep it there.`
@@ -303,7 +303,7 @@ function Mistakes({ repair, attempts, fixed, loading }: { repair: Answered[]; at
               <span className="t-number text-[28px]">{repair.length}</span> <span className="t-subhead text-ink-2">{repair.length === 1 ? 'question to fix' : 'questions to fix'}</span>
             </p>
             <p className="t-footnote text-ink-2">
-              From {attempts} {attempts === 1 ? 'test' : 'tests'}
+              From {attempts} {attempts === 1 ? 'assessment' : 'assessments'}
               {fixed > 0 && ` · ${fixed} already fixed`}. Practise them 20 at a time.
             </p>
             {repair.length > 0 && (
@@ -357,7 +357,7 @@ function ThisWeek({ answered, reviewDays, resolved, now }: { answered: Answered[
       <WidgetLabel icon={Flame} label="This week" accent={A.week} />
       <p className="text-ink">
         <Flame size={18} className="-mt-1 mr-1 inline text-fill-watch" aria-hidden="true" />
-        <span className="t-number text-[28px]">{streak}</span> <span className="t-subhead text-ink-2">{streak === 1 ? 'day streak' : 'day streak'}</span>
+        <span className="t-number text-[28px]">{streak}</span> <span className="t-subhead text-ink-2">day streak</span>
       </p>
       <p className="t-footnote text-ink-2">{week} of the last 7 days active</p>
       <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1" role="img" aria-label="The last 14 days: how many answers were right each day">
@@ -379,7 +379,7 @@ function ThisWeek({ answered, reviewDays, resolved, now }: { answered: Answered[
         </span>
         <span>
           <i className="mr-1 inline-block size-2 rounded-full bg-fill-bad" />
-          mostly wrong
+          mostly wrong · last 14 days
         </span>
       </p>
       {(math != null || english != null) && (
@@ -396,7 +396,7 @@ function Continue({ runs }: { runs: { code: string; title: string; stage: number
     <Widget accent={A.continue}>
       <WidgetLabel icon={PlayCircle} label="Continue" accent={A.continue} />
       {runs.length === 0 ? (
-        <p className="t-subhead py-6 text-center text-ink-2">No test half-done. A clean slate.</p>
+        <p className="t-subhead py-6 text-center text-ink-2">Nothing half-finished. Clean slate.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {runs.map((r) => (

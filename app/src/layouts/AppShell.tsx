@@ -1,4 +1,5 @@
 import {
+  Bell,
   Bookmark,
   CalendarCheck,
   CalendarDays,
@@ -11,6 +12,7 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
+  Search,
   SpellCheck,
   Sun,
   User,
@@ -26,8 +28,11 @@ import { Avatar } from '@/components/Avatar';
 import { ShieldMark, Wordmark } from '@/components/brand/Logo';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoading } from '@/components/PageLoading';
+import { CommandSearch } from '@/components/shell/CommandSearch';
+import { NotificationsDrawer } from '@/components/shell/NotificationsDrawer';
 import { useAppearance } from '@/lib/appearance';
 import { useTrackPracticeVisits } from '@/lib/practice/summary';
+import { APP_VERSION } from '@/lib/version';
 
 // The signed-in frame (docs/design.md): on a laptop a floating sidebar panel
 // (collapsible to an icon rail) beside the page; on a phone a top bar and a
@@ -102,14 +107,29 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useCollapsed();
   const { pathname } = useLocation();
   const [more, setMore] = useState(false);
+  const [overlay, setOverlay] = useState<'search' | 'notifications' | null>(null);
+  // Ctrl K (⌘K) opens the search from anywhere.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOverlay((o) => (o === 'search' ? null : 'search'));
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  const pages = [...items, { to: '/profile', label: 'Profile', icon: User }];
   // A new page starts at the top.
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0); // newer browsers return a promise here: never hand it to React as a cleanup
+  }, [pathname]);
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} />
+      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
+        <TopBar onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} />
         <main className="w-full flex-1 px-4 pb-28 pt-4 md:px-7 md:pb-12 md:pt-6">
           {/* A page that crashes or is still loading keeps the frame around it. */}
           <ErrorBoundary>
@@ -121,13 +141,16 @@ export function AppShell() {
       </div>
       <BottomBar items={items} tabs={tabs} onMore={() => setMore(true)} moreActive={!tabs.some((t) => isActive(pathname, items.find((i) => i.to === t)!))} />
       {more && <MoreSheet items={items.filter((i) => !tabs.includes(i.to))} onClose={() => setMore(false)} />}
+      {overlay === 'search' && <CommandSearch pages={pages} onClose={() => setOverlay(null)} />}
+      {overlay === 'notifications' && <NotificationsDrawer onClose={() => setOverlay(null)} />}
     </div>
   );
 }
 
 const isActive = (pathname: string, item: Item) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
-function Sidebar({ items, collapsed, onCollapse }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void }) {
+function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void; onSearch: () => void; onNotifications: () => void }) {
+  const row = `flex h-[39px] w-full items-center gap-2.5 rounded-chip px-2.5 text-[15px] text-nav transition-colors duration-150 hover:bg-surface-2 hover:text-ink ${collapsed ? 'justify-center' : ''}`;
   return (
     <aside
       className={`sticky top-0 m-2 hidden h-[calc(100dvh-16px)] shrink-0 flex-col rounded-panel border border-line-soft bg-surface px-2.5 py-3.5 transition-[width] duration-300 md:flex ${collapsed ? 'w-[76px]' : 'w-[244px]'}`}
@@ -142,6 +165,21 @@ function Sidebar({ items, collapsed, onCollapse }: { items: Item[]; collapsed: b
           aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
           className="flex size-8 items-center justify-center rounded-chip text-ink-2 hover:bg-surface-2 hover:text-ink">
           {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+        </button>
+      </div>
+      <div className="mb-2 flex flex-col gap-0.5 border-b border-line pb-2">
+        <button type="button" onClick={onSearch} title={collapsed ? 'Search' : undefined} className={row}>
+          <Search size={18} strokeWidth={1.9} aria-hidden="true" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">Search</span>
+              <kbd className="rounded-[6px] border border-line-strong px-1.5 text-[10px] font-semibold text-ink-2">Ctrl K</kbd>
+            </>
+          )}
+        </button>
+        <button type="button" onClick={onNotifications} title={collapsed ? 'Notifications' : undefined} className={row}>
+          <Bell size={18} strokeWidth={1.9} aria-hidden="true" />
+          {!collapsed && <span>Notifications</span>}
         </button>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto no-scrollbar">
@@ -163,6 +201,7 @@ function Sidebar({ items, collapsed, onCollapse }: { items: Item[]; collapsed: b
       </nav>
       <div className="border-t border-line pt-3">
         <UserMenu collapsed={collapsed} />
+        {!collapsed && <p className="mt-1.5 text-center text-[12px] text-ink-3">Version: {APP_VERSION}</p>}
       </div>
     </aside>
   );
@@ -223,7 +262,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-function TopBar() {
+function TopBar({ onSearch, onNotifications }: { onSearch: () => void; onNotifications: () => void }) {
   const { dark, toggle } = useThemeToggle();
   const { signOut } = useAuth();
   return (
@@ -233,6 +272,12 @@ function TopBar() {
           <Wordmark />
         </NavLink>
         <div className="flex items-center">
+          <button type="button" onClick={onSearch} aria-label="Search" className="flex size-10 items-center justify-center rounded-chip text-ink-2 active:bg-surface-2">
+            <Search size={20} />
+          </button>
+          <button type="button" onClick={onNotifications} aria-label="Notifications" className="flex size-10 items-center justify-center rounded-chip text-ink-2 active:bg-surface-2">
+            <Bell size={20} />
+          </button>
           <button type="button" onClick={toggle} aria-label={dark ? 'Light mode' : 'Dark mode'} className="flex size-10 items-center justify-center rounded-chip text-ink-2 active:bg-surface-2">
             {dark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
