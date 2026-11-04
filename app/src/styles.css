@@ -56,10 +56,10 @@
   --color-math-tint: #e0f2fe;
   --color-english: #a21caf;
   --color-english-tint: #fae8ff;
-  /* The test screen: white, like Bluebook, with a faint purple in the bars. */
+  /* The test screen: white, like Bluebook, bars included. */
   --color-paper: #ffffff;
   --color-paper-2: #f1f1f3;
-  --color-bar: #f7f3fc;
+  --color-bar: #ffffff;
   /* The test screen's own blue (Bluebook's): the chosen answer, Back and Next. */
   --color-engine: #2f44b7;
   --color-engine-soft: #8392d7;
@@ -126,7 +126,7 @@
     --color-english-tint: #3a1840;
     --color-paper: #1b1b1e;
     --color-paper-2: #27272b;
-    --color-bar: #221d2c;
+    --color-bar: #1b1b1e;
     --color-engine: #7d8cff;
     --color-engine-soft: #4b558f;
   }
@@ -178,7 +178,7 @@
   --color-english-tint: #3a1840;
   --color-paper: #1b1b1e;
   --color-paper-2: #27272b;
-  --color-bar: #221d2c;
+  --color-bar: #1b1b1e;
   --color-engine: #7d8cff;
   --color-engine-soft: #4b558f;
 }

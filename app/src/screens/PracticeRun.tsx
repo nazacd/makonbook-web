@@ -536,12 +536,12 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     });
 
   const backButton = (
-    <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent disabled:opacity-30">
+    <button type="button" onClick={() => goto(run.index - 1)} disabled={run.index === 0} className="t-callout h-10 rounded-full bg-engine px-5 font-semibold text-white disabled:bg-engine-soft">
       Back
     </button>
   );
   const backToQuestion = (
-    <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+    <button type="button" onClick={() => setShowReview(false)} className="t-callout h-10 rounded-full bg-engine px-5 font-semibold text-white">
       Back
     </button>
   );
@@ -550,7 +550,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     <>
       {/* The question strip, as in Bluebook: the number, Mark for Review beside it, the cross-out tool at the right. */}
       <div className="mb-4 flex items-center gap-3 border-b-2 border-dashed border-ink bg-paper-2 pr-2">
-        <span className="flex h-9 min-w-9 items-center justify-center bg-accent px-2 t-subhead font-bold text-on-accent" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
+        <span className="flex h-9 min-w-9 items-center justify-center bg-ink px-2 t-subhead font-bold text-surface" aria-label={`Question ${run.index + 1} of ${questions.length}`}>
           {run.index + 1}
         </span>
         <button type="button" onClick={toggleMark} aria-pressed={marked} className={`flex h-9 items-center gap-1.5 rounded-chip px-1 t-subhead font-medium ${marked ? 'text-accent' : 'text-ink'}`}>
@@ -564,7 +564,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
             aria-pressed={crossOut}
             aria-label="Cross out answer choices"
             title="Cross out answer choices"
-            className={`ml-auto flex h-6 items-center rounded-[4px] border px-1 text-[11px] font-bold tracking-wide line-through ${crossOut ? 'border-accent bg-accent text-on-accent' : 'border-ink text-ink'}`}>
+            className={`ml-auto flex h-6 items-center rounded-[4px] border px-1 text-[11px] font-bold tracking-wide line-through ${crossOut ? 'border-engine bg-engine text-white' : 'border-ink text-ink'}`}>
             ABC
           </button>
         )}
@@ -761,14 +761,14 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
           {showReview ? (
             <>
               <span className="hidden sm:flex">{backToQuestion}</span>
-              <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+              <button type="button" onClick={submitPrompt} className="t-callout h-10 rounded-full bg-engine px-6 font-semibold text-white">
                 {run.stage + 1 < stages.length ? 'Submit module' : 'Submit the test'}
               </button>
             </>
           ) : (
             <>
               <span className="hidden sm:flex">{backButton}</span>
-              <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-accent px-6 font-semibold text-on-accent">
+              <button type="button" onClick={isLast ? () => setShowReview(true) : () => goto(run.index + 1)} className="t-callout h-10 rounded-full bg-engine px-6 font-semibold text-white">
                 Next
               </button>
             </>
@@ -803,7 +803,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
                   setShowNavigator(false);
                   setShowReview(true);
                 }}
-                className="t-subhead h-10 rounded-full border border-accent px-5 font-semibold text-accent">
+                className="t-subhead h-10 rounded-full border border-engine px-5 font-semibold text-engine">
                 Go to review page
               </button>
             </div>

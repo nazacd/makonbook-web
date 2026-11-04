@@ -6,6 +6,7 @@ import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import type { Group, Profile } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
+import { GroupParked } from '@/components/practice/GroupParked';
 import { Icon } from '@/components/Icon';
 import { ScoreChange } from '@/components/practice/ScoreChange';
 import { EmptyState, ErrorState, Skeleton } from '@/components/States';
@@ -218,6 +219,11 @@ export function GroupPractice() {
             </div>
           )}
         </>
+      )}
+      {group && (
+        <section className="mt-8 rounded-card border border-line bg-surface p-[18px]">
+          <GroupParked groupId={group.id} />
+        </section>
       )}
     </div>
   );
