@@ -20,6 +20,20 @@ const people = {
       { id: 505, name: 'MS NODIRA DEMO OPEN ALL DAY', discipline: 'SAT PRACTICE', learning_type: 'GROUP', office: 'NOVZA', session: null, schedule: [sched(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], '00:00', '23:59', '1', ['NODIRA ALIYEVA'])] }] },
 };
 const tokens = new Map();
+// Accounts (fictional): every existing person is enrolled with the shared
+// password; sign-ups get negative ids, their own password and status
+// "registered". The SMS code is always 123456 here; Google sign-in skips
+// Google and comes back with a made-up account.
+for (const [login, p] of Object.entries(people)) Object.assign(p, { status: 'enrolled', phone: p.kind === 'teacher' ? '+998901110077' : `+99890111${String(p.id).padStart(4, '0')}`, google: false, has_password: true, login });
+const passwords = new Map(); // login -> own password (sign-ups, resets)
+const codes = new Map(); // phone:purpose -> { code, at }
+const tickets = new Map(); // ticket -> { phone, purpose } | { google: { sub, first_name, last_name, email } }
+const googleLinks = new Map(); // sub -> login
+let nextSelfId = -1000001;
+const newTicket = (v) => { const t = 'tk_' + Math.random().toString(36).slice(2); tickets.set(t, v); return t; };
+const normPhone = (raw) => { const d = String(raw || '').replace(/\D/g, ''); const n = d.length === 9 ? '998' + d : d; return /^998\d{9}$/.test(n) ? '+' + n : null; };
+const byPhone = (phone) => Object.values(people).find((p) => p.phone === phone);
+const signIn = (res, p, extra = {}) => { const token = 'tok_' + Math.random().toString(36).slice(2); tokens.set(token, p.login); return json(res, 200, { token, expires_at: '2026-12-31T00:00:00Z', user: p, ...extra }); };
 function days(n, states) { const out = []; const d = new Date(); for (let i = 0; i < n; i++) { d.setDate(d.getDate() - 2); out.push({ date: d.toISOString().slice(0, 10), state: states[i % states.length] }); } return out; }
 const attendance = { from: '2026-07-01', to: '2026-11-01', groups: [
   { group_id: 501, group_name: 'MR SARVAR FOUND MATH 17:00 TTS', discipline: 'FOUNDATION MATH', summary: { lessons: 20, present: 17, late: 1, absent: 2 }, days: days(20, ['present', 'present', 'late', 'present', 'absent', 'present', 'present', 'present', 'present', 'absent']) },
@@ -45,9 +59,11 @@ const packages = {
     { subject: 'math', scale: scale(6), modules: [{ module: 1, minutes: 1, questions: mathQuestions(1) }, { module: 2, minutes: 1, questions: mathQuestions(2) }] } ] },
 };
 packages.DAY2 = { ...packages.DAY1, code: 'DAY2', title: 'DAY2', version: 1 };
+packages.DAY11 = { ...packages.DAY1, code: 'DAY11', title: 'DAY11', version: 1 };
 const catalog = { tests: [
   { code: 'DAY1', title: 'DAY1', english: 6, math: 6, questions: 12, approved: 12, version: 2, bytes: 120000, published_at: '2026-10-01T00:00:00Z' },
   { code: 'DAY2', title: 'DAY2', english: 6, math: 6, questions: 12, approved: 12, version: 1, bytes: 120000, published_at: '2026-10-02T00:00:00Z' },
+  { code: 'DAY11', title: 'DAY11', english: 6, math: 6, questions: 12, approved: 12, version: 1, bytes: 120000, published_at: '2026-10-05T00:00:00Z' },
   { code: 'DAY3', title: 'DAY3', english: 54, math: 44, questions: 98, approved: 40, version: null, bytes: null, published_at: null },
 ] };
 const attempts = new Map(); // id -> stored attempt (per login)
@@ -105,16 +121,70 @@ http.createServer(async (req, res) => {
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
   const auth = req.headers.authorization?.replace(/^Bearer /, '');
   const url = req.url.split('?')[0];
+  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true });
+  if (url === '/v1/auth/phone/start' && req.method === 'POST') {
+    const phone = normPhone(body.phone); if (!phone) return err(res, 422, 'invalid_phone', 'an Uzbek mobile number is needed');
+    const k = `${phone}:${body.purpose}`; const last = codes.get(k);
+    if (last && Date.now() - last.at < 60e3) return err(res, 429, 'rate_limited', 'wait a minute', { 'Retry-After': '60' });
+    codes.set(k, { code: '123456', at: Date.now(), tries: 0 }); console.log(`SMS to ${phone}: 123456 (${body.purpose})`);
+    return json(res, 200, { resend_in: 60, expires_in: 600 });
+  }
+  if (url === '/v1/auth/phone/verify' && req.method === 'POST') {
+    const phone = normPhone(body.phone); const c = phone && codes.get(`${phone}:${body.purpose}`);
+    if (!c) return err(res, 410, 'code_expired', 'ask for a new code');
+    if (String(body.code).trim() !== c.code) { c.tries++; if (c.tries >= 5) { codes.delete(`${phone}:${body.purpose}`); return err(res, 429, 'too_many_tries', 'too many tries'); } return err(res, 422, 'invalid_code', `wrong code, ${5 - c.tries} tries left`); }
+    codes.delete(`${phone}:${body.purpose}`); return json(res, 200, { ticket: newTicket({ phone, purpose: body.purpose }) });
+  }
+  if (url === '/v1/auth/signup' && req.method === 'POST') {
+    const t = tickets.get(body.ticket); if (!t || t.purpose !== 'signup') return err(res, 422, 'invalid_ticket', 'verify the phone again');
+    const g = body.google_ticket ? tickets.get(body.google_ticket)?.google : null;
+    if (body.password == null && !g) return err(res, 422, 'weak_password', 'a password is needed');
+    if (body.password != null && String(body.password).length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
+    const fn = String(body.first_name || '').trim(); const ln = String(body.last_name || '').trim();
+    if (!fn || !ln) return err(res, 422, 'invalid_profile', 'name and surname are needed');
+    tickets.delete(body.ticket); if (body.google_ticket) tickets.delete(body.google_ticket);
+    let p = byPhone(t.phone); const existing = !!p;
+    if (!p) { const id = nextSelfId--; p = { kind: 'student', id, first_name: fn, last_name: ln, username: null, must_change_password: false, status: 'registered', phone: t.phone, google: false, has_password: false, groups: [], login: t.phone }; people[t.phone] = p; }
+    if (body.password != null) { passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false; }
+    if (g) { googleLinks.set(g.sub, p.login); p.google = true; }
+    return signIn(res, p, { existing });
+  }
+  if (url === '/v1/auth/reset' && req.method === 'POST') {
+    const t = tickets.get(body.ticket); if (!t || t.purpose !== 'reset') return err(res, 422, 'invalid_ticket', 'verify the phone again');
+    const p = byPhone(t.phone); if (!p) return err(res, 404, 'no_account', 'no account has this number');
+    if (String(body.password || '').length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
+    tickets.delete(body.ticket); passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false;
+    return signIn(res, p);
+  }
+  if (url === '/v1/auth/google/start') {
+    const ret = new URL(req.url, 'http://x').searchParams.get('return') || '/';
+    const t = newTicket({ google: { sub: 'g-' + (new URL(req.url, 'http://x').searchParams.get('as') || 'new'), first_name: 'Malika', last_name: 'Yusupova', email: 'malika@example.com' } });
+    res.writeHead(302, { location: `/auth/google#ticket=${t}&return=${encodeURIComponent(ret.startsWith('/') ? ret : '/')}` }); return res.end();
+  }
+  if (url === '/v1/auth/google/ticket' && req.method === 'POST') {
+    const t = tickets.get(body.ticket); if (!t?.google) return err(res, 422, 'invalid_ticket', 'start again');
+    tickets.delete(body.ticket); const linked = googleLinks.get(t.google.sub);
+    if (linked && people[linked]) { const token = 'tok_' + Math.random().toString(36).slice(2); tokens.set(token, linked); return json(res, 200, { status: 'signed_in', token, expires_at: '2026-12-31T00:00:00Z', user: people[linked] }); }
+    return json(res, 200, { status: 'needs_phone', google_ticket: newTicket({ google: t.google }), ...t.google, sub: undefined });
+  }
   if (url === '/v1/auth/login' && req.method === 'POST') {
-    const p = people[body.login?.trim()];
-    if (!p || body.password !== PW) return err(res, 401, 'invalid_credentials', 'wrong login or password');
-    const token = 'tok_' + Math.random().toString(36).slice(2); tokens.set(token, body.login.trim());
-    return json(res, 200, { token, expires_at: '2026-12-01T00:00:00Z', user: p });
+    const id = body.login?.trim(); const p = people[id] ?? byPhone(normPhone(id));
+    const want = p && (passwords.get(p.login) ?? (p.status === 'registered' ? null : PW));
+    if (!p || !want || body.password !== want) return err(res, 401, 'invalid_credentials', 'wrong login or password');
+    return signIn(res, p);
   }
   const login = tokens.get(auth); const me = login && people[login];
   if (!me) return err(res, 401, 'unauthorized', 'session ended');
   if (url === '/v1/auth/logout') { tokens.delete(auth); return json(res, 204); }
   if (url === '/v1/me') return json(res, 200, me);
+  if (url === '/v1/me/profile' && req.method === 'PUT') {
+    for (const k of ['first_name', 'last_name']) {
+      const v = body[k] == null ? null : String(body[k]).trim();
+      if (v === '' || (v && v.length > 60)) return err(res, 422, 'invalid_profile', 'names are 1–60 characters');
+    }
+    if (body.first_name) me.first_name = body.first_name.trim(); if (body.last_name) me.last_name = body.last_name.trim();
+    return json(res, 200, me);
+  }
   if (url === '/v1/auth/password') {
     if (body.current_password !== PW) return err(res, 403, 'wrong_password', 'wrong password');
     if ((body.new_password || '').length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
@@ -123,8 +193,15 @@ http.createServer(async (req, res) => {
   if (me.must_change_password) return err(res, 403, 'password_change_required', 'change the password first');
   if (url === '/v1/auth/username') { if (body.username === 'taken') return err(res, 409, 'username_taken', 'taken'); me.username = body.username; return json(res, 200, { username: body.username }); }
   if (url === '/v1/me/attendance') return me.kind === 'student' ? json(res, 200, attendance) : err(res, 403, 'forbidden', 'not a student');
-  if (url === '/v1/practice/tests') return json(res, 200, catalog);
+  if (url === '/v1/practice/tests') {
+    if (me.status !== 'registered') return json(res, 200, catalog);
+    const open = (code) => /^DAY([1-9]|10)$/i.test(code);
+    return json(res, 200, { tests: catalog.tests.map((t) => (open(t.code) ? t : { ...t, version: null, bytes: null, enrolled_only: true })) });
+  }
   const pm = /^\/v1\/practice\/tests\/([^/]+)\/package$/.exec(url);
+  const enrolledOnly = (code) => me.status === 'registered' && !/^DAY([1-9]|10)$/i.test(code || '');
+  if (pm && enrolledOnly(decodeURIComponent(pm[1]))) return err(res, 403, 'enrolled_only', 'for SATMAKON students');
+  if (url === '/v1/practice/attempts' && req.method === 'POST' && enrolledOnly(body.test)) return err(res, 403, 'enrolled_only', 'for SATMAKON students');
   if (pm) { const pkg = packages[decodeURIComponent(pm[1])]; if (!pkg) return err(res, 404, 'not_found', 'no such test'); return json(res, 200, { package: pkg, images: {}, expires_at: new Date(Date.now() + 6 * 3600e3).toISOString() }); }
   // Question statistics, Ask later, issue reports and goals (fictional data).
   const statsMatch = /^\/v1\/practice\/tests\/([^/]+)\/stats$/.exec(url);

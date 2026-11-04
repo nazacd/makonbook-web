@@ -1,11 +1,13 @@
-import { AtSign, KeyRound, LogOut, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
+import { AtSign, KeyRound, LogOut, Monitor, Moon, Pencil, Sun, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
+import { formatUzPhone } from '@/api/accounts';
 import { useGoals } from '@/api/learning';
 import { useMe, useParentCode } from '@/api/queries';
 import type { Profile as ProfileType } from '@/api/types';
 import { useAuth } from '@/auth/session';
+import { EditProfile } from '@/components/accounts/EditProfile';
 import { Avatar } from '@/components/Avatar';
 import { ShieldMark } from '@/components/brand/Logo';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
@@ -36,6 +38,7 @@ export function Profile() {
   const goals = useGoals(student);
   const now = useNow();
   const [editGoals, setEditGoals] = useState(false);
+  const [editing, setEditing] = useState(false);
   const name = normalCase(`${profile.first_name} ${profile.last_name}`);
   const g = goals.data;
   const days = g?.exam_date ? Math.round((Date.parse(`${g.exam_date}T00:00:00Z`) - Date.parse(`${schoolDate(now)}T00:00:00Z`)) / 86_400_000) : null;
@@ -49,10 +52,16 @@ export function Profile() {
             <Avatar kind={profile.kind} firstName={profile.first_name} lastName={profile.last_name} id={profile.id} size={112} square />
             <div className="min-w-0">
               <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-ink">{name}</h1>
-              <p className="t-subhead text-ink-2">{student ? 'Student' : 'Teacher'}</p>
+              <p className="t-subhead flex flex-wrap items-center gap-2 text-ink-2">
+                {student ? 'Student' : 'Teacher'}
+                {profile.status === 'registered' ? <Pill tone="neutral">Free account</Pill> : <Pill tone="primary">SATMAKON {student ? 'student' : 'teacher'}</Pill>}
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Link to="/profile/password" className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3.5 text-[13px] font-bold text-on-primary hover:bg-primary-hover">
-                  <KeyRound size={14} aria-hidden="true" /> Change password
+                <button type="button" onClick={() => setEditing(true)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3.5 text-[13px] font-bold text-on-primary hover:bg-primary-hover">
+                  <Pencil size={14} aria-hidden="true" /> Edit profile
+                </button>
+                <Link to={profile.has_password === false ? '/reset-password' : '/profile/password'} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-[13px] font-bold text-ink hover:bg-surface-2">
+                  <KeyRound size={14} aria-hidden="true" /> {profile.has_password === false ? 'Set password' : 'Change password'}
                 </Link>
                 <Link to="/profile/username" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-[13px] font-bold text-ink hover:bg-surface-2">
                   <AtSign size={14} aria-hidden="true" /> {profile.username ? 'Change username' : 'Set a username'}
@@ -61,6 +70,10 @@ export function Profile() {
             </div>
           </div>
           <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="t-micro text-ink-3">Phone</dt>
+              <dd className="t-callout mt-1 text-ink">{profile.phone ? `+998 ${formatUzPhone(profile.phone)}` : 'Not provided'}</dd>
+            </div>
             <div>
               <dt className="t-micro text-ink-3">Username</dt>
               <dd className="t-callout mt-1 text-ink">{profile.username ? `@${profile.username}` : 'Not set — you sign in with your phone number'}</dd>
@@ -148,6 +161,7 @@ export function Profile() {
         </section>
       </div>
       {editGoals && <GoalsModal goals={g} onClose={() => setEditGoals(false)} />}
+      {editing && <EditProfile profile={profile} onClose={() => setEditing(false)} />}
     </div>
   );
 }

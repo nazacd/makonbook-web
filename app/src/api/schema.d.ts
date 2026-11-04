@@ -137,6 +137,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/phone/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a 6-digit code by SMS (sign-up or password reset) */
+        post: operations["startPhoneCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the SMS code; answers a single-use ticket proving the phone */
+        post: operations["verifyPhoneCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a student account (or sign into the existing one with that phone) */
+        post: operations["signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password with a reset ticket, and sign in */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/google/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish Google sign-in with the ticket from the callback */
+        post: operations["googleTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change your own name (it then stays, whatever HolliHop says) */
+        put: operations["saveProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -1611,6 +1713,8 @@ export interface components {
             bytes: number | null;
             /** Format: date-time */
             published_at: string | null;
+            /** @description For SATMAKON students only: locked for this (registered) person */
+            enrolled_only?: boolean;
         };
         /**
          * @description A published version of a test (format 1). Sections come in Bluebook
@@ -1985,6 +2089,16 @@ export interface components {
             last_name: string;
             username: string | null;
             must_change_password: boolean;
+            /**
+             * @description registered: signed up on the web, not (yet) a SATMAKON student
+             * @enum {string}
+             */
+            status?: "enrolled" | "registered";
+            /** @description The login phone */
+            phone?: string | null;
+            /** @description A Google account is linked */
+            google?: boolean;
+            has_password?: boolean;
             /** @description Current and upcoming groups (enrolled in, or teaching). */
             groups: components["schemas"]["Group"][];
         };
@@ -2140,6 +2254,10 @@ export interface components {
             status: "ok";
         };
         AppConfig: {
+            /** @description Sign-up by SMS code is available */
+            signup?: boolean;
+            /** @description Google sign-in is available */
+            google?: boolean;
             min_app_version: {
                 /** @example 1.0.0 */
                 android: string;
@@ -2439,6 +2557,207 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error"];
+        };
+    };
+    startPhoneCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    /** @enum {string} */
+                    purpose: "signup" | "reset";
+                };
+            };
+        };
+        responses: {
+            /** @description Sent (for a reset, also when no account has the number) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        resend_in: number;
+                        expires_in: number;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    verifyPhoneCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    code: string;
+                    /** @enum {string} */
+                    purpose: "signup" | "reset";
+                };
+            };
+        };
+        responses: {
+            /** @description Verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ticket: string;
+                    };
+                };
+            };
+            410: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+        };
+    };
+    signup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: string;
+                    first_name: string;
+                    last_name: string;
+                    password: string | null;
+                    google_ticket: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"] & {
+                        existing: boolean;
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    googleTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in, or a phone is needed to finish signing up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "signed_in";
+                        token: string;
+                        /** Format: date-time */
+                        expires_at: string;
+                        user: components["schemas"]["Profile"];
+                    } | {
+                        /** @enum {string} */
+                        status: "needs_phone";
+                        google_ticket: string;
+                        first_name: string;
+                        last_name: string;
+                        email: string;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+        };
+    };
+    saveProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    first_name: string | null;
+                    last_name: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     getMe: {

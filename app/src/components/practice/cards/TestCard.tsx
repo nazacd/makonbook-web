@@ -209,8 +209,9 @@ export function PassedTestCard({ code, name, latest, attempts, rows, index }: { 
 
 export function LockedTestCard({ test, name, index }: { test: CatalogTest; name: string; index: number }) {
   const checked = test.questions ? Math.min(1, test.approved / test.questions) : 0;
+  const students = !!test.enrolled_only;
   return (
-    <Frame label={`${name}, not open yet`} index={index}>
+    <Frame label={`${name}, ${students ? 'for SATMAKON students' : 'not open yet'}`} index={index}>
       <div className="flex flex-col gap-3 opacity-60 grayscale-[0.5]">
         <Title>
           <span className="inline-flex items-center gap-1.5">
@@ -220,7 +221,7 @@ export function LockedTestCard({ test, name, index }: { test: CatalogTest; name:
         </Title>
         <Tiles
           tiles={[
-            { key: 'status', top: <span className="truncate text-[13px] font-medium leading-4 text-ink">Not open yet</span>, bottom: <SolidPill color={REF.omitted}>Locked</SolidPill> },
+            { key: 'status', top: <span className="truncate text-[13px] font-medium leading-4 text-ink">{students ? 'SATMAKON students' : 'Not open yet'}</span>, bottom: <SolidPill color={REF.omitted}>Locked</SolidPill> },
             totalTile(test.questions),
           ]}
         />
@@ -228,16 +229,25 @@ export function LockedTestCard({ test, name, index }: { test: CatalogTest; name:
           <span className="mb-1 flex size-10 items-center justify-center rounded-full border border-line bg-surface text-ink-3">
             <Lock size={18} strokeWidth={2} aria-hidden="true" />
           </span>
-          <p className="text-[14px] font-semibold text-ink tabular">
-            {test.approved} of {test.questions} questions checked
-          </p>
-          <p className="t-footnote text-ink-2">Opens when all are</p>
-          <ToneBar className="mt-1 w-40" value={checked} color={REF.finished} />
+          {students ? (
+            <>
+              <p className="text-[14px] font-semibold text-ink">For SATMAKON students</p>
+              <p className="t-footnote text-ink-2">Enrol at SATMAKON and every mock test opens for you.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] font-semibold text-ink tabular">
+                {test.approved} of {test.questions} questions checked
+              </p>
+              <p className="t-footnote text-ink-2">Opens when all are</p>
+              <ToneBar className="mt-1 w-40" value={checked} color={REF.finished} />
+            </>
+          )}
         </div>
       </div>
       <button type="button" disabled className="flex h-10 w-full cursor-default items-center justify-center gap-2 rounded-control bg-surface-2 text-[14px] font-bold text-ink-3">
         <Lock size={15} strokeWidth={2.2} aria-hidden="true" />
-        Opens soon
+        {students ? 'SATMAKON students only' : 'Opens soon'}
       </button>
     </Frame>
   );

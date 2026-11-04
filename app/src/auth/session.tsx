@@ -3,6 +3,7 @@ import { createContext, Fragment, use, useEffect, useState, type ReactNode } fro
 
 import { adoptToken, api, call, getToken, setSignedOutHandler, setToken, TOKEN_KEY } from '@/api/client';
 import { meKey } from '@/api/queries';
+import type { LoginResponse } from '@/api/types';
 import { deviceId } from '@/lib/device-id';
 
 export type AuthStatus = 'signedOut' | 'signedIn';
@@ -12,6 +13,8 @@ type AuthContextValue = {
   /** Someone signed out in this tab (or another tab changed who is signed in): the next person starts at Classes, not on the last page. */
   leftOnPurpose: boolean;
   signIn: (login: string, password: string) => Promise<void>;
+  /** Signs in with an answer that already carries a session (sign-up, reset, Google). */
+  adopt: (response: LoginResponse) => void;
   signOut: () => Promise<void>;
 };
 
@@ -52,14 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [queryClient]);
 
-  async function signIn(login: string, password: string) {
-    const response = await call(
-      api.POST('/v1/auth/login', { body: { login: login.trim(), password, device_id: deviceId() } }),
-    );
+  function adopt(response: LoginResponse) {
     setToken(response.token);
     queryClient.setQueryData(meKey, response.user);
     setStatus('signedIn');
     setLeftOnPurpose(false);
+  }
+
+  async function signIn(login: string, password: string) {
+    adopt(await call(api.POST('/v1/auth/login', { body: { login: login.trim(), password, device_id: deviceId() } })));
   }
 
   async function signOut() {
@@ -76,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext value={{ status, leftOnPurpose, signIn, signOut }}>
+    <AuthContext value={{ status, leftOnPurpose, signIn, adopt, signOut }}>
       <Fragment key={generation}>{children}</Fragment>
     </AuthContext>
   );

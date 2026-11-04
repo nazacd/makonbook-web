@@ -15,6 +15,8 @@ export type CatalogTest = {
   approved: number;
   /** The latest published version; null while the test is locked. */
   version: number | null;
+  /** Locked because it is for SATMAKON students and this account isn't one (yet). */
+  enrolled_only?: boolean;
   /** The download's size in bytes (package and images). */
   bytes: number | null;
   published_at: string | null;
