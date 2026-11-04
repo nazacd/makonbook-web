@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Dumbbell,
   LayoutDashboard,
+  Lock,
   LogOut,
   Moon,
   MoreHorizontal,
@@ -29,6 +30,7 @@ import { ShieldMark, Wordmark } from '@/components/brand/Logo';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoading } from '@/components/PageLoading';
 import { CommandSearch } from '@/components/shell/CommandSearch';
+import { LockedModal } from '@/components/shell/LockedModal';
 import { NotificationsDrawer } from '@/components/shell/NotificationsDrawer';
 import { useAppearance } from '@/lib/appearance';
 import { useTrackPracticeVisits } from '@/lib/practice/summary';
@@ -38,11 +40,11 @@ import { APP_VERSION } from '@/lib/version';
 // (collapsible to an icon rail) beside the page; on a phone a top bar and a
 // bottom tab bar, the rest of the pages in a "More" sheet.
 
-type Item = { to: string; label: string; icon: LucideIcon; end?: boolean };
+type Item = { to: string; label: string; icon: LucideIcon; end?: boolean; enrolledOnly?: boolean };
 
 const STUDENT: Item[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/classes', label: 'Classes', icon: CalendarDays },
+  { to: '/classes', label: 'Classes', icon: CalendarDays, enrolledOnly: true },
   { to: '/practice', label: 'Mock tests', icon: ClipboardList },
   { to: '/training-hall', label: 'Training Hall', icon: Dumbbell },
   { to: '/problem-questions', label: 'Problem questions', icon: Bookmark },
@@ -101,6 +103,9 @@ function useThemeToggle() {
 export function AppShell() {
   const me = useMe().data;
   const teacher = me?.kind === 'teacher';
+  // Signed up on the web, not (yet) a SATMAKON student: some pages are locked.
+  const registered = me?.status === 'registered';
+  const [locked, setLocked] = useState<Item | null>(null);
   useTrackPracticeVisits(teacher);
   const items = teacher ? TEACHER : STUDENT;
   const tabs = teacher ? TEACHER_TABS : STUDENT_TABS;
@@ -127,7 +132,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} />
+      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} registered={registered} onLocked={setLocked} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} />
         <main className="w-full flex-1 px-4 pb-28 pt-4 md:px-7 md:pb-12 md:pt-6">
@@ -139,17 +144,24 @@ export function AppShell() {
           </ErrorBoundary>
         </main>
       </div>
-      <BottomBar items={items} tabs={tabs} onMore={() => setMore(true)} moreActive={!tabs.some((t) => isActive(pathname, items.find((i) => i.to === t)!))} />
+      <BottomBar items={items} tabs={tabs} onMore={() => setMore(true)} moreActive={!tabs.some((t) => isActive(pathname, items.find((i) => i.to === t)!))} registered={registered} onLocked={setLocked} />
       {more && <MoreSheet items={items.filter((i) => !tabs.includes(i.to))} onClose={() => setMore(false)} />}
       {overlay === 'search' && <CommandSearch pages={pages} onClose={() => setOverlay(null)} />}
       {overlay === 'notifications' && <NotificationsDrawer onClose={() => setOverlay(null)} />}
+      {locked && (
+        <LockedModal
+          title={`${locked.label} Locked`}
+          message={`${locked.label} are for SATMAKON students. Enrol at SATMAKON and your classes, schedule and attendance appear here.`}
+          onClose={() => setLocked(null)}
+        />
+      )}
     </div>
   );
 }
 
 const isActive = (pathname: string, item: Item) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
-function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void; onSearch: () => void; onNotifications: () => void }) {
+function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications, registered, onLocked }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void; onSearch: () => void; onNotifications: () => void; registered: boolean; onLocked: (item: Item) => void }) {
   const row = `flex h-[39px] w-full items-center gap-2.5 rounded-chip px-2.5 text-[15px] text-nav transition-colors duration-150 hover:bg-surface-2 hover:text-ink ${collapsed ? 'justify-center' : ''}`;
   return (
     <aside
@@ -183,7 +195,18 @@ function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications }: { 
         </button>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto no-scrollbar">
-        {items.map((item) => (
+        {items.map((item) =>
+          registered && item.enrolledOnly ? (
+            <button key={item.to} type="button" onClick={() => onLocked(item)} title={collapsed ? `${item.label} (locked)` : undefined} className={`${row} opacity-45`}>
+              <item.icon size={18} strokeWidth={1.9} aria-hidden="true" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 truncate text-left">{item.label}</span>
+                  <Lock size={14} className="text-primary" aria-label="Locked" />
+                </>
+              )}
+            </button>
+          ) : (
           <NavLink
             key={item.to}
             to={item.to}
@@ -197,7 +220,8 @@ function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications }: { 
             <item.icon size={18} strokeWidth={1.9} aria-hidden="true" />
             {!collapsed && <span className="truncate">{item.label}</span>}
           </NavLink>
-        ))}
+          ),
+        )}
       </nav>
       <div className="border-t border-line pt-3">
         <UserMenu collapsed={collapsed} />
@@ -290,12 +314,22 @@ function TopBar({ onSearch, onNotifications }: { onSearch: () => void; onNotific
   );
 }
 
-function BottomBar({ items, tabs, onMore, moreActive }: { items: Item[]; tabs: string[]; onMore: () => void; moreActive: boolean }) {
+function BottomBar({ items, tabs, onMore, moreActive, registered, onLocked }: { items: Item[]; tabs: string[]; onMore: () => void; moreActive: boolean; registered: boolean; onLocked: (item: Item) => void }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden" aria-label="Sections">
       <ul className="flex h-[65px] items-center justify-around px-1">
         {tabs.map((to) => {
           const item = items.find((i) => i.to === to)!;
+          if (registered && item.enrolledOnly) {
+            return (
+              <li key={to}>
+                <button type="button" onClick={() => onLocked(item)} className={`${tabClass(false)} opacity-45`} aria-label={`${item.label} (locked)`}>
+                  <item.icon size={22} strokeWidth={1.9} aria-hidden="true" />
+                  <span className="text-[11.5px] font-semibold">{SHORT[to] ?? item.label}</span>
+                </button>
+              </li>
+            );
+          }
           return (
             <li key={to}>
               <NavLink to={to} end={item.end} className={({ isActive: on }) => tabClass(on)}>

@@ -175,6 +175,178 @@ paths:
         "204": { description: Logged out }
         "401": { $ref: "#/components/responses/Error" }
 
+  /v1/auth/phone/start:
+    post:
+      summary: Send a 6-digit code by SMS (sign-up or password reset)
+      operationId: startPhoneCode
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, purpose]
+              properties:
+                phone: { type: string }
+                purpose: { type: string, enum: [signup, reset] }
+      responses:
+        "200":
+          description: Sent (for a reset, also when no account has the number)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resend_in, expires_in]
+                properties:
+                  resend_in: { type: integer }
+                  expires_in: { type: integer }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/phone/verify:
+    post:
+      summary: Check the SMS code; answers a single-use ticket proving the phone
+      operationId: verifyPhoneCode
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code, purpose]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+                purpose: { type: string, enum: [signup, reset] }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema: { type: object, required: [ticket], properties: { ticket: { type: string } } }
+        "410": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/signup:
+    post:
+      summary: Create a student account (or sign into the existing one with that phone)
+      operationId: signup
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket, first_name, last_name, password, google_ticket]
+              properties:
+                ticket: { type: string }
+                first_name: { type: string }
+                last_name: { type: string }
+                password: { type: [string, "null"] }
+                google_ticket: { type: [string, "null"] }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/LoginResponse"
+                  - type: object
+                    required: [existing]
+                    properties:
+                      existing: { type: boolean }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/reset:
+    post:
+      summary: Set a new password with a reset ticket, and sign in
+      operationId: resetPassword
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket, password]
+              properties:
+                ticket: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/google/ticket:
+    post:
+      summary: Finish Google sign-in with the ticket from the callback
+      operationId: googleTicket
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [ticket], properties: { ticket: { type: string } } }
+      responses:
+        "200":
+          description: Signed in, or a phone is needed to finish signing up
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [status, token, expires_at, user]
+                    properties:
+                      status: { type: string, enum: [signed_in] }
+                      token: { type: string }
+                      expires_at: { type: string, format: date-time }
+                      user: { $ref: "#/components/schemas/Profile" }
+                  - type: object
+                    required: [status, google_ticket, first_name, last_name, email]
+                    properties:
+                      status: { type: string, enum: [needs_phone] }
+                      google_ticket: { type: string }
+                      first_name: { type: string }
+                      last_name: { type: string }
+                      email: { type: string }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /v1/me/profile:
+    put:
+      summary: Change your own name (it then stays, whatever HolliHop says)
+      operationId: saveProfile
+      tags: [me]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name]
+              properties:
+                first_name: { type: [string, "null"] }
+                last_name: { type: [string, "null"] }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Profile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /v1/me:
     get:
       summary: The logged-in person, with their groups
@@ -2170,6 +2342,7 @@ components:
         version: { type: [integer, "null"], description: The latest published version; null while locked }
         bytes: { type: [integer, "null"], description: "The download's size: the package and its images" }
         published_at: { type: [string, "null"], format: date-time }
+        enrolled_only: { type: boolean, description: "For SATMAKON students only: locked for this (registered) person" }
 
     PracticePackage:
       type: object
@@ -2556,6 +2729,10 @@ components:
         last_name: { type: string }
         username: { type: [string, "null"] }
         must_change_password: { type: boolean }
+        status: { type: string, enum: [enrolled, registered], description: "registered: signed up on the web, not (yet) a SATMAKON student" }
+        phone: { type: [string, "null"], description: The login phone, E.164 }
+        google: { type: boolean, description: A Google account is linked }
+        has_password: { type: boolean }
         groups:
           type: array
           description: Current and upcoming groups (enrolled in, or teaching).
@@ -2693,6 +2870,8 @@ components:
       type: object
       required: [min_app_version]
       properties:
+        signup: { type: boolean, description: Sign-up by SMS code is available }
+        google: { type: boolean, description: Google sign-in is available }
         min_app_version:
           type: object
           required: [android, ios]

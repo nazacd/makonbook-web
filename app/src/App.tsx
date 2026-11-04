@@ -40,6 +40,9 @@ const GroupVocab = page(() => import('@/screens/TeacherWords'), 'GroupVocab');
 const TrainingHall = page(() => import('@/screens/TrainingHall'), 'TrainingHall');
 const Drill = page(() => import('@/screens/Drill'), 'Drill');
 const ProblemQuestions = page(() => import('@/screens/ProblemQuestions'), 'ProblemQuestions');
+const SignUp = page(() => import('@/screens/SignUp'), 'SignUp');
+const ResetPassword = page(() => import('@/screens/ResetPassword'), 'ResetPassword');
+const GoogleCallback = page(() => import('@/screens/GoogleCallback'), 'GoogleCallback');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,8 +65,12 @@ export function App() {
             <ErrorBoundary>
             <Suspense fallback={<PageLoading full />}>
             <Routes>
+              {/* Signed in or not: a forgotten password, or a first one after signing up with Google. */}
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route element={<RequireGuest />}>
                 <Route path="/sign-in" element={<SignIn />} />
+                <Route path="/sign-up" element={<SignUp />} />
+                <Route path="/auth/google" element={<GoogleCallback />} />
               </Route>
               <Route element={<RequireAuth />}>
                 <Route path="/choose-password" element={<ChoosePassword />} />

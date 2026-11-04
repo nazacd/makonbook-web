@@ -27,6 +27,28 @@ export function describeError(error: unknown): string {
       return 'This isn’t available for your account.';
     case 'not_found':
       return 'That isn’t here any more.';
+    case 'invalid_phone':
+      return 'Enter an Uzbek mobile number, like 90 123 45 67.';
+    case 'invalid_code':
+      return 'That code isn’t right. Check the SMS and try again.';
+    case 'code_expired':
+      return 'That code has expired. Ask for a new one.';
+    case 'too_many_tries':
+      return 'Too many wrong codes. Ask for a new one.';
+    case 'invalid_ticket':
+      return 'That took too long. Start again from the phone number.';
+    case 'weak_password':
+      return 'Use 8 to 128 characters, and not your phone number.';
+    case 'invalid_profile':
+      return 'Enter your first name and surname (up to 60 characters each).';
+    case 'google_taken':
+      return 'That Google account is already linked to another SATMAKON account.';
+    case 'google_unavailable':
+      return 'Google sign-in isn’t available right now. Use your phone number.';
+    case 'no_account':
+      return 'No SATMAKON account has this number. Create one instead.';
+    case 'enrolled_only':
+      return 'This is for SATMAKON students. Enrol at SATMAKON and it opens for you.';
     default:
       if (error.status >= 500) return 'SATMAKON is having a problem right now. Please try again in a moment.';
       return error.requestId
