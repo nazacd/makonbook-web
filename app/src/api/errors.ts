@@ -27,6 +27,8 @@ export function describeError(error: unknown): string {
       return 'This isn’t available for your account.';
     case 'not_found':
       return 'That isn’t here any more.';
+    case 'sms_unavailable':
+      return 'We can’t send text messages right now. Please try again a little later.';
     case 'invalid_phone':
       return 'Enter an Uzbek mobile number, like 90 123 45 67.';
     case 'invalid_code':
