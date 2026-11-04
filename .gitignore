@@ -7,3 +7,4 @@ landing/public/vendor/
 *.log
 .DS_Store
 *.tsbuildinfo
+.claude/worktrees/

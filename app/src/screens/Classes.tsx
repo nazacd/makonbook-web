@@ -1,11 +1,12 @@
-import { CalendarX, Clock, DoorOpen, User, type LucideIcon } from 'lucide-react';
-import { lazy, type ReactNode } from 'react';
+import { CalendarDays, CalendarX, Clock, DoorOpen, User, type LucideIcon } from 'lucide-react';
+import { lazy, type CSSProperties, type ReactNode } from 'react';
 
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Group, GroupAttendance, Profile } from '@/api/types';
 import { AttendanceBar } from '@/components/AttendanceBar';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/States';
+import { Card, PageHeader } from '@/components/ui';
 import { useNow } from '@/lib/clock';
 import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber } from '@/lib/groups';
 import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
@@ -29,12 +30,19 @@ export function StudentClasses() {
   const next = nextClass(profile.groups, now);
 
   return (
-    <div className="flex flex-col gap-16">
+    <div className="mx-auto w-full max-w-[1120px]">
+      <PageHeader icon={CalendarDays} title="Classes" subtitle="Your groups, their times and your attendance." />
       {next && <NextClass next={next} now={now} />}
       {profile.groups.length === 0 ? (
-        <EmptyState icon={CalendarX} title="No classes yet" message="When the office adds you to a group, it shows up here with its schedule." />
+        <Card>
+          <EmptyState icon={CalendarX} title="No classes yet" message="When the office adds you to a group, it shows up here with its schedule." />
+        </Card>
       ) : (
-        profile.groups.map((group) => <ClassBlock key={group.id} group={group} attendance={attendance.data?.groups.find((g) => g.group_id === group.id)} />)
+        <div className="mt-4 grid gap-3.5 md:grid-cols-2">
+          {profile.groups.map((group) => (
+            <ClassBlock key={group.id} group={group} attendance={attendance.data?.groups.find((g) => g.group_id === group.id)} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -49,8 +57,8 @@ function NextClass({ next, now }: { next: Occurrence; now: number }) {
   const what = [name.title, name.teacher].filter(Boolean).join(' · ');
   const where = [next.slot.classroom && `Room ${roomNumber(next.slot.classroom)}`, `until ${next.slot.end_time}`].filter(Boolean).join(' · ');
   return (
-    <section aria-label={`${happening ? 'Happening now' : 'Next class'}: ${happening ? `until ${next.slot.end_time}` : `${describeDay(next.start, now)}, ${next.slot.begin_time}`}. ${what}. ${where}`}>
-      <p className="t-subhead font-medium text-ink-2">{happening ? 'Happening now' : 'Next class'}</p>
+    <section className="widget" style={{ '--w': 'var(--color-orange)' } as CSSProperties} aria-label={`${happening ? 'Happening now' : 'Next class'}: ${happening ? `until ${next.slot.end_time}` : `${describeDay(next.start, now)}, ${next.slot.begin_time}`}. ${what}. ${where}`}>
+      <p className="t-micro text-orange">{happening ? 'Happening now' : 'Next class'}</p>
       <p className="mt-0.5 flex flex-wrap items-baseline gap-x-3">
         {happening ? (
           <>
@@ -81,10 +89,10 @@ function ClassBlock({ group, attendance }: { group: Group; attendance?: GroupAtt
   const s = attendance?.summary;
   const rate = s && s.lessons > 0 ? (s.present + s.late) / s.lessons : null;
   return (
-    <section className="flex items-end gap-3">
+    <section className="flex items-end gap-3 rounded-card border border-line bg-surface p-[18px]">
       <div className="flex flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="t-title2 text-ink">{name.title}</h2>
+          <h2 className="t-title3 text-ink">{name.title}</h2>
           {name.isPrivate && <span className="t-caption rounded-lg border-[1.5px] border-ink-2 px-1.5 py-px text-ink-2">1:1</span>}
         </div>
         <div className="flex flex-col gap-1">
