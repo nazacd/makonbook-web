@@ -1,4 +1,4 @@
-import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, Coffee, Highlighter, House, ListChecks, Lock, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
+import { BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronUp, CircleCheck, CircleQuestionMark, Coffee, EllipsisVertical, Eye, EyeOff, Flag, Hand, Highlighter, House, ListChecks, Lock, RefreshCw, Timer as TimerIcon, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
@@ -6,14 +6,17 @@ import { useNavigate, useParams } from 'react-router';
 import { Button, Spinner } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
+import { useParked } from '@/api/learning';
 import { useMe } from '@/api/queries';
 import { Annotated, HighlightsToggle, type TextHighlight } from '@/components/practice/Annotations';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
+import { AskLater, foldersOf, sameQuestion, type QuestionRef } from '@/components/practice/AskLater';
 import { Calculator, dragging } from '@/components/practice/Calculator';
 import { Directions } from '@/components/practice/Directions';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { NavigatorLegend, QuestionNavigatorGrid } from '@/components/practice/QuestionNavigatorGrid';
 import { Reference } from '@/components/practice/Reference';
+import { ReportIssue } from '@/components/practice/ReportIssue';
 import { RichContent } from '@/components/practice/RichContent';
 import { confirm } from '@/lib/confirm';
 import { postAttempt, usePackage, usePerson, useRefreshLocal, useRun, useRunStore, useSendNow } from '@/lib/practice/hooks';
@@ -30,6 +33,8 @@ const PERSIST_INTERVAL_MS = 5000;
 const BREAK_MS = 10 * 60_000;
 /** How long "Module 2 started" stays. */
 const NOTE_MS = 3200;
+/** How long the header reads "Saving" after a change. */
+const SAVING_MS = 600;
 
 // Taking a practice test (the phone's practice/run/[code], laid out like
 // Bluebook on a laptop): its modules one after another, each with its own
@@ -108,6 +113,23 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
   const studentName = me ? `${me.first_name} ${me.last_name}` : '';
   const [finishing, setFinishing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Ask later and Issue: the question they were opened on (kept, so a module
+  // ending underneath doesn't change what they are about), and the phone's ⋮ menu.
+  const [askFor, setAskFor] = useState<QuestionRef | null>(null);
+  const [reportFor, setReportFor] = useState<QuestionRef | null>(null);
+  const [showMore, setShowMore] = useState(false);
+  const student = me?.kind === 'student';
+  const parked = useParked(student);
+  // The student's changes, each saved in this browser at once: the header
+  // reads "Saving" for a moment after each, then "Saved".
+  const [saves, setSaves] = useState(0);
+  const [settled, setSettled] = useState(0);
+  const saving = saves !== settled;
+  useEffect(() => {
+    if (saves === settled) return;
+    const id = setTimeout(() => setSettled(saves), SAVING_MS);
+    return () => clearTimeout(id);
+  }, [saves, settled]);
 
   const stages = stagesOf(pkg, run.sections);
   const stage = stages[run.stage]!;
@@ -157,6 +179,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
     latest.current.run = r;
     setRun(r);
     runs.save(r);
+    setSaves((n) => n + 1);
   };
 
   // The clock runs only while the page is in front: leaving it (or hiding
@@ -463,6 +486,28 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 
   const answer = run.answers[qKey];
   const marked = run.marked.includes(qKey);
+  const here: QuestionRef = { test: run.code, title: pkg.title, version: pkg.version, subject: stage.subject, module: stage.module.module, position: question.position, question_id: question.id };
+  const parkedHere = parked.data?.find((p) => sameQuestion(p, here));
+  const askingAbout = askFor ? parked.data?.find((p) => sameQuestion(p, askFor)) : undefined;
+  const openAskLater = () => {
+    setShowMore(false);
+    setAskFor(here);
+  };
+  const openReport = () => {
+    setShowMore(false);
+    setReportFor(here);
+  };
+  const timerToggle = (
+    <button
+      type="button"
+      onClick={() => setHideTimer((h) => !h)}
+      aria-pressed={hideTimer}
+      aria-label={hideTimer ? 'Show the time' : 'Hide the time'}
+      title={hideTimer ? 'Show the time' : 'Hide the time'}
+      className="flex size-6 items-center justify-center rounded-full text-ink-2 hover:text-ink active:bg-paper-2 sm:size-7">
+      {hideTimer ? <Eye size={18} strokeWidth={1.75} aria-hidden="true" /> : <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />}
+    </button>
+  );
   const eliminated = run.eliminated[qKey] ?? [];
   const keyOf = (i: number) => questionKey(stage, questions[i]!);
   const grid = questions.map((_, i) => ({ id: i + 1, current: i === run.index, answered: !!run.answers[keyOf(i)]?.trim(), marked: run.marked.includes(keyOf(i)) }));
@@ -581,21 +626,35 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
             <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
+        {/* The clock with its hide toggle beside it, and under it whether the work is saved
+            (a phone has no room beside the clock: the toggle goes under it, the status as its icon). */}
         <div className="flex flex-col items-center">
-          {hideTimer && !low ? (
-            <span className="flex h-7 items-center text-ink" aria-label="Time hidden">
-              <TimerIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+          <div className="flex items-center gap-1">
+            {hideTimer && !low ? (
+              <span className="flex h-7 items-center text-ink" aria-label="Time hidden">
+                <TimerIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+              </span>
+            ) : (
+              <span className={`tabular font-title text-[22px] font-bold leading-7 ${low ? 'text-bad' : 'text-ink'}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
+                {formatRemainingTime(remainingMs)}
+              </span>
+            )}
+            <span className="hidden sm:flex">{timerToggle}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="flex sm:hidden">{timerToggle}</span>
+            <span title="Your answers are saved in this browser as you go" className={`t-caption flex h-4 items-center gap-1 font-semibold ${saving ? 'text-info' : 'text-good'}`}>
+              {saving ? (
+                <RefreshCw size={12} strokeWidth={2.2} aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <CircleCheck size={12} strokeWidth={2.2} aria-hidden="true" />
+              )}
+              <span className="sr-only sm:not-sr-only">{saving ? 'Saving' : 'Saved'}</span>
             </span>
-          ) : (
-            <span className={`tabular font-title text-[22px] font-bold leading-7 ${low ? 'text-bad' : 'text-ink'}`} role="timer" aria-label={`${Math.ceil(remainingMs / 60_000)} minutes left`}>
-              {formatRemainingTime(remainingMs)}
-            </span>
-          )}
-          <button type="button" onClick={() => setHideTimer((h) => !h)} className="t-caption mt-0.5 h-6 rounded-full border border-ink px-2.5 font-medium text-ink active:bg-paper-2">
-            {hideTimer ? 'Show' : 'Hide'}
-          </button>
+          </div>
         </div>
-        <div className="flex items-center justify-end gap-1">
+        {/* A laptop shows every tool; narrower windows put Ask later and Issue (and, on a phone, Leave) under More. */}
+        <div className="flex items-center justify-end gap-0.5 sm:gap-1">
           {english && <HighlightsToggle on={annotating} onToggle={() => setAnnotating((v) => !v)} />}
           {stage.subject === 'math' && (
             <>
@@ -603,7 +662,43 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
               <Tool icon={BookOpen} label="Reference" on={showReference} onClick={() => setShowReference((v) => !v)} />
             </>
           )}
-          <Tool icon={House} label="Leave" onClick={leave} />
+          {student && (
+            <span className="hidden lg:contents">
+              <Tool
+                icon={parkedHere ? Hand : CircleQuestionMark}
+                label={parkedHere ? 'Asked' : 'Ask later'}
+                ariaLabel={parkedHere ? `Asked later, in ${parkedHere.folder}. Change it` : 'Ask about this later'}
+                accent={!!parkedHere}
+                onClick={openAskLater}
+              />
+              <Tool icon={Flag} label="Issue" ariaLabel="Report an issue" onClick={openReport} />
+            </span>
+          )}
+          <div className={`relative ${student ? 'lg:hidden' : 'md:hidden'}`}>
+            <Tool icon={EllipsisVertical} label="More" ariaLabel="More tools" on={showMore} menu onClick={() => setShowMore((v) => !v)} />
+            {showMore && (
+              <MoreMenu onClose={() => setShowMore(false)}>
+                {student && (
+                  <>
+                    <MenuItem icon={parkedHere ? Hand : CircleQuestionMark} label={parkedHere ? 'Asked' : 'Ask later'} accent={!!parkedHere} onClick={openAskLater} />
+                    <MenuItem icon={Flag} label="Issue" onClick={openReport} />
+                  </>
+                )}
+                <MenuItem
+                  icon={House}
+                  label="Leave"
+                  className="md:hidden"
+                  onClick={() => {
+                    setShowMore(false);
+                    leave();
+                  }}
+                />
+              </MoreMenu>
+            )}
+          </div>
+          <span className="hidden md:contents">
+            <Tool icon={House} label="Leave" onClick={leave} />
+          </span>
         </div>
         {showDirections && <Directions subject={stage.subject} onClose={() => setShowDirections(false)} />}
       </header>
@@ -718,16 +813,83 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
 
       {stage.subject === 'math' && !wide && <Calculator visible={showCalculator} runId={run.id} onClose={() => setShowCalculator(false)} />}
       {showReference && <Reference onClose={() => setShowReference(false)} />}
+      {askFor && (
+        <AskLater
+          question={askFor}
+          existing={askingAbout}
+          folders={foldersOf(parked.data ?? [])}
+          onClose={() => setAskFor(null)}
+          onSaved={(folder) => {
+            setAskFor(null);
+            setNote(`Parked in ${folder}`);
+          }}
+        />
+      )}
+      {reportFor && <ReportIssue question={reportFor} onClose={() => setReportFor(null)} />}
     </div>
   );
 }
 
-/** A header tool, as Bluebook's: the icon over its label. */
-function Tool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: string; on?: boolean; onClick: () => void }) {
+/**
+ * A header tool, as Bluebook's: the icon over its label. With `on` it is a
+ * toggle (Calculator, Reference); with `menu` it opens a menu (More);
+ * `accent` marks a state (Asked).
+ */
+function Tool({ icon, label, ariaLabel, on, menu = false, accent = false, onClick }: { icon: LucideIcon; label: string; ariaLabel?: string; on?: boolean; menu?: boolean; accent?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-paper text-accent shadow-sm' : 'text-ink active:bg-paper'}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={menu ? undefined : on}
+      aria-haspopup={menu ? 'menu' : undefined}
+      aria-expanded={menu ? !!on : undefined}
+      aria-label={ariaLabel ?? label}
+      title={ariaLabel}
+      className={`flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 rounded-chip px-2 sm:min-w-16 ${on ? 'bg-paper text-accent shadow-sm' : accent ? 'text-accent active:bg-paper' : 'text-ink active:bg-paper'}`}>
       <Icon as={icon} size={20} className="text-current" />
-      <span className="t-caption hidden font-medium sm:block">{label}</span>
+      <span className="t-caption hidden whitespace-nowrap font-medium sm:block">{label}</span>
+    </button>
+  );
+}
+
+// The ⋮ menu under More: the tools a narrow header has no room for. Escape,
+// a press outside or choosing one closes it; arrow keys move between items.
+function MoreMenu({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const menu = useDialog<HTMLDivElement>(onClose);
+  const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter((el) => el.offsetParent !== null);
+  useEffect(() => {
+    items()[0]?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const list = items();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    list[(at + step + list.length) % list.length]?.focus();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-30" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={menu}
+        tabIndex={-1}
+        role="menu"
+        aria-label="More tools"
+        onKeyDown={onKeyDown}
+        className="pop absolute right-0 top-[calc(100%+6px)] z-40 flex w-60 flex-col rounded-control border border-line bg-paper p-1.5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)] outline-none">
+        {children}
+      </div>
+    </>
+  );
+}
+
+function MenuItem({ icon, label, onClick, accent = false, className = '' }: { icon: LucideIcon; label: string; onClick: () => void; accent?: boolean; className?: string }) {
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className={`t-subhead flex min-h-11 w-full items-center gap-3 rounded-chip px-3 text-left font-semibold hover:bg-paper-2 focus-visible:bg-paper-2 active:bg-paper-2 ${accent ? 'text-accent' : 'text-ink'} ${className}`}>
+      <Icon as={icon} size={18} className="shrink-0 text-current" />
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }
