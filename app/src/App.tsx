@@ -11,7 +11,7 @@ import { RequireAuth, RequireGuest } from '@/layouts/RequireAuth';
 import { AppearanceProvider } from '@/lib/appearance';
 import { Attendance } from '@/screens/Attendance';
 import { ChoosePassword } from '@/screens/ChoosePassword';
-import { Classes } from '@/screens/Classes';
+import { Home, StudentClasses } from '@/screens/Classes';
 import { Password } from '@/screens/Password';
 import { Profile } from '@/screens/Profile';
 import { SignIn } from '@/screens/SignIn';
@@ -37,6 +37,9 @@ const AttendanceSession = page(() => import('@/screens/AttendanceSession'), 'Att
 const NewResults = page(() => import('@/screens/TeacherPractice'), 'NewResults');
 const GroupPractice = page(() => import('@/screens/TeacherPractice'), 'GroupPractice');
 const GroupVocab = page(() => import('@/screens/TeacherWords'), 'GroupVocab');
+const TrainingHall = page(() => import('@/screens/TrainingHall'), 'TrainingHall');
+const Drill = page(() => import('@/screens/Drill'), 'Drill');
+const ProblemQuestions = page(() => import('@/screens/ProblemQuestions'), 'ProblemQuestions');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,8 +70,12 @@ export function App() {
                 {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
                 <Route path="/practice/run/:code" element={<PracticeRun />} />
                 <Route path="/words/study" element={<Study />} />
+                <Route path="/training-hall/drill" element={<Drill />} />
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<Classes />} />
+                  <Route path="/" element={<Home />} />
+                  <Route path="/classes" element={<StudentClasses />} />
+                  <Route path="/training-hall" element={<TrainingHall />} />
+                  <Route path="/problem-questions" element={<ProblemQuestions />} />
                   <Route path="/attendance/group/:groupId" element={<Attendance />} />
                   <Route path="/attendance/:id" element={<AttendanceSession />} />
                   <Route path="/practice/new" element={<NewResults />} />

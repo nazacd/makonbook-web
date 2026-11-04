@@ -344,7 +344,7 @@ function Runner({ initial, stored }: { initial: Run; stored: StoredPackage }) {
         <Notice
           tone="error"
           title="Your answers aren’t saved yet"
-          message="This browser’s storage is full, and MakonBook can’t be reached to save them there. Keep this page open, check the connection and try again."
+          message="This browser’s storage is full, and SATMAKON can’t be reached to save them there. Keep this page open, check the connection and try again."
         />
         <Button label="Try again" onClick={() => sendUnsaved.mutate(unsaved)} />
       </div>

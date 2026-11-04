@@ -172,7 +172,7 @@ function StudentWords() {
             </p>
           )}
           {!sync.isPending && sync.isError && (
-            <p className="t-footnote mt-5 text-ink-3">Couldn’t sync with MakonBook just now; studying goes on with what is here.</p>
+            <p className="t-footnote mt-5 text-ink-3">Couldn’t sync just now; studying goes on with what is here.</p>
           )}
         </>
       )}

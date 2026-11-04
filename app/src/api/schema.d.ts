@@ -402,6 +402,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/practice/tests/{code}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many students answered each question, and how many got it right
+         * @description One entry per question of the test's latest published version. Counts
+         *     come from every uploaded attempt, in any test or version, that took the
+         *     question's section (a blank counts as answered and wrong).
+         */
+        get: operations["practiceTestStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/practice/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a problem with a question (from the test screen) */
+        post: operations["reportPracticeQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/parked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Questions the student parked with "Ask later", newest first */
+        get: operations["myParkedQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/parked/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Park a question, or change a parked one (idempotent by id) */
+        put: operations["saveParkedQuestion"];
+        post?: never;
+        /** Remove a parked question */
+        delete: operations["deleteParkedQuestion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/teacher/groups/{id}/parked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a group's students parked with "Ask later" */
+        get: operations["groupParkedQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The student's SAT goals (target scores, exam date) */
+        get: operations["myGoals"];
+        /** Save the student's SAT goals */
+        put: operations["saveMyGoals"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/teacher/groups/{id}/practice": {
         parameters: {
             query?: never;
@@ -1881,6 +1990,57 @@ export interface components {
                 ios: string;
             };
         };
+        ParkedQuestionInput: {
+            test: string;
+            version: number;
+            /** @enum {string} */
+            subject: "math" | "english";
+            /** @enum {integer} */
+            module: 1 | 2;
+            position: number;
+            question_id: string;
+            folder: string;
+            /** @enum {string|null} */
+            reason: "didnt_understand" | "didnt_know_start" | "lost_partway" | "ran_out_of_time" | null;
+            note: string;
+            fix: string;
+            /** @enum {string} */
+            status: "waiting" | "sorted";
+        };
+        ParkedQuestion: components["schemas"]["ParkedQuestionInput"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        PracticeReportInput: {
+            /** Format: uuid */
+            id: string;
+            test: string;
+            version: number;
+            /** @enum {string} */
+            subject: "math" | "english";
+            /** @enum {integer} */
+            module: 1 | 2;
+            position: number;
+            question_id: string;
+            /** @enum {string} */
+            kind: "question" | "technical";
+            /** @enum {string|null} */
+            reason: "answer_key_wrong" | "typo" | "unclear" | "image_broken" | "formatting" | "other" | null;
+            text: string;
+        };
+        Goals: {
+            target_math: number | null;
+            target_rw: number | null;
+            target_total: number | null;
+            /** Format: date */
+            exam_date: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
         Error: {
             error: {
                 /**
@@ -2629,6 +2789,240 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
+        };
+    };
+    practiceTestStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        questions: {
+                            id: string;
+                            answered: number;
+                            correct: number;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    reportPracticeQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeReportInput"];
+            };
+        };
+        responses: {
+            /** @description Already stored (same id) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                    };
+                };
+            };
+            /** @description Stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    myParkedQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The parked questions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ParkedQuestion"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    saveParkedQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParkedQuestionInput"];
+            };
+        };
+        responses: {
+            /** @description Stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParkedQuestion"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    deleteParkedQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    groupParkedQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The parked questions, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: (components["schemas"]["ParkedQuestion"] & {
+                            student: {
+                                id: number;
+                                first_name: string;
+                                last_name: string;
+                            };
+                        })[];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    myGoals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The goals (all null when never set) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Goals"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    saveMyGoals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    target_math: number | null;
+                    target_rw: number | null;
+                    /** Format: date */
+                    exam_date: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Goals"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     groupPractice: {

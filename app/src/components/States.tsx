@@ -6,7 +6,7 @@ import { Notice } from './Notice';
 
 /** A placeholder block in the shape of the content that is loading. */
 export function Skeleton({ width = '100%', height = 16, radius = 8 }: { width?: number | string; height?: number; radius?: number }) {
-  return <div aria-hidden="true" className="animate-pulse bg-surface-2 motion-reduce:animate-none" style={{ width, height, borderRadius: radius }} />;
+  return <div aria-hidden="true" className="shimmer" style={{ width, height, borderRadius: radius }} />;
 }
 
 /** Nothing to show yet: an icon, one line of title, one of explanation. */

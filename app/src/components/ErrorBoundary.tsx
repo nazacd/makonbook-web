@@ -38,7 +38,7 @@ class Boundary extends Component<Props, State> {
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-5 py-16">
         <Notice
           tone={chunk ? 'info' : 'error'}
-          title={chunk ? 'MakonBook was updated' : 'Something went wrong on this page'}
+          title={chunk ? 'SATMAKON was updated' : 'Something went wrong on this page'}
           message={chunk ? 'Reload to get the new version. Your answers and progress are kept.' : 'Reload the page. If it keeps happening, tell your teacher what you were doing.'}
         />
         <Button label="Reload" onClick={() => window.location.reload()} />

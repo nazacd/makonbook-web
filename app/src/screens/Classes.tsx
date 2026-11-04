@@ -12,16 +12,16 @@ import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
 
 const TeacherToday = lazy(() => import('./TeacherToday').then((m) => ({ default: m.TeacherToday })));
+const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Dashboard })));
 
-// "/": students see their classes, teachers their lessons for the day.
-// The student's home is built around the next lesson: day and time set
-// large, then each class as type on the page, no cards (MOBILE-DESIGN.md).
-export function Classes() {
+// "/": students see their dashboard, teachers their lessons for the day.
+export function Home() {
   const kind = useMe().data?.kind;
-  return kind === 'teacher' ? <TeacherToday /> : <StudentClasses />;
+  return kind === 'teacher' ? <TeacherToday /> : <Dashboard />;
 }
 
-function StudentClasses() {
+// "/classes": the student's classes, built around the next lesson.
+export function StudentClasses() {
   useTitle('Classes');
   const profile = useMe().data as Profile; // RequireAuth only renders with a profile
   const now = useNow();

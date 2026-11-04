@@ -103,7 +103,7 @@ export async function call<T>(promise: Promise<Result<T>>): Promise<T> {
   try {
     res = await promise;
   } catch {
-    throw new ApiError(0, 'network', 'Can’t reach MakonBook. Check the connection and try again.');
+    throw new ApiError(0, 'network', 'Can’t reach SATMAKON. Check the connection and try again.');
   }
   if (res.response.ok) return res.data as T;
   const body = (res.error ?? {}) as {

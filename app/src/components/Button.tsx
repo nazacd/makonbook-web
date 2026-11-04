@@ -14,14 +14,14 @@ type ButtonProps = {
   icon?: ReactNode;
 };
 
-// Primary is navy in light and off-white in dark: the one strong surface on a
-// screen. Secondary sits on the off-white step; plain and destructive are
-// text. Responds on press (active), not only on release.
+// Primary is SATMAKON purple, the one strong surface on a screen; it lifts a
+// little on hover. Secondary is white with a border; plain and destructive
+// are text. Responds on press (active), not only on release.
 const SURFACE: Record<Variant, string> = {
-  primary: 'h-[52px] rounded-control bg-primary px-6 text-on-primary',
-  secondary: 'h-[52px] rounded-control bg-surface-2 px-6 text-ink',
-  plain: 'h-11 rounded-[12px] px-4 text-accent',
-  destructive: 'h-11 rounded-[12px] px-4 text-bad',
+  primary: 'lift h-[46px] rounded-card bg-primary px-6 text-on-primary hover:bg-primary-hover',
+  secondary: 'h-[46px] rounded-card border border-line-strong bg-surface px-6 text-ink hover:bg-surface-2',
+  plain: 'h-11 rounded-control px-4 text-accent hover:bg-surface-2',
+  destructive: 'h-11 rounded-control px-4 text-bad hover:bg-bad-tint',
 };
 
 export function Button({ label, onClick, type = 'button', variant = 'primary', loading = false, disabled = false, className = '', icon }: ButtonProps) {

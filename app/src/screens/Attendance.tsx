@@ -43,7 +43,7 @@ export function Attendance() {
 
   return (
     <div>
-      <Link to="/" className="t-subhead -ml-1 mb-4 inline-flex h-10 items-center gap-1 rounded-chip pr-2 text-accent">
+      <Link to="/classes" className="t-subhead -ml-1 mb-4 inline-flex h-10 items-center gap-1 rounded-chip pr-2 text-accent">
         <Icon as={ChevronLeft} size={18} className="text-accent" />
         Classes
       </Link>

@@ -39,7 +39,7 @@ export function RotatingQR({ sessionId, secret, clockOffsetMs, size, onClick, ba
   const left = (WINDOW_MS - (now % WINDOW_MS)) / WINDOW_MS;
 
   const code = (
-    <svg width={size} height={size} viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label="Attendance QR code. Students scan it with MakonBook.">
+    <svg width={size} height={size} viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label="Attendance QR code. Students scan it with the MakonBook app.">
       <rect width={n} height={n} fill="#ffffff" />
       <path d={d} fill={NAVY} />
     </svg>

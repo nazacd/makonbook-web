@@ -562,6 +562,186 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
+  /v1/practice/tests/{code}/stats:
+    get:
+      summary: How many students answered each question, and how many got it right
+      description: |
+        One entry per question of the test's latest published version. Counts
+        come from every uploaded attempt, in any test or version, that took the
+        question's section (a blank counts as answered and wrong).
+      operationId: practiceTestStats
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questions]
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, answered, correct]
+                      properties:
+                        id: { type: string }
+                        answered: { type: integer }
+                        correct: { type: integer }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/practice/reports:
+    post:
+      summary: Report a problem with a question (from the test screen)
+      operationId: reportPracticeQuestion
+      tags: [practice]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PracticeReportInput" }
+      responses:
+        "200":
+          description: Already stored (same id)
+          content: { application/json: { schema: { type: object, required: [id], properties: { id: { type: string } } } } }
+        "201":
+          description: Stored
+          content: { application/json: { schema: { type: object, required: [id], properties: { id: { type: string } } } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /v1/me/parked:
+    get:
+      summary: Questions the student parked with "Ask later", newest first
+      operationId: myParkedQuestions
+      tags: [practice]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The parked questions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ParkedQuestion" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/me/parked/{id}:
+    put:
+      summary: Park a question, or change a parked one (idempotent by id)
+      operationId: saveParkedQuestion
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ParkedQuestionInput" }
+      responses:
+        "200":
+          description: Stored
+          content: { application/json: { schema: { $ref: "#/components/schemas/ParkedQuestion" } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Remove a parked question
+      operationId: deleteParkedQuestion
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/teacher/groups/{id}/parked:
+    get:
+      summary: What a group's students parked with "Ask later"
+      operationId: groupParkedQuestions
+      tags: [practice]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The parked questions, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/ParkedQuestion"
+                        - type: object
+                          required: [student]
+                          properties:
+                            student:
+                              type: object
+                              required: [id, first_name, last_name]
+                              properties:
+                                id: { type: integer }
+                                first_name: { type: string }
+                                last_name: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/me/goals:
+    get:
+      summary: The student's SAT goals (target scores, exam date)
+      operationId: myGoals
+      tags: [me]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The goals (all null when never set)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Goals" } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      summary: Save the student's SAT goals
+      operationId: saveMyGoals
+      tags: [me]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_math, target_rw, exam_date]
+              properties:
+                target_math: { type: integer, nullable: true, minimum: 200, maximum: 800 }
+                target_rw: { type: integer, nullable: true, minimum: 200, maximum: 800 }
+                exam_date: { type: string, format: date, nullable: true }
+      responses:
+        "200":
+          description: Saved
+          content: { application/json: { schema: { $ref: "#/components/schemas/Goals" } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /v1/teacher/groups/{id}/practice:
     get:
       summary: A group's students and their practice attempts (its teachers)
@@ -2330,6 +2510,53 @@ components:
             android: { type: string, example: "1.0.0" }
             ios: { type: string, example: "1.0.0" }
 
+    ParkedQuestionInput:
+      type: object
+      required: [test, version, subject, module, position, question_id, folder, reason, note, fix, status]
+      properties:
+        test: { type: string }
+        version: { type: integer }
+        subject: { type: string, enum: [math, english] }
+        module: { type: integer, enum: [1, 2] }
+        position: { type: integer }
+        question_id: { type: string }
+        folder: { type: string, maxLength: 40 }
+        reason: { type: string, nullable: true, enum: [didnt_understand, didnt_know_start, lost_partway, ran_out_of_time] }
+        note: { type: string, maxLength: 1000 }
+        fix: { type: string, maxLength: 300 }
+        status: { type: string, enum: [waiting, sorted] }
+    ParkedQuestion:
+      allOf:
+        - $ref: "#/components/schemas/ParkedQuestionInput"
+        - type: object
+          required: [id, created_at, updated_at]
+          properties:
+            id: { type: string, format: uuid }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    PracticeReportInput:
+      type: object
+      required: [id, test, version, subject, module, position, question_id, kind, reason, text]
+      properties:
+        id: { type: string, format: uuid }
+        test: { type: string }
+        version: { type: integer }
+        subject: { type: string, enum: [math, english] }
+        module: { type: integer, enum: [1, 2] }
+        position: { type: integer }
+        question_id: { type: string }
+        kind: { type: string, enum: [question, technical] }
+        reason: { type: string, nullable: true, enum: [answer_key_wrong, typo, unclear, image_broken, formatting, other] }
+        text: { type: string, maxLength: 2000 }
+    Goals:
+      type: object
+      required: [target_math, target_rw, target_total, exam_date, updated_at]
+      properties:
+        target_math: { type: integer, nullable: true }
+        target_rw: { type: integer, nullable: true }
+        target_total: { type: integer, nullable: true }
+        exam_date: { type: string, format: date, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
     Error:
       type: object
       required: [error]

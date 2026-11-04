@@ -73,8 +73,13 @@ async function fetchPackage(code: string, version: number | undefined): Promise<
  * version, the latest.
  */
 export function usePackage(code: string, version: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: ['practice-package', code, version ?? 'latest'],
+  return useQuery({ ...packageQuery(code, version), enabled: enabled && code !== '' });
+}
+
+/** The query behind usePackage, for screens that need several packages at once (useQueries). */
+export function packageQuery(code: string, version: number | undefined) {
+  return {
+    queryKey: ['practice-package', code, version ?? 'latest'] as const,
     queryFn: async () => {
       const stored = version == null ? null : await loadPackage(code, version);
       if (stored && Date.parse(stored.expires_at) - Date.now() > LINK_MARGIN_MS) return stored;
@@ -86,12 +91,11 @@ export function usePackage(code: string, version: number | undefined, enabled = 
         throw e;
       }
     },
-    enabled: enabled && code !== '',
-    staleTime: (query) => (query.state.data ? Math.max(0, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : 0),
+    staleTime: (query: { state: { data?: StoredPackage } }) => (query.state.data ? Math.max(0, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : 0),
     // A screen left open (a test runs for hours) gets new links before the
     // old ones run out, so figures further on still load.
-    refetchInterval: (query) => (query.state.data ? Math.max(60_000, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : false),
-  });
+    refetchInterval: (query: { state: { data?: StoredPackage } }) => (query.state.data ? Math.max(60_000, Date.parse(query.state.data.expires_at) - Date.now() - LINK_MARGIN_MS) : false),
+  };
 }
 
 /**

@@ -126,7 +126,7 @@ export function Study() {
       </div>
 
       {saveFailed && (
-        <Notice tone="error" title="Answers aren’t being saved" message="This browser didn’t let MakonBook keep your last answer. Check that it lets this site keep data." />
+        <Notice tone="error" title="Answers aren’t being saved" message="This browser didn’t let SATMAKON keep your last answer. Check that it lets this site keep data." />
       )}
       {!word ? (
         <Finish done={done} newDone={newDone} onClose={close} />

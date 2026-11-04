@@ -1,121 +1,179 @@
 @import "tailwindcss";
 
-/* Bitter for titles and big numbers (Latin, Cyrillic and the Uzbek ʻ); the
-   system font for everything else. Each weight is its own file. */
-@import "@fontsource/bitter/600.css";
-@import "@fontsource/bitter/700.css";
+/* Nunito for everything (the design reference's single UI font), self-hosted. */
+@import "@fontsource-variable/nunito/wght.css";
 
-/* Colour tokens, light theme first, the same names and values as the mobile
-   app's src/global.css (MOBILE-DESIGN.md says why). The dark values below
-   redefine the same variables, and every utility reads the variable at use
-   (`@theme`, not `@theme inline`), so `bg-brand`, `text-ink`… switch with the
-   colour scheme on their own: never use `dark:` variants. Keep in step with
-   the mobile app when a value changes there. */
+/* Colour tokens (docs/design.md): a near-white canvas, white cards with light
+   borders, one brand accent (SATMAKON deep purple, from the logo) and a few
+   category accents. The dark values below redefine the same variables, and
+   every utility reads the variable at use (`@theme`, not `@theme inline`), so
+   `bg-brand`, `text-ink`… switch with the theme on their own: never use
+   `dark:` variants. */
 @theme {
   --color-*: initial;
   --color-white: #ffffff;
-  --color-brand: #f5efe3;          /* app background */
-  --color-surface: #fffcf6;
-  --color-surface-2: #ede2cc;
-  --color-line: rgba(18, 45, 71, 0.12);
-  --color-line-strong: rgba(18, 45, 71, 0.24);
-  --color-ink: #122d47;
-  --color-ink-2: #4f606f;
-  --color-ink-3: #66737f;
-  --color-primary: #122d47;        /* buttons */
-  --color-on-primary: #f5efe3;
-  --color-accent: #7a4590;         /* selection, links */
+  --color-black: #000000;
+  --color-brand: #fbfbfb;          /* the canvas */
+  --color-surface: #ffffff;        /* cards */
+  --color-surface-2: #f4f5f7;      /* inset: inputs, tiles, segmented controls */
+  --color-line: #e6e8ec;
+  --color-line-soft: rgba(145, 153, 177, 0.25);
+  --color-line-strong: #c9ced8;
+  --color-ink: #10131a;
+  --color-ink-2: #5b6472;
+  --color-ink-3: #737c8b;
+  --color-nav: rgba(12, 24, 68, 0.55);
+  --color-title: #1a0b3d;          /* list-page titles, modal titles */
+  --color-primary: #3e008e;        /* SATMAKON purple: primary actions, active nav */
+  --color-primary-hover: #5216ab;
+  --color-primary-deep: #2c0066;
+  --color-on-primary: #ffffff;
+  --color-accent: #4b12a6;         /* links, selection, counters */
   --color-on-accent: #ffffff;
-  --color-accent-tint: #ece1ee;
-  --color-good: #4a6b50;
-  --color-good-tint: #dfe8dc;
-  --color-watch: #86600e;
-  --color-watch-tint: #f3e3bd;
-  --color-bad: #9e4527;
-  --color-bad-tint: #f3d9cc;
-  --color-info: #3d6f86;
-  --color-track: #ede2cc;
-  --color-fill-good: #2f7444;
-  --color-fill-watch: #a87810;
-  --color-fill-bad: #9e4527;
-  --color-paper: #fdfcfa;          /* the test page: near white, like Bluebook */
-  --color-paper-2: #f4f2ed;
-  --color-bar: #efe9f4;            /* the test's top and bottom bars */
+  --color-accent-tint: #efe7fb;
+  --color-good: #15803d;
+  --color-good-tint: #dcfce7;
+  --color-watch: #a16207;
+  --color-watch-tint: #fef3c7;
+  --color-bad: #b91c1c;
+  --color-bad-tint: #fee2e2;
+  --color-info: #1d4ed8;
+  --color-info-tint: #dbeafe;
+  --color-track: #ebe5f5;
+  --color-fill-good: #16a34a;
+  --color-fill-watch: #d97706;
+  --color-fill-bad: #dc2626;
+  /* Category accents: a widget's or a tag's own hue, used faintly. */
+  --color-orange: #c2410c;
+  --color-amber: #a16207;
+  --color-green: #15803d;
+  --color-teal: #0e7490;
+  --color-blue: #1d4ed8;
+  --color-violet: #6d28d9;
+  --color-pink: #be185d;
+  --color-slate: #64748b;
+  --color-math: #0284c7;
+  --color-math-tint: #e0f2fe;
+  --color-english: #a21caf;
+  --color-english-tint: #fae8ff;
+  /* The test screen: white, like Bluebook, with a faint purple in the bars. */
+  --color-paper: #ffffff;
+  --color-paper-2: #f1f1f3;
+  --color-bar: #f7f3fc;
 
-  --font-title: "Bitter", Georgia, "Times New Roman", serif;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-title: "Nunito Variable", "Nunito", system-ui, sans-serif;
+  --font-sans: "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 
-  /* Radius 10 (chips) · 14 (buttons, inputs) · 20 (panels), as on the phone. */
+  /* Radius 10 (nav rows, chips) · 12 (controls, tiles) · 16 (cards) · 20 (panels, modals). */
   --radius-chip: 10px;
-  --radius-control: 14px;
+  --radius-control: 12px;
+  --radius-card: 16px;
   --radius-panel: 20px;
+
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Dark: the phone's setting, unless Profile's Appearance says otherwise
-   (lib/appearance.tsx sets data-theme on <html>). The values are the mobile
-   app's dark palette, written twice because CSS can't name a set of variables. */
+/* Dark: the computer's setting, unless Settings says otherwise
+   (lib/appearance.tsx sets data-theme on <html>). Written twice because CSS
+   can't name a set of variables. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-brand: #0b1a2a;
-    --color-surface: #122438;
-    --color-surface-2: #1a2f46;
-    --color-line: rgba(242, 234, 218, 0.1);
-    --color-line-strong: rgba(242, 234, 218, 0.2);
-    --color-ink: #f2eada;
-    --color-ink-2: #c2baa9;
-    --color-ink-3: #9a9487;
-    --color-primary: #ede2cc;
-    --color-on-primary: #122d47;
-    --color-accent: #c391d8;
-    --color-on-accent: #0b1a2a;
-    --color-accent-tint: #2a2d48;
-    --color-good: #9dbda2;
-    --color-good-tint: #1d3434;
-    --color-watch: #e0b24e;
-    --color-watch-tint: #2d2f2c;
-    --color-bad: #e58d6b;
-    --color-bad-tint: #302a31;
-    --color-info: #97c1d5;
-    --color-track: #24384e;
-    --color-fill-good: #7fc28e;
-    --color-fill-watch: #e0b24e;
-    --color-fill-bad: #e58d6b;
-    --color-paper: #0e1c2c;
-    --color-paper-2: #15253a;
-    --color-bar: #182640;
+    --color-brand: #161618;
+    --color-surface: #1f1f22;
+    --color-surface-2: #29292d;
+    --color-line: #323238;
+    --color-line-soft: rgba(255, 255, 255, 0.08);
+    --color-line-strong: #4a4a52;
+    --color-ink: #eceef2;
+    --color-ink-2: #a3abb8;
+    --color-ink-3: #8a92a0;
+    --color-nav: rgba(236, 238, 242, 0.6);
+    --color-title: #eceef2;
+    --color-primary: #7c3aed;
+    --color-primary-hover: #8b5cf6;
+    --color-primary-deep: #5b21b6;
+    --color-on-primary: #ffffff;
+    --color-accent: #b9a1ff;
+    --color-on-accent: #160c2c;
+    --color-accent-tint: #2b2340;
+    --color-good: #4ade80;
+    --color-good-tint: #16301f;
+    --color-watch: #facc15;
+    --color-watch-tint: #33290f;
+    --color-bad: #f87171;
+    --color-bad-tint: #3a1d1d;
+    --color-info: #60a5fa;
+    --color-info-tint: #172a45;
+    --color-track: #2f2a3c;
+    --color-fill-good: #4ade80;
+    --color-fill-watch: #fbbf24;
+    --color-fill-bad: #f87171;
+    --color-orange: #fb923c;
+    --color-amber: #eab308;
+    --color-green: #4ade80;
+    --color-teal: #22d3ee;
+    --color-blue: #60a5fa;
+    --color-violet: #a78bfa;
+    --color-pink: #f472b6;
+    --color-slate: #94a3b8;
+    --color-math: #38bdf8;
+    --color-math-tint: #0f2b3d;
+    --color-english: #e879f9;
+    --color-english-tint: #3a1840;
+    --color-paper: #1b1b1e;
+    --color-paper-2: #27272b;
+    --color-bar: #221d2c;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-brand: #0b1a2a;
-  --color-surface: #122438;
-  --color-surface-2: #1a2f46;
-  --color-line: rgba(242, 234, 218, 0.1);
-  --color-line-strong: rgba(242, 234, 218, 0.2);
-  --color-ink: #f2eada;
-  --color-ink-2: #c2baa9;
-  --color-ink-3: #9a9487;
-  --color-primary: #ede2cc;
-  --color-on-primary: #122d47;
-  --color-accent: #c391d8;
-  --color-on-accent: #0b1a2a;
-  --color-accent-tint: #2a2d48;
-  --color-good: #9dbda2;
-  --color-good-tint: #1d3434;
-  --color-watch: #e0b24e;
-  --color-watch-tint: #2d2f2c;
-  --color-bad: #e58d6b;
-  --color-bad-tint: #302a31;
-  --color-info: #97c1d5;
-  --color-track: #24384e;
-  --color-fill-good: #7fc28e;
-  --color-fill-watch: #e0b24e;
-  --color-fill-bad: #e58d6b;
-  --color-paper: #0e1c2c;
-  --color-paper-2: #15253a;
-  --color-bar: #182640;
+  --color-brand: #161618;
+  --color-surface: #1f1f22;
+  --color-surface-2: #29292d;
+  --color-line: #323238;
+  --color-line-soft: rgba(255, 255, 255, 0.08);
+  --color-line-strong: #4a4a52;
+  --color-ink: #eceef2;
+  --color-ink-2: #a3abb8;
+  --color-ink-3: #8a92a0;
+  --color-nav: rgba(236, 238, 242, 0.6);
+  --color-title: #eceef2;
+  --color-primary: #7c3aed;
+  --color-primary-hover: #8b5cf6;
+  --color-primary-deep: #5b21b6;
+  --color-on-primary: #ffffff;
+  --color-accent: #b9a1ff;
+  --color-on-accent: #160c2c;
+  --color-accent-tint: #2b2340;
+  --color-good: #4ade80;
+  --color-good-tint: #16301f;
+  --color-watch: #facc15;
+  --color-watch-tint: #33290f;
+  --color-bad: #f87171;
+  --color-bad-tint: #3a1d1d;
+  --color-info: #60a5fa;
+  --color-info-tint: #172a45;
+  --color-track: #2f2a3c;
+  --color-fill-good: #4ade80;
+  --color-fill-watch: #fbbf24;
+  --color-fill-bad: #f87171;
+  --color-orange: #fb923c;
+  --color-amber: #eab308;
+  --color-green: #4ade80;
+  --color-teal: #22d3ee;
+  --color-blue: #60a5fa;
+  --color-violet: #a78bfa;
+  --color-pink: #f472b6;
+  --color-slate: #94a3b8;
+  --color-math: #38bdf8;
+  --color-math-tint: #0f2b3d;
+  --color-english: #e879f9;
+  --color-english-tint: #3a1840;
+  --color-paper: #1b1b1e;
+  --color-paper-2: #27272b;
+  --color-bar: #221d2c;
 }
 
 :root[data-theme="light"] {
@@ -140,20 +198,22 @@
   }
 }
 
-/* The type scale, the mobile app's src/design/typography.ts: size, weight and
-   leading as a set. Titles and big numbers in Bitter, the rest in the system
-   font. Use these instead of mixing text-* and font-* classes. */
+/* The type scale (docs/design.md): Nunito throughout, tight tracking on big
+   text, tiny uppercase labels over big numbers. Use these instead of mixing
+   text-* and font-* classes. */
 @layer components {
-  .t-large-title { font-family: var(--font-title); font-weight: 700; font-size: 34px; line-height: 41px; letter-spacing: -0.4px; }
-  .t-title { font-family: var(--font-title); font-weight: 700; font-size: 28px; line-height: 34px; letter-spacing: -0.3px; }
-  .t-title2 { font-family: var(--font-title); font-weight: 700; font-size: 22px; line-height: 28px; letter-spacing: -0.1px; }
-  .t-title3 { font-family: var(--font-title); font-weight: 600; font-size: 20px; line-height: 26px; }
-  .t-headline { font-size: 17px; line-height: 22px; font-weight: 600; }
-  .t-body { font-size: 17px; line-height: 24px; font-weight: 400; }
-  .t-callout { font-size: 16px; line-height: 22px; font-weight: 400; }
-  .t-subhead { font-size: 15px; line-height: 20px; font-weight: 400; }
-  .t-footnote { font-size: 13px; line-height: 18px; font-weight: 400; }
-  .t-caption { font-size: 12px; line-height: 16px; font-weight: 500; }
+  .t-large-title { font-family: var(--font-title); font-weight: 700; font-size: 32px; line-height: 38px; letter-spacing: -0.6px; }
+  .t-title { font-family: var(--font-title); font-weight: 700; font-size: 26px; line-height: 32px; letter-spacing: -0.4px; }
+  .t-title2 { font-family: var(--font-title); font-weight: 700; font-size: 21px; line-height: 27px; letter-spacing: -0.2px; }
+  .t-title3 { font-family: var(--font-title); font-weight: 700; font-size: 18px; line-height: 24px; letter-spacing: -0.1px; }
+  .t-headline { font-size: 15px; line-height: 21px; font-weight: 700; }
+  .t-body { font-size: 15px; line-height: 23px; font-weight: 500; }
+  .t-callout { font-size: 15px; line-height: 21px; font-weight: 500; }
+  .t-subhead { font-size: 14px; line-height: 20px; font-weight: 500; }
+  .t-footnote { font-size: 13px; line-height: 18px; font-weight: 500; }
+  .t-caption { font-size: 12px; line-height: 16px; font-weight: 600; }
+  .t-micro { font-size: 10.5px; line-height: 14px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+  .t-number { font-family: var(--font-title); font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
   .tabular { font-variant-numeric: tabular-nums; }
 
   /* Question content (components/practice/RichContent). Formulas are MathJax
@@ -178,6 +238,36 @@
 
 /* Highlights & Notes (components/practice/Annotations): painted by the CSS
    Custom Highlight API; each block registers its own names, suffixed by colour. */
-::highlight(mb-yellow) { background-color: #f6d860; color: #122d47; }
-::highlight(mb-blue) { background-color: #a8d8f0; color: #122d47; }
-::highlight(mb-pink) { background-color: #f6b8d0; color: #122d47; }
+::highlight(mb-yellow) { background-color: rgba(253, 213, 0, 0.7); color: #10131a; }
+::highlight(mb-blue) { background-color: rgba(134, 197, 249, 0.7); color: #10131a; }
+::highlight(mb-pink) { background-color: rgba(244, 142, 215, 0.7); color: #10131a; }
+
+/* A dashboard widget: a white card whose top fades in from its own accent
+   (set --w on the element, e.g. style={{ '--w': 'var(--color-teal)' }}). */
+.widget { position: relative; overflow: hidden; border-radius: var(--radius-card); border: 1px solid var(--color-line); background: var(--color-surface); padding: 16px 18px; }
+.widget::before { content: ""; position: absolute; inset: 0 0 auto; height: 108px; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--w, var(--color-primary)) 13%, transparent), transparent); }
+.widget > * { position: relative; }
+
+/* Skeletons: the final layout's shapes with a sweeping shine. */
+.shimmer { position: relative; overflow: hidden; background: var(--color-surface-2); }
+.shimmer::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface) 70%, transparent), transparent); animation: shimmer 1.5s ease-in-out infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .shimmer::after { animation: none; } }
+
+/* Primary buttons lift a little on hover (the reference's one hover move). */
+.lift { transition: transform 150ms ease, filter 150ms ease, background-color 150ms ease; }
+@media (hover: hover) { .lift:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); } }
+
+/* Entrances: fade up a few pixels; nothing moves for reduced motion. */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 300ms var(--ease-soft) both; }
+@keyframes pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.pop { animation: pop 180ms var(--ease-soft) both; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.fade { animation: fade 150ms ease both; }
+@keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-up { animation: sheet 260ms var(--ease-soft) both; }
+@media (prefers-reduced-motion: reduce) { .rise, .pop, .sheet-up { animation: fade 150ms ease both; } }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
