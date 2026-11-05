@@ -2758,6 +2758,18 @@ export interface operations {
                 content: {
                     "application/json": {
                         ticket: string;
+                        /** @description Sign-up only: whose number it is (null: nobody's) */
+                        account?: null | {
+                            /** @enum {string} */
+                            status: "registered";
+                        } | {
+                            /** @enum {string} */
+                            status: "enrolled";
+                            /** @enum {string} */
+                            kind: "student" | "teacher";
+                            /** @example Diyora A. */
+                            name: string;
+                        };
                     };
                 };
             };
@@ -2813,10 +2825,10 @@ export interface operations {
                 "application/json": {
                     /** @description A `signup` ticket */
                     ticket: string;
-                    /** @description 1–60 characters after trimming */
-                    first_name: string;
-                    /** @description 1–60 characters after trimming */
-                    last_name: string;
+                    /** @description 1–60 characters after trimming; needed only for a new account */
+                    first_name: string | null;
+                    /** @description 1–60 characters after trimming; needed only for a new account */
+                    last_name: string | null;
                     /** @description The rules of `/v1/auth/password`; null only with a `google_ticket` */
                     password: string | null;
                     /** @description From `/v1/auth/google/ticket` (`needs_phone`), to sign in with Google from then on */

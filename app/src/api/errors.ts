@@ -43,6 +43,8 @@ export function describeError(error: unknown): string {
       return 'Use 8 to 128 characters, and not your phone number.';
     case 'invalid_profile':
       return 'Enter your first name and surname (up to 60 characters each).';
+    case 'phone_taken':
+      return 'This phone number already exists. Sign in, or reset your password if you’ve forgotten it.';
     case 'google_taken':
       return 'That Google account is already linked to another SATMAKON account.';
     case 'google_unavailable':

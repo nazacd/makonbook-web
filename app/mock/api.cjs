@@ -133,17 +133,22 @@ http.createServer(async (req, res) => {
     const phone = normPhone(body.phone); const c = phone && codes.get(`${phone}:${body.purpose}`);
     if (!c) return err(res, 410, 'code_expired', 'ask for a new code');
     if (String(body.code).trim() !== c.code) { c.tries++; if (c.tries >= 5) { codes.delete(`${phone}:${body.purpose}`); return err(res, 429, 'too_many_tries', 'too many tries'); } return err(res, 422, 'invalid_code', `wrong code, ${5 - c.tries} tries left`); }
-    codes.delete(`${phone}:${body.purpose}`); return json(res, 200, { ticket: newTicket({ phone, purpose: body.purpose }) });
+    codes.delete(`${phone}:${body.purpose}`);
+    // Sign-up: say whose number it is, now that the phone is proven.
+    const owner = body.purpose === 'signup' ? byPhone(phone) : null;
+    const account = !owner ? null : owner.status === 'registered' ? { status: 'registered' } : { status: 'enrolled', kind: owner.kind, name: `${owner.first_name} ${owner.last_name[0]}.` };
+    return json(res, 200, { ticket: newTicket({ phone, purpose: body.purpose }), ...(body.purpose === 'signup' ? { account } : {}) });
   }
   if (url === '/v1/auth/signup' && req.method === 'POST') {
     const t = tickets.get(body.ticket); if (!t || t.purpose !== 'signup') return err(res, 422, 'invalid_ticket', 'verify the phone again');
     const g = body.google_ticket ? tickets.get(body.google_ticket)?.google : null;
     if (body.password == null && !g) return err(res, 422, 'weak_password', 'a password is needed');
     if (body.password != null && String(body.password).length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
-    const fn = String(body.first_name || '').trim(); const ln = String(body.last_name || '').trim();
-    if (!fn || !ln) return err(res, 422, 'invalid_profile', 'name and surname are needed');
-    tickets.delete(body.ticket); if (body.google_ticket) tickets.delete(body.google_ticket);
     let p = byPhone(t.phone); const existing = !!p;
+    if (p && p.status === 'registered') return err(res, 409, 'phone_taken', 'this phone number already has an account');
+    const fn = String(body.first_name || '').trim(); const ln = String(body.last_name || '').trim();
+    if (!p && (!fn || !ln)) return err(res, 422, 'invalid_profile', 'name and surname are needed');
+    tickets.delete(body.ticket); if (body.google_ticket) tickets.delete(body.google_ticket);
     if (!p) { const id = nextSelfId--; p = { kind: 'student', id, first_name: fn, last_name: ln, username: null, must_change_password: false, status: 'registered', phone: t.phone, google: false, has_password: false, groups: [], login: t.phone }; people[t.phone] = p; }
     if (body.password != null) { passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false; }
     if (g) { googleLinks.set(g.sub, p.login); p.google = true; }

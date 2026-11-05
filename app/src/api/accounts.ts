@@ -24,11 +24,15 @@ export function sendCode(phone: string, purpose: Purpose) {
   return call(api.POST('/v1/auth/phone/start', { body: { phone, purpose } }));
 }
 
-export async function checkCode(phone: string, code: string, purpose: Purpose) {
-  return (await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose } }))).ticket;
+/** Whose number it is, told after the code is verified (sign-up only): nobody's, a free account's, or a SATMAKON student's or teacher's. */
+export type NumberOwner = null | { status: 'registered' } | { status: 'enrolled'; kind: 'student' | 'teacher'; name: string };
+
+export async function checkCode(phone: string, code: string, purpose: Purpose): Promise<{ ticket: string; account: NumberOwner }> {
+  const r = await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose } }));
+  return { ticket: r.ticket, account: (r.account ?? null) as NumberOwner };
 }
 
-export function signUp(body: { ticket: string; first_name: string; last_name: string; password: string | null; google_ticket: string | null }) {
+export function signUp(body: { ticket: string; first_name: string | null; last_name: string | null; password: string | null; google_ticket: string | null }) {
   return call(api.POST('/v1/auth/signup', { body }));
 }
 

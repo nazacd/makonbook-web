@@ -260,6 +260,20 @@ paths:
                 required: [ticket]
                 properties:
                   ticket: { type: string }
+                  account:
+                    description: "Sign-up only: whose number it is (null: nobody's)"
+                    oneOf:
+                      - type: "null"
+                      - type: object
+                        required: [status]
+                        properties:
+                          status: { type: string, enum: [registered] }
+                      - type: object
+                        required: [status, kind, name]
+                        properties:
+                          status: { type: string, enum: [enrolled] }
+                          kind: { type: string, enum: [student, teacher] }
+                          name: { type: string, example: Diyora A. }
         "400": { $ref: "#/components/responses/Error" }
         "410":
           description: "`code_expired`: no code to check (expired, already used, never sent, or replaced by a newer one): ask for a new one"
@@ -299,8 +313,8 @@ paths:
               required: [ticket, first_name, last_name, password, google_ticket]
               properties:
                 ticket: { type: string, description: A `signup` ticket }
-                first_name: { type: string, description: 1–60 characters after trimming }
-                last_name: { type: string, description: 1–60 characters after trimming }
+                first_name: { type: [string, "null"], description: "1–60 characters after trimming; needed only for a new account" }
+                last_name: { type: [string, "null"], description: "1–60 characters after trimming; needed only for a new account" }
                 password:
                   type: [string, "null"]
                   description: The rules of `/v1/auth/password`; null only with a `google_ticket`
