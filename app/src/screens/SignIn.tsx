@@ -104,7 +104,7 @@ export function SignIn() {
         />
         {problem && <Notice tone="error" message={problem} />}
         <Button type="submit" label="Sign in" loading={busy} disabled={!canSubmit && !busy} className="mt-1 w-full" />
-        {config.data?.signup && (
+        {config.data?.reset && (
           <Link to="/reset-password" className="t-footnote -mt-1 text-center font-semibold text-accent hover:underline">
             Forgot your password?
           </Link>

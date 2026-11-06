@@ -121,7 +121,7 @@ http.createServer(async (req, res) => {
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
   const auth = req.headers.authorization?.replace(/^Bearer /, '');
   const url = req.url.split('?')[0];
-  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true });
+  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true, reset: true, email: true });
   if (url === '/v1/auth/email/start' && req.method === 'POST') {
     const email = String(body.email || '').trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err(res, 422, 'invalid_email', 'not an email address');
     codes.set(`${email}:email`, { code: '123456', at: Date.now(), tries: 0 }); console.log(`email to ${email}: 123456`);

@@ -115,13 +115,15 @@ export function SignUp() {
               </div>
             </>
           )}
-          <EmailCode
-            onVerified={(address, ticket) => {
-              setEmail(address);
-              setIdentity({ email_ticket: ticket });
-              setStep({ kind: 'details' });
-            }}
-          />
+          {config.data?.email !== false && (
+            <EmailCode
+              onVerified={(address, ticket) => {
+                setEmail(address);
+                setIdentity({ email_ticket: ticket });
+                setStep({ kind: 'details' });
+              }}
+            />
+          )}
         </>
       )}
 
