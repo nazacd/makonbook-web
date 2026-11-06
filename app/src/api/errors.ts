@@ -51,6 +51,12 @@ export function describeError(error: unknown): string {
       return 'An account already uses this email. Sign in instead, or reset your password.';
     case 'identity_spent':
       return 'For your security, start again with another email or Google account.';
+    case 'invalid_telegram':
+      return 'Telegram sign-in didn’t work this time. Try again, or use another way.';
+    case 'telegram_unavailable':
+      return 'Telegram isn’t available right now. Use another way.';
+    case 'telegram_taken':
+      return 'That Telegram account is already linked to another SATMAKON account.';
     case 'phone_taken':
       return 'This phone number already exists. Sign in, or reset your password if you’ve forgotten it.';
     case 'google_taken':

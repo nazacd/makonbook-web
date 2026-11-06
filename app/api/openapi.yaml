@@ -280,6 +280,96 @@ paths:
           description: "`email_unavailable`"
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
+  /v1/auth/telegram:
+    post:
+      summary: Sign in with Telegram (Login Widget data)
+      operationId: telegramSignIn
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Signed in, or a phone is needed to finish signing up
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [status, token, expires_at, user]
+                    properties:
+                      status: { type: string, enum: [signed_in] }
+                      token: { type: string }
+                      expires_at: { type: string, format: date-time }
+                      user: { $ref: "#/components/schemas/Profile" }
+                  - type: object
+                    required: [status, telegram_ticket, first_name, last_name]
+                    properties:
+                      status: { type: string, enum: [needs_phone] }
+                      telegram_ticket: { type: string }
+                      first_name: { type: string }
+                      last_name: { type: string }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/phone/telegram/start:
+    post:
+      summary: Start checking the phone through the Telegram bot
+      operationId: startTelegramPhone
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose]
+              properties:
+                purpose: { type: string, enum: [signup, reset] }
+                email_ticket: { type: [string, "null"] }
+                google_ticket: { type: [string, "null"] }
+                telegram_ticket: { type: [string, "null"] }
+      responses:
+        "200":
+          description: Open the link in Telegram
+          content:
+            application/json:
+              schema: { type: object, required: [nonce, link, expires_in], properties: { nonce: { type: string }, link: { type: string }, expires_in: { type: integer } } }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/phone/telegram/check:
+    post:
+      summary: Whether the number was shared in the bot yet
+      operationId: checkTelegramPhone
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [nonce], properties: { nonce: { type: string } } }
+      responses:
+        "200":
+          description: Pending or verified
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [pending, verified] }
+                  phone: { type: string }
+                  ticket: { type: string }
+                  account: {}
+        "410": { $ref: "#/components/responses/Error" }
+
   /v1/auth/phone/start:
     post:
       summary: Send a 6-digit code by SMS, to sign up or reset a password
@@ -365,6 +455,7 @@ paths:
                 code: { type: string, example: "123456", description: Spaces are ignored }
                 purpose: { type: string, enum: [signup, reset] }
                 email_ticket: { type: [string, "null"], description: "`signup`: the identity, if it is an email" }
+                telegram_ticket: { type: [string, "null"] }
                 google_ticket: { type: [string, "null"], description: "`signup`: the identity, if it is a Google account" }
       responses:
         "200":
@@ -449,6 +540,7 @@ paths:
                 password:
                   type: [string, "null"]
                   description: The rules of `/v1/auth/password`; required with an email, may be null with Google
+                telegram_ticket: { type: [string, "null"] }
                 google_ticket:
                   type: [string, "null"]
                   description: From `/v1/auth/google/ticket` (`needs_phone`), to sign in with Google from then on
@@ -3178,6 +3270,14 @@ components:
         reset: { type: boolean, description: Password reset by SMS code is available }
         email: { type: boolean, description: Sign-up can start with an email code }
         google: { type: boolean, description: Google sign-in is available }
+        telegram:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [bot_id, bot_username]
+              properties:
+                bot_id: { type: integer }
+                bot_username: { type: string }
         min_app_version:
           type: object
           required: [android, ios]

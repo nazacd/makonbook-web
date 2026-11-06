@@ -29,6 +29,8 @@ const passwords = new Map(); // login -> own password (sign-ups, resets)
 const codes = new Map(); // phone:purpose -> { code, at }
 const tickets = new Map(); // ticket -> { phone, purpose } | { google: { sub, first_name, last_name, email } }
 const googleLinks = new Map(); // sub -> login
+const tgLinks = new Map(); // telegram id -> login
+const tgNonces = new Map(); // nonce -> { purpose, identity, phone }
 let nextSelfId = -1000001;
 const newTicket = (v) => { const t = 'tk_' + Math.random().toString(36).slice(2); tickets.set(t, v); return t; };
 const normPhone = (raw) => { const d = String(raw || '').replace(/\D/g, ''); const n = d.length === 9 ? '998' + d : d; return /^998\d{9}$/.test(n) ? '+' + n : null; };
@@ -121,7 +123,7 @@ http.createServer(async (req, res) => {
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
   const auth = req.headers.authorization?.replace(/^Bearer /, '');
   const url = req.url.split('?')[0];
-  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true, reset: true, email: true });
+  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true, reset: true, email: true, telegram: { bot_id: 1, bot_username: 'satmakon_bot' } });
   if (url === '/v1/auth/email/start' && req.method === 'POST') {
     const email = String(body.email || '').trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err(res, 422, 'invalid_email', 'not an email address');
     codes.set(`${email}:email`, { code: '123456', at: Date.now(), tries: 0 }); console.log(`email to ${email}: 123456`);
@@ -134,6 +136,28 @@ http.createServer(async (req, res) => {
     codes.delete(`${email}:email`);
     if (Object.values(people).some((x) => x.email === email)) return err(res, 409, 'email_taken', 'an account has this email');
     return json(res, 200, { email_ticket: newTicket({ email }) });
+  }
+  // Telegram (fictional): any auth with hash "mock" passes; the number is
+  // "shared in the bot" by POST /v1/telegram/mock-share {nonce, phone}.
+  if (url === '/v1/auth/telegram' && req.method === 'POST') {
+    const a = body.auth || {}; if (a.hash !== 'mock' || !a.id) return err(res, 422, 'invalid_telegram', 'bad signature');
+    const linked = tgLinks.get(String(a.id));
+    if (linked && people[linked]) { const token = 'tok_' + Math.random().toString(36).slice(2); tokens.set(token, linked); return json(res, 200, { status: 'signed_in', token, expires_at: '2026-12-31T00:00:00Z', user: people[linked] }); }
+    return json(res, 200, { status: 'needs_phone', telegram_ticket: newTicket({ telegram: { id: String(a.id) } }), first_name: a.first_name || '', last_name: a.last_name || '' });
+  }
+  if (url === '/v1/auth/phone/telegram/start' && req.method === 'POST') {
+    if (body.purpose === 'signup') { const ident = tickets.get(body.email_ticket || body.google_ticket || body.telegram_ticket || ''); if (!ident) return err(res, 422, 'invalid_ticket', 'identity first'); if (ident.spent) return err(res, 409, 'identity_spent', 'start again'); }
+    const nonce = 'n' + Math.random().toString(36).slice(2, 10); tgNonces.set(nonce, { purpose: body.purpose, identity: body.email_ticket || body.google_ticket || body.telegram_ticket || null, phone: null });
+    return json(res, 200, { nonce, link: `https://t.me/satmakon_bot?start=${nonce}`, expires_in: 600 });
+  }
+  if (url === '/v1/telegram/mock-share' && req.method === 'POST') { const n = tgNonces.get(body.nonce); if (!n) return err(res, 404, 'not_found', 'no nonce'); n.phone = normPhone(body.phone); return json(res, 200, {}); }
+  if (url === '/v1/auth/phone/telegram/check' && req.method === 'POST') {
+    const n = tgNonces.get(body.nonce); if (!n) return err(res, 410, 'code_expired', 'start again');
+    if (!n.phone) return json(res, 200, { status: 'pending' });
+    tgNonces.delete(body.nonce);
+    const owner = n.purpose === 'signup' ? byPhone(n.phone) : null; if (owner && n.identity) { const id = tickets.get(n.identity); if (id) id.spent = true; }
+    const account = !owner ? null : owner.status === 'registered' ? { status: 'registered' } : { status: 'enrolled', kind: owner.kind, name: `${owner.first_name} ${owner.last_name[0]}.` };
+    return json(res, 200, { status: 'verified', phone: n.phone, ticket: newTicket({ phone: n.phone, purpose: n.purpose }), ...(n.purpose === 'signup' ? { account } : {}) });
   }
   if (url === '/v1/auth/phone/start' && req.method === 'POST') {
     const phone = normPhone(body.phone); if (!phone) return err(res, 422, 'invalid_phone', 'an Uzbek mobile number is needed');
@@ -148,8 +172,8 @@ http.createServer(async (req, res) => {
     if (String(body.code).trim() !== c.code) { c.tries++; if (c.tries >= 5) { codes.delete(`${phone}:${body.purpose}`); return err(res, 429, 'too_many_tries', 'too many tries'); } return err(res, 422, 'invalid_code', `wrong code, ${5 - c.tries} tries left`); }
     let ident = null;
     if (body.purpose === 'signup') {
-      ident = tickets.get(body.email_ticket || body.google_ticket || '');
-      if (!ident || !(ident.email || ident.google)) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
+      ident = tickets.get(body.email_ticket || body.google_ticket || body.telegram_ticket || '');
+      if (!ident || !(ident.email || ident.google || ident.telegram)) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
       if (ident.spent) return err(res, 409, 'identity_spent', 'start again with another email or Google account');
     }
     codes.delete(`${phone}:${body.purpose}`);
@@ -163,8 +187,9 @@ http.createServer(async (req, res) => {
     const t = tickets.get(body.ticket); if (!t || t.purpose !== 'signup') return err(res, 422, 'invalid_ticket', 'verify the phone again');
     const g = body.google_ticket ? tickets.get(body.google_ticket)?.google : null;
     const em = body.email_ticket ? tickets.get(body.email_ticket)?.email : null;
-    if (!g && !em) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
-    if (body.password == null && !g) return err(res, 422, 'weak_password', 'a password is needed');
+    const tg = body.telegram_ticket ? tickets.get(body.telegram_ticket)?.telegram : null;
+    if (!g && !em && !tg) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
+    if (body.password == null && !g && !tg) return err(res, 422, 'weak_password', 'a password is needed');
     if (body.password != null && String(body.password).length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
     let p = byPhone(t.phone); const existing = !!p;
     if (p && p.status === 'registered') return err(res, 409, 'phone_taken', 'this phone number already has an account');
@@ -175,6 +200,8 @@ http.createServer(async (req, res) => {
     if (body.password != null) { passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false; }
     if (g) { googleLinks.set(g.sub, p.login); p.google = true; }
     if (em && !p.email) p.email = em;
+    if (tg) { tgLinks.set(tg.id, p.login); p.telegram = true; }
+    if (body.telegram_ticket) tickets.delete(body.telegram_ticket);
     return signIn(res, p, { existing });
   }
   if (url === '/v1/auth/reset' && req.method === 'POST') {

@@ -185,6 +185,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with Telegram (Login Widget data) */
+        post: operations["telegramSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/phone/telegram/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start checking the phone through the Telegram bot */
+        post: operations["startTelegramPhone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/phone/telegram/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Whether the number was shared in the bot yet */
+        post: operations["checkTelegramPhone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/phone/start": {
         parameters: {
             query?: never;
@@ -2440,6 +2491,10 @@ export interface components {
             email?: boolean;
             /** @description Google sign-in is available */
             google?: boolean;
+            telegram?: null | {
+                bot_id: number;
+                bot_username: string;
+            };
             min_app_version: {
                 /** @example 1.0.0 */
                 android: string;
@@ -2879,6 +2934,119 @@ export interface operations {
             };
         };
     };
+    telegramSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    auth: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in, or a phone is needed to finish signing up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "signed_in";
+                        token: string;
+                        /** Format: date-time */
+                        expires_at: string;
+                        user: components["schemas"]["Profile"];
+                    } | {
+                        /** @enum {string} */
+                        status: "needs_phone";
+                        telegram_ticket: string;
+                        first_name: string;
+                        last_name: string;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    startTelegramPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    purpose: "signup" | "reset";
+                    email_ticket?: string | null;
+                    google_ticket?: string | null;
+                    telegram_ticket?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Open the link in Telegram */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        nonce: string;
+                        link: string;
+                        expires_in: number;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    checkTelegramPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    nonce: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Pending or verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "pending" | "verified";
+                        phone?: string;
+                        ticket?: string;
+                        account?: unknown;
+                    };
+                };
+            };
+            410: components["responses"]["Error"];
+        };
+    };
     startPhoneCode: {
         parameters: {
             query?: never;
@@ -2968,6 +3136,7 @@ export interface operations {
                     purpose: "signup" | "reset";
                     /** @description `signup`: the identity, if it is an email */
                     email_ticket?: string | null;
+                    telegram_ticket?: string | null;
                     /** @description `signup`: the identity, if it is a Google account */
                     google_ticket?: string | null;
                 };
@@ -3069,6 +3238,7 @@ export interface operations {
                     last_name: string | null;
                     /** @description The rules of `/v1/auth/password`; required with an email, may be null with Google */
                     password: string | null;
+                    telegram_ticket?: string | null;
                     /** @description From `/v1/auth/google/ticket` (`needs_phone`), to sign in with Google from then on */
                     google_ticket?: string | null;
                     device_id?: string;

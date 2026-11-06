@@ -7,6 +7,7 @@ import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
 import { EmailCode } from '@/components/accounts/EmailCode';
 import { PhoneCode } from '@/components/accounts/PhoneCode';
+import { TelegramButton } from '@/components/accounts/TelegramButton';
 import { AuthCard } from '@/components/brand/AuthCard';
 import { Button } from '@/components/Button';
 import { Notice } from '@/components/Notice';
@@ -24,19 +25,24 @@ import { GoogleG } from './SignIn';
 //   account and links the email or Google account to it.
 // An email or Google account can be used to look up one taken number only.
 export type GoogleSignup = { google_ticket: string; first_name: string; last_name: string; email: string };
+export type TelegramSignup = { telegram_ticket: string; first_name: string; last_name: string };
 
 type Step = { kind: 'identity' } | { kind: 'details' } | { kind: 'phone' } | { kind: 'exists' } | { kind: 'confirm'; ticket: string; owner: Extract<NumberOwner, { status: 'enrolled' }> } | { kind: 'not-me' };
 
 export function SignUp() {
   useTitle('Create account');
   const { adopt } = useAuth();
-  const google = (useLocation().state as { google?: GoogleSignup } | null)?.google ?? null;
+  const state = useLocation().state as { google?: GoogleSignup; telegram?: TelegramSignup } | null;
+  const google = state?.google ?? null;
+  const telegram = state?.telegram ?? null;
+  // Signed in with a provider (Google or Telegram): name filled in, password optional.
+  const provider = google ?? telegram;
   const config = useAppConfig();
-  const [identity, setIdentity] = useState<Identity | null>(google ? { google_ticket: google.google_ticket } : null);
+  const [identity, setIdentity] = useState<Identity | null>(google ? { google_ticket: google.google_ticket } : telegram ? { telegram_ticket: telegram.telegram_ticket } : null);
   const [email, setEmail] = useState<string | null>(null);
-  const [step, setStep] = useState<Step>(google ? { kind: 'details' } : { kind: 'identity' });
-  const [first, setFirst] = useState(google?.first_name ?? '');
-  const [last, setLast] = useState(google?.last_name ?? '');
+  const [step, setStep] = useState<Step>(provider ? { kind: 'details' } : { kind: 'identity' });
+  const [first, setFirst] = useState(provider?.first_name ?? '');
+  const [last, setLast] = useState(provider?.last_name ?? '');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -60,6 +66,7 @@ export function SignUp() {
           password: password || null,
           google_ticket: identity.google_ticket ?? null,
           email_ticket: identity.email_ticket ?? null,
+          telegram_ticket: identity.telegram_ticket ?? null,
         }),
       );
     } catch (err) {
@@ -68,21 +75,21 @@ export function SignUp() {
     }
   }
 
-  const passwordOk = google ? password === '' || password.length >= 8 : password.length >= 8;
+  const passwordOk = provider ? password === '' || password.length >= 8 : password.length >= 8;
   const passwordField = () => (
     <TextField
-      label={google ? 'Password (optional)' : 'Password'}
+      label={provider ? 'Password (optional)' : 'Password'}
       secure
       value={password}
       onChange={(e) => setPassword(e.target.value)}
       autoComplete="new-password"
-      hint={google ? 'Set one to sign in with your phone number or email too, here and in the phone app.' : 'At least 8 characters. You’ll sign in with your email or phone number and this.'}
+      hint={provider ? 'Set one to sign in with your phone number or email too, here and in the phone app.' : 'At least 8 characters. You’ll sign in with your email or phone number and this.'}
     />
   );
 
   const titles: Record<Step['kind'], [string, string]> = {
     identity: ['Create your account', 'Free practice tests, vocabulary and the Training Hall. SATMAKON students get everything.'],
-    details: ['About you', google ? `Signing up with Google (${google.email}).` : `Signing up with ${email ?? 'your email'}.`],
+    details: ['About you', google ? `Signing up with Google (${google.email}).` : telegram ? 'Signing up with Telegram.' : `Signing up with ${email ?? 'your email'}.`],
     phone: ['Your phone number', 'Last step: SATMAKON uses it to find your classes once you enrol.'],
     exists: ['This number is taken', 'It already has a SATMAKON account.'],
     confirm: ['Is this you?', 'This number belongs to a SATMAKON account.'],
@@ -104,12 +111,15 @@ export function SignUp() {
       }>
       {step.kind === 'identity' && (
         <>
-          {config.data?.google && (
+          {(config.data?.google || config.data?.telegram) && (
             <>
-              <button type="button" onClick={() => startGoogle('/')} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
+              <div className="mb-2.5">
+                <TelegramButton />
+              </div>
+              {config.data?.google && <button type="button" onClick={() => startGoogle('/')} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
                 <GoogleG />
                 Continue with Google
-              </button>
+              </button>}
               <div className="my-4 flex items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-3">
                 <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
               </div>

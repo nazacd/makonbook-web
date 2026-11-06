@@ -3,6 +3,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 
 import { startGoogle, useAppConfig } from '@/api/accounts';
+import { TelegramButton } from '@/components/accounts/TelegramButton';
 import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
@@ -62,12 +63,15 @@ export function SignIn() {
           <p className="t-footnote text-ink-3">Forgot your password, or your number changed? Ask the office to reset it.</p>
         )
       }>
-      {config.data?.google && (
+      {(config.data?.google || config.data?.telegram) && (
         <>
-          <button type="button" onClick={() => startGoogle('/')} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
+          <div className="flex flex-col gap-2.5">
+          <TelegramButton />
+          {config.data?.google && <button type="button" onClick={() => startGoogle('/')} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
             <GoogleG />
             Continue with Google
-          </button>
+          </button>}
+          </div>
           <div className="my-4 flex items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-3">
             <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
           </div>
