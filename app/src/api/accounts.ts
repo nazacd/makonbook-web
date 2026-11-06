@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api, call } from './client';
+import type { paths } from './schema';
 import { meKey } from './queries';
 import type { Profile } from './types';
 
@@ -71,7 +72,9 @@ export function startTelegram(botId: number) {
   window.location.assign(`https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&request_access=write&return_to=${encodeURIComponent(`${origin}/auth/telegram`)}`);
 }
 
-export function telegramSignIn(auth: Record<string, unknown>) {
+export type TelegramAuth = paths['/v1/auth/telegram']['post']['requestBody']['content']['application/json']['auth'];
+
+export function telegramSignIn(auth: TelegramAuth) {
   return call(api.POST('/v1/auth/telegram', { body: { auth } }));
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { telegramSignIn } from '@/api/accounts';
+import { telegramSignIn, type TelegramAuth } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
 import { AuthCard } from '@/components/brand/AuthCard';
@@ -12,13 +12,13 @@ import { useTitle } from '@/lib/title';
 // Where Telegram's sign-in page sends people back: #tgAuthResult=<base64 JSON
 // signed by Telegram>. The API checks the signature; a linked Telegram
 // account signs in, a new one goes on to sign-up.
-function readResult(): Record<string, unknown> | null {
+function readResult(): TelegramAuth | null {
   const raw = new URLSearchParams(window.location.hash.slice(1)).get('tgAuthResult');
   if (!raw) return null;
   try {
     const b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
     const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
-    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))) as Record<string, unknown>;
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))) as TelegramAuth;
   } catch {
     return null;
   }
