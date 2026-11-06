@@ -49,7 +49,7 @@ export function SignIn() {
   return (
     <AuthCard
       title="Sign in"
-      subtitle="Use your phone number or your username."
+      subtitle="Use your phone number, email or username."
       aside={
         config.data?.signup ? (
           <p className="t-subhead text-ink-2">
@@ -75,7 +75,7 @@ export function SignIn() {
       )}
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <TextField
-          label="Phone number or username"
+          label="Phone, email or username"
           value={login}
           onChange={(e) => {
             setLogin(e.target.value);
@@ -115,7 +115,7 @@ export function SignIn() {
 }
 
 // Google's "G" in its four colours (the sign-in button's own mark).
-function GoogleG() {
+export function GoogleG() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
       <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z" />

@@ -186,6 +186,47 @@ paths:
         "204": { description: Logged out }
         "401": { $ref: "#/components/responses/Error" }
 
+  /v1/auth/email/start:
+    post:
+      summary: Send a 6-digit code to an email address (sign-up)
+      operationId: startEmailCode
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [email], properties: { email: { type: string } } }
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema: { type: object, required: [resend_in, expires_in], properties: { resend_in: { type: integer }, expires_in: { type: integer } } }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/email/verify:
+    post:
+      summary: Check the email code; answers a ticket proving the address
+      operationId: verifyEmailCode
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [email, code], properties: { email: { type: string }, code: { type: string } } }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema: { type: object, required: [email_ticket], properties: { email_ticket: { type: string } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
   /v1/auth/phone/start:
     post:
       summary: Send a 6-digit code by SMS, to sign up or reset a password
@@ -257,6 +298,8 @@ paths:
               type: object
               required: [phone, code, purpose]
               properties:
+                email_ticket: { type: [string, "null"] }
+                google_ticket: { type: [string, "null"] }
                 phone: { type: string, maxLength: 50 }
                 code: { type: string, example: "123456", description: Spaces are ignored }
                 purpose: { type: string, enum: [signup, reset] }
@@ -333,6 +376,7 @@ paths:
                 password:
                   type: [string, "null"]
                   description: The rules of `/v1/auth/password`; null only with a `google_ticket`
+                email_ticket: { type: [string, "null"] }
                 google_ticket:
                   type: [string, "null"]
                   description: From `/v1/auth/google/ticket` (`needs_phone`), to sign in with Google from then on

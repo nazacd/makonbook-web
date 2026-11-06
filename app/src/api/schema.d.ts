@@ -137,6 +137,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/email/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a 6-digit code to an email address (sign-up) */
+        post: operations["startEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the email code; answers a ticket proving the address */
+        post: operations["verifyEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/phone/start": {
         parameters: {
             query?: never;
@@ -2673,6 +2707,71 @@ export interface operations {
             401: components["responses"]["Error"];
         };
     };
+    startEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        resend_in: number;
+                        expires_in: number;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    verifyEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        email_ticket: string;
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+        };
+    };
     startPhoneCode: {
         parameters: {
             query?: never;
@@ -2752,6 +2851,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    email_ticket?: string | null;
+                    google_ticket?: string | null;
                     phone: string;
                     /**
                      * @description Spaces are ignored
@@ -2848,6 +2949,7 @@ export interface operations {
                     last_name: string | null;
                     /** @description The rules of `/v1/auth/password`; null only with a `google_ticket` */
                     password: string | null;
+                    email_ticket?: string | null;
                     /** @description From `/v1/auth/google/ticket` (`needs_phone`), to sign in with Google from then on */
                     google_ticket: string | null;
                     device_id?: string;
