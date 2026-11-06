@@ -24,11 +24,26 @@ export function sendCode(phone: string, purpose: Purpose) {
   return call(api.POST('/v1/auth/phone/start', { body: { phone, purpose } }));
 }
 
-export async function checkCode(phone: string, code: string, purpose: Purpose) {
-  return (await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose } }))).ticket;
+/** Whose number it is, told after the code is verified (sign-up only): nobody's, a free account's, or a SATMAKON student's or teacher's. */
+export type NumberOwner = null | { status: 'registered' } | { status: 'enrolled'; kind: 'student' | 'teacher'; name: string };
+
+/** Who is signing up: a verified email or a Google account (one of the two). */
+export type Identity = { email_ticket: string; google_ticket?: null } | { google_ticket: string; email_ticket?: null };
+
+export function sendEmailCode(email: string) {
+  return call(api.POST('/v1/auth/email/start', { body: { email } }));
 }
 
-export function signUp(body: { ticket: string; first_name: string; last_name: string; password: string | null; google_ticket: string | null }) {
+export async function checkEmailCode(email: string, code: string) {
+  return (await call(api.POST('/v1/auth/email/verify', { body: { email, code } }))).email_ticket;
+}
+
+export async function checkCode(phone: string, code: string, purpose: Purpose, identity?: Identity): Promise<{ ticket: string; account: NumberOwner }> {
+  const r = await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose, email_ticket: identity?.email_ticket ?? null, google_ticket: identity?.google_ticket ?? null } }));
+  return { ticket: r.ticket, account: (r.account ?? null) as NumberOwner };
+}
+
+export function signUp(body: { ticket: string; first_name: string | null; last_name: string | null; password: string | null; google_ticket: string | null; email_ticket: string | null }) {
   return call(api.POST('/v1/auth/signup', { body }));
 }
 

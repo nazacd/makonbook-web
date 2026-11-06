@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { checkCode, formatUzPhone, sendCode, type Purpose } from '@/api/accounts';
+import { checkCode, formatUzPhone, sendCode, type Identity, type NumberOwner, type Purpose } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
 
 // The phone number, then the 6-digit code sent to it by SMS. Answers the
-// verified phone (E.164-ish, "+998…") and the server's ticket.
-export function PhoneCode({ purpose, onVerified, initialPhone = '' }: { purpose: Purpose; onVerified: (phone: string, ticket: string) => void; initialPhone?: string }) {
+// verified phone ("+998…"), the server's ticket and, for sign-up, whose
+// number it is.
+export function PhoneCode({ purpose, onVerified, initialPhone = '', identity }: { purpose: Purpose; onVerified: (phone: string, ticket: string, account: NumberOwner) => void; initialPhone?: string; identity?: Identity }) {
   const [digits, setDigits] = useState(initialPhone.replace(/\D/g, '').replace(/^998/, '').slice(0, 9));
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -48,7 +49,8 @@ export function PhoneCode({ purpose, onVerified, initialPhone = '' }: { purpose:
     setBusy(true);
     setProblem(null);
     try {
-      onVerified(sentTo, await checkCode(sentTo, value, purpose));
+      const r = await checkCode(sentTo, value, purpose, identity);
+      onVerified(sentTo, r.ticket, r.account);
     } catch (err) {
       setProblem(describeError(err));
       setCode('');

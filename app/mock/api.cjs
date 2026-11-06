@@ -24,7 +24,7 @@ const tokens = new Map();
 // password; sign-ups get negative ids, their own password and status
 // "registered". The SMS code is always 123456 here; Google sign-in skips
 // Google and comes back with a made-up account.
-for (const [login, p] of Object.entries(people)) Object.assign(p, { status: 'enrolled', phone: p.kind === 'teacher' ? '+998901110077' : `+99890111${String(p.id).padStart(4, '0')}`, google: false, has_password: true, login });
+for (const [login, p] of Object.entries(people)) Object.assign(p, { status: 'enrolled', phone: p.kind === 'teacher' ? '+998901110077' : `+99890111${String(p.id).padStart(4, '0')}`, google: false, has_password: true, email: null, login });
 const passwords = new Map(); // login -> own password (sign-ups, resets)
 const codes = new Map(); // phone:purpose -> { code, at }
 const tickets = new Map(); // ticket -> { phone, purpose } | { google: { sub, first_name, last_name, email } }
@@ -121,7 +121,20 @@ http.createServer(async (req, res) => {
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
   const auth = req.headers.authorization?.replace(/^Bearer /, '');
   const url = req.url.split('?')[0];
-  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true });
+  if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true, reset: true, email: true });
+  if (url === '/v1/auth/email/start' && req.method === 'POST') {
+    const email = String(body.email || '').trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err(res, 422, 'invalid_email', 'not an email address');
+    codes.set(`${email}:email`, { code: '123456', at: Date.now(), tries: 0 }); console.log(`email to ${email}: 123456`);
+    return json(res, 200, { resend_in: 60, expires_in: 600 });
+  }
+  if (url === '/v1/auth/email/verify' && req.method === 'POST') {
+    const email = String(body.email || '').trim().toLowerCase(); const c = codes.get(`${email}:email`);
+    if (!c) return err(res, 410, 'code_expired', 'ask for a new code');
+    if (String(body.code).trim() !== c.code) return err(res, 422, 'invalid_code', 'wrong code');
+    codes.delete(`${email}:email`);
+    if (Object.values(people).some((x) => x.email === email)) return err(res, 409, 'email_taken', 'an account has this email');
+    return json(res, 200, { email_ticket: newTicket({ email }) });
+  }
   if (url === '/v1/auth/phone/start' && req.method === 'POST') {
     const phone = normPhone(body.phone); if (!phone) return err(res, 422, 'invalid_phone', 'an Uzbek mobile number is needed');
     const k = `${phone}:${body.purpose}`; const last = codes.get(k);
@@ -133,20 +146,35 @@ http.createServer(async (req, res) => {
     const phone = normPhone(body.phone); const c = phone && codes.get(`${phone}:${body.purpose}`);
     if (!c) return err(res, 410, 'code_expired', 'ask for a new code');
     if (String(body.code).trim() !== c.code) { c.tries++; if (c.tries >= 5) { codes.delete(`${phone}:${body.purpose}`); return err(res, 429, 'too_many_tries', 'too many tries'); } return err(res, 422, 'invalid_code', `wrong code, ${5 - c.tries} tries left`); }
-    codes.delete(`${phone}:${body.purpose}`); return json(res, 200, { ticket: newTicket({ phone, purpose: body.purpose }) });
+    let ident = null;
+    if (body.purpose === 'signup') {
+      ident = tickets.get(body.email_ticket || body.google_ticket || '');
+      if (!ident || !(ident.email || ident.google)) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
+      if (ident.spent) return err(res, 409, 'identity_spent', 'start again with another email or Google account');
+    }
+    codes.delete(`${phone}:${body.purpose}`);
+    // Sign-up: say whose number it is, now that the phone is proven.
+    const owner = body.purpose === 'signup' ? byPhone(phone) : null;
+    if (owner) ident.spent = true;
+    const account = !owner ? null : owner.status === 'registered' ? { status: 'registered' } : { status: 'enrolled', kind: owner.kind, name: `${owner.first_name} ${owner.last_name[0]}.` };
+    return json(res, 200, { ticket: newTicket({ phone, purpose: body.purpose }), ...(body.purpose === 'signup' ? { account } : {}) });
   }
   if (url === '/v1/auth/signup' && req.method === 'POST') {
     const t = tickets.get(body.ticket); if (!t || t.purpose !== 'signup') return err(res, 422, 'invalid_ticket', 'verify the phone again');
     const g = body.google_ticket ? tickets.get(body.google_ticket)?.google : null;
+    const em = body.email_ticket ? tickets.get(body.email_ticket)?.email : null;
+    if (!g && !em) return err(res, 422, 'invalid_ticket', 'sign up with an email or Google first');
     if (body.password == null && !g) return err(res, 422, 'weak_password', 'a password is needed');
     if (body.password != null && String(body.password).length < 8) return err(res, 422, 'weak_password', 'password must be 8–128 characters');
-    const fn = String(body.first_name || '').trim(); const ln = String(body.last_name || '').trim();
-    if (!fn || !ln) return err(res, 422, 'invalid_profile', 'name and surname are needed');
-    tickets.delete(body.ticket); if (body.google_ticket) tickets.delete(body.google_ticket);
     let p = byPhone(t.phone); const existing = !!p;
-    if (!p) { const id = nextSelfId--; p = { kind: 'student', id, first_name: fn, last_name: ln, username: null, must_change_password: false, status: 'registered', phone: t.phone, google: false, has_password: false, groups: [], login: t.phone }; people[t.phone] = p; }
+    if (p && p.status === 'registered') return err(res, 409, 'phone_taken', 'this phone number already has an account');
+    const fn = String(body.first_name || '').trim(); const ln = String(body.last_name || '').trim();
+    if (!p && (!fn || !ln)) return err(res, 422, 'invalid_profile', 'name and surname are needed');
+    tickets.delete(body.ticket); if (body.google_ticket) tickets.delete(body.google_ticket); if (body.email_ticket) tickets.delete(body.email_ticket);
+    if (!p) { const id = nextSelfId--; p = { kind: 'student', id, first_name: fn, last_name: ln, username: null, must_change_password: false, status: 'registered', phone: t.phone, google: false, has_password: false, email: null, groups: [], login: t.phone }; people[t.phone] = p; }
     if (body.password != null) { passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false; }
     if (g) { googleLinks.set(g.sub, p.login); p.google = true; }
+    if (em && !p.email) p.email = em;
     return signIn(res, p, { existing });
   }
   if (url === '/v1/auth/reset' && req.method === 'POST') {
@@ -168,7 +196,7 @@ http.createServer(async (req, res) => {
     return json(res, 200, { status: 'needs_phone', google_ticket: newTicket({ google: t.google }), ...t.google, sub: undefined });
   }
   if (url === '/v1/auth/login' && req.method === 'POST') {
-    const id = body.login?.trim(); const p = people[id] ?? byPhone(normPhone(id));
+    const id = body.login?.trim(); const p = people[id] ?? byPhone(normPhone(id)) ?? Object.values(people).find((x) => x.email && x.email === String(id).toLowerCase());
     const want = p && (passwords.get(p.login) ?? (p.status === 'registered' ? null : PW));
     if (!p || !want || body.password !== want) return err(res, 401, 'invalid_credentials', 'wrong login or password');
     return signIn(res, p);

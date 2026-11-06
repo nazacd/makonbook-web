@@ -27,6 +27,8 @@ export function describeError(error: unknown): string {
       return 'This isn’t available for your account.';
     case 'not_found':
       return 'That isn’t here any more.';
+    case 'sms_unavailable':
+      return 'We can’t send text messages right now. Please try again a little later.';
     case 'invalid_phone':
       return 'Enter an Uzbek mobile number, like 90 123 45 67.';
     case 'invalid_code':
@@ -41,6 +43,16 @@ export function describeError(error: unknown): string {
       return 'Use 8 to 128 characters, and not your phone number.';
     case 'invalid_profile':
       return 'Enter your first name and surname (up to 60 characters each).';
+    case 'invalid_email':
+      return 'Enter a valid email address.';
+    case 'email_unavailable':
+      return 'We can’t send emails right now. Please try again a little later, or continue with Google.';
+    case 'email_taken':
+      return 'An account already uses this email. Sign in instead, or reset your password.';
+    case 'identity_spent':
+      return 'For your security, start again with another email or Google account.';
+    case 'phone_taken':
+      return 'This phone number already exists. Sign in, or reset your password if you’ve forgotten it.';
     case 'google_taken':
       return 'That Google account is already linked to another SATMAKON account.';
     case 'google_unavailable':
