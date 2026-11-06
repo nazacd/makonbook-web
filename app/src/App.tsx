@@ -43,6 +43,7 @@ const ProblemQuestions = page(() => import('@/screens/ProblemQuestions'), 'Probl
 const SignUp = page(() => import('@/screens/SignUp'), 'SignUp');
 const ResetPassword = page(() => import('@/screens/ResetPassword'), 'ResetPassword');
 const GoogleCallback = page(() => import('@/screens/GoogleCallback'), 'GoogleCallback');
+const TelegramCallback = page(() => import('@/screens/TelegramCallback'), 'TelegramCallback');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +72,7 @@ export function App() {
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/auth/google" element={<GoogleCallback />} />
+                <Route path="/auth/telegram" element={<TelegramCallback />} />
               </Route>
               <Route element={<RequireAuth />}>
                 <Route path="/choose-password" element={<ChoosePassword />} />
