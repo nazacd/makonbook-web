@@ -16,9 +16,13 @@ import { useTitle } from '@/lib/title';
 
 import { GoogleG } from './SignIn';
 
-// Creating a student account: first who you are (Google, or an email checked
-// with a code), then name and a password (optional with Google), then the
-// phone, checked by SMS. By whose number it turns out to be:
+// Creating a student account: first who you are (an email checked with a
+// code, Google or Telegram), then the phone, checked by SMS or in the
+// Telegram bot. With an email, name and password come before the phone; with
+// Google or Telegram the phone comes first and the name form (password
+// optional) only for a new number. A number shared in the bot from the same
+// Telegram account signs straight into the account that has it. Otherwise,
+// by whose number it turns out to be:
 // - nobody's: the account is created;
 // - a free account's: "this phone number already exists";
 // - a SATMAKON student's or teacher's: "Is this you?"; yes signs into that
