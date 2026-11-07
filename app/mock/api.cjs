@@ -150,14 +150,20 @@ http.createServer(async (req, res) => {
     const nonce = 'n' + Math.random().toString(36).slice(2, 10); tgNonces.set(nonce, { purpose: body.purpose, identity: body.email_ticket || body.google_ticket || body.telegram_ticket || null, phone: null });
     return json(res, 200, { nonce, link: `https://t.me/satmakon_bot?start=${nonce}`, expires_in: 600 });
   }
-  if (url === '/v1/telegram/mock-share' && req.method === 'POST') { const n = tgNonces.get(body.nonce); if (!n) return err(res, 404, 'not_found', 'no nonce'); n.phone = normPhone(body.phone); return json(res, 200, {}); }
+  if (url === '/v1/telegram/mock-share' && req.method === 'POST') { const n = tgNonces.get(body.nonce); if (!n) return err(res, 404, 'not_found', 'no nonce'); n.phone = normPhone(body.phone); n.tgUser = body.telegram_id ? String(body.telegram_id) : null; return json(res, 200, {}); }
   if (url === '/v1/auth/phone/telegram/check' && req.method === 'POST') {
     const n = tgNonces.get(body.nonce); if (!n) return err(res, 410, 'code_expired', 'start again');
     if (!n.phone) return json(res, 200, { status: 'pending' });
     tgNonces.delete(body.nonce);
+    const ownerAny = byPhone(n.phone); const identT = n.identity ? tickets.get(n.identity) : null;
+    if (n.purpose === 'signup' && ownerAny && identT?.telegram && n.tgUser && identT.telegram.id === n.tgUser) {
+      if (!tgLinks.has(n.tgUser)) { tgLinks.set(n.tgUser, ownerAny.login); ownerAny.telegram = true; }
+      tickets.delete(n.identity); const token = 'tok_' + Math.random().toString(36).slice(2); tokens.set(token, ownerAny.login);
+      return json(res, 200, { status: 'signed_in', token, expires_at: '2026-12-31T00:00:00Z', user: ownerAny });
+    }
     const owner = n.purpose === 'signup' ? byPhone(n.phone) : null; if (owner && n.identity) { const id = tickets.get(n.identity); if (id) id.spent = true; }
     const account = !owner ? null : owner.status === 'registered' ? { status: 'registered' } : { status: 'enrolled', kind: owner.kind, name: `${owner.first_name} ${owner.last_name[0]}.` };
-    return json(res, 200, { status: 'verified', phone: n.phone, ticket: newTicket({ phone: n.phone, purpose: n.purpose }), ...(n.purpose === 'signup' ? { account } : {}) });
+    return json(res, 200, { status: 'verified', phone: n.phone, ticket: newTicket({ phone: n.phone, purpose: n.purpose, tgUser: n.tgUser }), ...(n.purpose === 'signup' ? { account } : {}) });
   }
   if (url === '/v1/auth/phone/start' && req.method === 'POST') {
     const phone = normPhone(body.phone); if (!phone) return err(res, 422, 'invalid_phone', 'an Uzbek mobile number is needed');
@@ -200,6 +206,7 @@ http.createServer(async (req, res) => {
     if (body.password != null) { passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false; }
     if (g) { googleLinks.set(g.sub, p.login); p.google = true; }
     if (em && !p.email) p.email = em;
+    if (t.tgUser && !tgLinks.has(t.tgUser)) { tgLinks.set(t.tgUser, p.login); p.telegram = true; }
     if (tg) { tgLinks.set(tg.id, p.login); p.telegram = true; }
     if (body.telegram_ticket) tickets.delete(body.telegram_ticket);
     return signIn(res, p, { existing });

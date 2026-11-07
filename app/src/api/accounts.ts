@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, call } from './client';
 import type { paths } from './schema';
 import { meKey } from './queries';
-import type { Profile } from './types';
+import type { LoginResponse, Profile } from './types';
 
 // Accounts (makonbook-api docs/platform-spec.md, "Accounts"): sign-up and
 // password reset by SMS code, Google sign-in, and changing your own name.
@@ -83,8 +83,15 @@ export function startTelegramPhone(purpose: Purpose, identity?: Identity) {
   return call(api.POST('/v1/auth/phone/telegram/start', { body: { purpose, ...ids(identity) } }));
 }
 
-export async function checkTelegramPhone(nonce: string): Promise<{ status: 'pending' } | { status: 'verified'; phone: string; ticket: string; account: NumberOwner }> {
-  const r = await call(api.POST('/v1/auth/phone/telegram/check', { body: { nonce } }));
+export type TelegramCheck =
+  | { status: 'pending' }
+  | { status: 'verified'; phone: string; ticket: string; account: NumberOwner }
+  /** The number was shared from the same Telegram account the person signed in with: they're signed into the account that has it. */
+  | { status: 'signed_in'; login: LoginResponse };
+
+export async function checkTelegramPhone(nonce: string): Promise<TelegramCheck> {
+  const r = (await call(api.POST('/v1/auth/phone/telegram/check', { body: { nonce } }))) as { status: string; phone?: string; ticket?: string; account?: unknown; token?: string; expires_at?: string; user?: Profile };
+  if (r.status === 'signed_in' && r.token && r.user) return { status: 'signed_in', login: { token: r.token, expires_at: r.expires_at ?? '', user: r.user } };
   if (r.status !== 'verified') return { status: 'pending' };
   return { status: 'verified', phone: r.phone ?? '', ticket: r.ticket ?? '', account: (r.account ?? null) as NumberOwner };
 }

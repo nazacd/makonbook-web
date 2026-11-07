@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { checkCode, checkTelegramPhone, formatUzPhone, sendCode, startTelegramPhone, useAppConfig, type Identity, type NumberOwner, type Purpose } from '@/api/accounts';
+import type { LoginResponse } from '@/api/types';
 import { TelegramMark } from '@/components/accounts/TelegramButton';
 import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
@@ -9,7 +10,7 @@ import { TextField } from '@/components/TextField';
 // The phone number, then the 6-digit code sent to it by SMS. Answers the
 // verified phone ("+998…"), the server's ticket and, for sign-up, whose
 // number it is.
-export function PhoneCode({ purpose, onVerified, initialPhone = '', identity }: { purpose: Purpose; onVerified: (phone: string, ticket: string, account: NumberOwner) => void; initialPhone?: string; identity?: Identity }) {
+export function PhoneCode({ purpose, onVerified, initialPhone = '', identity, onSignedIn }: { purpose: Purpose; onVerified: (phone: string, ticket: string, account: NumberOwner) => void; initialPhone?: string; identity?: Identity; onSignedIn?: (login: LoginResponse) => void }) {
   const [digits, setDigits] = useState(initialPhone.replace(/\D/g, '').replace(/^998/, '').slice(0, 9));
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -23,8 +24,10 @@ export function PhoneCode({ purpose, onVerified, initialPhone = '', identity }: 
   // then a poll every 2 s until the number is shared there.
   const [tg, setTg] = useState<{ nonce: string; link: string } | null>(null);
   const onVerifiedRef = useRef(onVerified);
+  const onSignedInRef = useRef(onSignedIn);
   useEffect(() => {
     onVerifiedRef.current = onVerified;
+    onSignedInRef.current = onSignedIn;
   });
   useEffect(() => {
     if (!tg) return;
@@ -33,6 +36,11 @@ export function PhoneCode({ purpose, onVerified, initialPhone = '', identity }: 
       try {
         const r = await checkTelegramPhone(tg.nonce);
         if (stop) return;
+        if (r.status === 'signed_in') {
+          setTg(null);
+          onSignedInRef.current?.(r.login);
+          return;
+        }
         if (r.status === 'verified') {
           setTg(null);
           onVerifiedRef.current(r.phone, r.ticket, r.account);
