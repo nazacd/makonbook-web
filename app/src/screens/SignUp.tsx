@@ -16,9 +16,13 @@ import { useTitle } from '@/lib/title';
 
 import { GoogleG } from './SignIn';
 
-// Creating a student account: first who you are (Google, or an email checked
-// with a code), then name and a password (optional with Google), then the
-// phone, checked by SMS. By whose number it turns out to be:
+// Creating a student account: first who you are (an email checked with a
+// code, Google or Telegram), then the phone, checked by SMS or in the
+// Telegram bot. With an email, name and password come before the phone; with
+// Google or Telegram the phone comes first and the name form (password
+// optional) only for a new number. A number shared in the bot from the same
+// Telegram account signs straight into the account that has it. Otherwise,
+// by whose number it turns out to be:
 // - nobody's: the account is created;
 // - a free account's: "this phone number already exists";
 // - a SATMAKON student's or teacher's: "Is this you?"; yes signs into that
@@ -27,7 +31,7 @@ import { GoogleG } from './SignIn';
 export type GoogleSignup = { google_ticket: string; first_name: string; last_name: string; email: string };
 export type TelegramSignup = { telegram_ticket: string; first_name: string; last_name: string };
 
-type Step = { kind: 'identity' } | { kind: 'details' } | { kind: 'phone' } | { kind: 'exists' } | { kind: 'confirm'; ticket: string; owner: Extract<NumberOwner, { status: 'enrolled' }> } | { kind: 'not-me' };
+type Step = { kind: 'identity' } | { kind: 'details'; ticket?: string } | { kind: 'phone' } | { kind: 'exists' } | { kind: 'confirm'; ticket: string; owner: Extract<NumberOwner, { status: 'enrolled' }> } | { kind: 'not-me' };
 
 export function SignUp() {
   useTitle('Create account');
@@ -40,7 +44,8 @@ export function SignUp() {
   const config = useAppConfig();
   const [identity, setIdentity] = useState<Identity | null>(google ? { google_ticket: google.google_ticket } : telegram ? { telegram_ticket: telegram.telegram_ticket } : null);
   const [email, setEmail] = useState<string | null>(null);
-  const [step, setStep] = useState<Step>(provider ? { kind: 'details' } : { kind: 'identity' });
+  // With Google or Telegram the phone comes first; name and password only for a new number.
+  const [step, setStep] = useState<Step>(provider ? { kind: 'phone' } : { kind: 'identity' });
   const [first, setFirst] = useState(provider?.first_name ?? '');
   const [last, setLast] = useState(provider?.last_name ?? '');
   const [password, setPassword] = useState('');
@@ -50,6 +55,7 @@ export function SignUp() {
   const verified = (_phone: string, ticket: string, owner: NumberOwner) => {
     if (owner?.status === 'registered') setStep({ kind: 'exists' });
     else if (owner?.status === 'enrolled') setStep({ kind: 'confirm', ticket, owner });
+    else if (provider) setStep({ kind: 'details', ticket });
     else void submit(ticket, true);
   };
 
@@ -90,7 +96,7 @@ export function SignUp() {
   const titles: Record<Step['kind'], [string, string]> = {
     identity: ['Create your account', 'Free practice tests, vocabulary and the Training Hall. SATMAKON students get everything.'],
     details: ['About you', google ? `Signing up with Google (${google.email}).` : telegram ? 'Signing up with Telegram.' : `Signing up with ${email ?? 'your email'}.`],
-    phone: ['Your phone number', 'Last step: SATMAKON uses it to find your classes once you enrol.'],
+    phone: ['Your phone number', provider ? 'If you already have a SATMAKON account, it finds it; if not, we’ll set one up.' : 'Last step: SATMAKON uses it to find your classes once you enrol.'],
     exists: ['This number is taken', 'It already has a SATMAKON account.'],
     confirm: ['Is this you?', 'This number belongs to a SATMAKON account.'],
     'not-me': ['This number is in use', 'It belongs to someone else’s SATMAKON account.'],
@@ -141,7 +147,8 @@ export function SignUp() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setStep({ kind: 'phone' });
+            if (step.ticket) void submit(step.ticket, true);
+            else setStep({ kind: 'phone' });
           }}
           className="flex flex-col gap-4"
           noValidate>
@@ -150,13 +157,14 @@ export function SignUp() {
             <TextField label="Surname" value={last} onChange={(e) => setLast(e.target.value)} autoComplete="family-name" />
           </div>
           {passwordField()}
-          <Button type="submit" label="Continue" disabled={first.trim() === '' || last.trim() === '' || !passwordOk} className="w-full" />
+          {problem && <Notice tone="error" message={problem} />}
+          <Button type="submit" label={step.ticket ? 'Create account' : 'Continue'} loading={busy} disabled={(first.trim() === '' || last.trim() === '' || !passwordOk) && !busy} className="w-full" />
         </form>
       )}
 
       {step.kind === 'phone' && identity && (
         <>
-          <PhoneCode purpose="signup" identity={identity} onVerified={verified} />
+          <PhoneCode purpose="signup" identity={identity} onVerified={verified} onSignedIn={adopt} />
           {busy && <p className="t-footnote mt-3 text-center text-ink-2">Creating your account…</p>}
           {problem && (
             <div className="mt-3">
