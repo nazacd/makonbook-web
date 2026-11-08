@@ -28,7 +28,10 @@ export function PhoneCode(props: Props) {
   const [problem, setProblem] = useState<string | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const phone = `+998${digits}`;
-  const telegram = useAppConfig().data?.telegram;
+  const config = useAppConfig().data;
+  const telegram = config?.telegram;
+  // No SMS on this server: proving a number is Telegram only.
+  const sms = config?.reset !== false;
 
   // The resend countdown, once a second.
   useEffect(() => {
@@ -71,6 +74,9 @@ export function PhoneCode(props: Props) {
     }
   }
 
+  if (!sentTo && !sms && props.purpose === 'verify') {
+    return telegram ? <TelegramButton purpose="verify" label="Verify with Telegram" returnTo={props.returnTo} /> : <p className="t-subhead text-ink-2">Proving a phone number isn’t available right now. Please try again later.</p>;
+  }
   if (!sentTo) {
     return (
       <form onSubmit={send} className="flex flex-col gap-4" noValidate>

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { resetPassword } from '@/api/accounts';
+import { resetPassword, useAppConfig } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
 import { EmailCode } from '@/components/accounts/EmailCode';
@@ -21,7 +21,11 @@ export function ResetPassword() {
   useTitle('Reset password');
   const { adopt, status } = useAuth();
   const navigate = useNavigate();
-  const [by, setBy] = useState<'phone' | 'email'>('phone');
+  const config = useAppConfig().data;
+  const [chosen, setBy] = useState<'phone' | 'email' | null>(null);
+  // By phone when SMS works here, else by email; the person can switch when both do.
+  const by = chosen ?? (config?.reset === false ? 'email' : 'phone');
+  const both = config?.reset !== false && config?.email !== false;
   const [ticket, setTicket] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,9 +64,9 @@ export function ResetPassword() {
       ) : by === 'phone' ? (
         <>
           <PhoneCode purpose="reset" onVerified={(_, t) => setTicket(t)} />
-          <button type="button" onClick={() => setBy('email')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
+          {both && <button type="button" onClick={() => setBy('email')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
             Use my email instead
-          </button>
+          </button>}
         </>
       ) : (
         <>
@@ -81,9 +85,9 @@ export function ResetPassword() {
               <Notice tone="error" message="No account has this email. Try your phone number, or create an account." />
             </div>
           )}
-          <button type="button" onClick={() => setBy('phone')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
+          {both && <button type="button" onClick={() => setBy('phone')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
             Use my phone number instead
-          </button>
+          </button>}
         </>
       )}
     </AuthCard>

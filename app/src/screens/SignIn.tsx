@@ -53,7 +53,7 @@ export function SignIn() {
       title="Sign in"
       subtitle="Use your phone number, email or username."
       aside={
-        config.data?.signup ? (
+        config.data?.signup || config.data?.google || config.data?.telegram ? (
           <p className="t-subhead text-ink-2">
             New here?{' '}
             <Link to="/sign-up" className="font-bold text-accent hover:underline">
@@ -104,7 +104,7 @@ export function SignIn() {
         />
         {problem && <Notice tone="error" message={problem} />}
         <Button type="submit" label="Sign in" loading={busy} disabled={!canSubmit && !busy} className="mt-1 w-full" />
-        {config.data?.reset && (
+        {(config.data?.reset || config.data?.email) && (
           <Link to="/reset-password" className="t-footnote -mt-1 text-center font-semibold text-accent hover:underline">
             Forgot your password?
           </Link>
