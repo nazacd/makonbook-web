@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/States';
 import { useTitle } from '@/lib/title';
 
 import { Flag } from './flags';
-import { GOAL, GROUND, REGION_COLORS, initials, layout, pathBetween, segment, type Region, type Stop } from './journey';
+import { GOAL, GROUND, REGION_COLORS, initials, layout, logoOf, pathBetween, segment, type Region, type Stop } from './journey';
 
 // "/roadmaps/:id": the journey. A dark night map scrolled bottom to top: the
 // start, each country's stops (a university each, a unit of the course)
@@ -160,7 +160,7 @@ function Journey({ r }: { r: Roadmap }) {
             </button>
           )}
           <div className="flex w-full max-w-[460px] items-center gap-3 rounded-[18px] border border-white/10 bg-[#0b1426]/90 p-2.5 pl-3 shadow-2xl backdrop-blur">
-            <Medallion name={current.unit.stop.university} size={42} state="open" country={current.country} />
+            <Medallion name={current.unit.stop.university} size={42} state="open" country={current.country} logo={logoOf(current.unit.stop)} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14.5px] font-bold text-white">{r.current.unit_title}</p>
               <p className="truncate text-[12px] text-white/65">{r.current.university}</p>
@@ -271,7 +271,7 @@ function StopNode({ s, current, onOpen }: { s: Stop; current: boolean; onOpen: (
       aria-label={`Stop ${s.index + 1}: ${u.title}, ${u.stop.university}. ${state === 'done' ? 'Done' : state === 'open' ? `${lessonsDone} of ${u.lessons.length} lessons done` : u.lock === 'enrolled_only' ? 'For SATMAKON students' : 'Locked'}`}>
       <span className="relative">
         {current && <span className="absolute -inset-2 animate-ping rounded-full bg-[#f6c343]/25 motion-reduce:animate-none" aria-hidden="true" />}
-        <Medallion name={u.stop.university} size={74} state={state} country={s.country} current={current} />
+        <Medallion name={u.stop.university} size={74} state={state} country={s.country} current={current} logo={logoOf(u.stop)} />
         <span className={`absolute -bottom-0.5 -left-0.5 flex size-6 items-center justify-center rounded-full border-2 border-[#0d1b33] text-[11px] font-bold ${state === 'locked' ? 'bg-[#4b5468] text-white/80' : 'bg-[#f6c343] text-[#1a1300]'}`}>{s.index + 1}</span>
         {state === 'done' && (
           <span className="absolute -right-0.5 -top-0.5 flex size-6 items-center justify-center rounded-full border-2 border-[#0d1b33] bg-[#22c55e] text-white">
@@ -294,11 +294,22 @@ function StopNode({ s, current, onOpen }: { s: Stop; current: boolean; onOpen: (
 
 const MEDAL = ['#2b5ea7', '#5b3fb8', '#9b2f5f', '#1f7a6e', '#8a6d1a', '#3f7a2e'];
 
-/** A university's medallion: its letters on a coin (never its crest, which is the university's own mark). */
-export function Medallion({ name, size, state, country, current = false }: { name: string; size: number; state: 'done' | 'open' | 'locked'; country: number; current?: boolean }) {
+/**
+ * A university's medallion: its logo on a white coin (used with the
+ * universities' permission; the files live on the server, never in the
+ * repo), or its letters when there's no logo.
+ */
+export function Medallion({ name, size, state, country, current = false, logo = null }: { name: string; size: number; state: 'done' | 'open' | 'locked'; country: number; current?: boolean; logo?: string | null }) {
   const letters = initials(name);
   const base = MEDAL[country % MEDAL.length]!;
   const ring = state === 'done' ? '#f6c343' : state === 'open' ? '#ffffff' : '#5b6478';
+  const glow = `0 0 0 ${Math.max(3, size / 18)}px ${ring}${current ? ', 0 0 28px rgba(246,195,67,0.7)' : state === 'done' ? ', 0 0 18px rgba(246,195,67,0.45)' : ''}`;
+  if (logo)
+    return (
+      <span className="relative flex items-center justify-center overflow-hidden rounded-full bg-white" style={{ width: size, height: size, boxShadow: glow }} aria-hidden="true">
+        <img src={logo} alt="" draggable={false} className={`h-[78%] w-[78%] object-contain ${state === 'locked' ? 'opacity-55 grayscale' : ''}`} />
+      </span>
+    );
   return (
     <span
       className="relative flex items-center justify-center rounded-full font-black tracking-[-0.02em]"
@@ -306,7 +317,7 @@ export function Medallion({ name, size, state, country, current = false }: { nam
         width: size,
         height: size,
         background: state === 'locked' ? 'radial-gradient(circle at 35% 30%, #6b7489, #3c4456)' : `radial-gradient(circle at 35% 30%, ${lighten(base)}, ${base})`,
-        boxShadow: `0 0 0 ${Math.max(3, size / 18)}px ${ring}${current ? ', 0 0 28px rgba(246,195,67,0.7)' : state === 'done' ? ', 0 0 18px rgba(246,195,67,0.45)' : ''}`,
+        boxShadow: glow,
         color: state === 'locked' ? 'rgba(255,255,255,0.55)' : '#ffffff',
         fontSize: size * (letters.length > 3 ? 0.24 : 0.3),
       }}

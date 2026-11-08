@@ -174,11 +174,17 @@ function fakeCourse(subject, level) {
   return { subject, level, countries: countries.map(([id, name], k) => ({ id, name, units: units.slice(k * per, (k + 1) * per).map((u) => u.id) })), units };
 }
 const courses = {};
+const logos = new Map(); // slug -> { type, data }
+const slug = (name) => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const logoUrl = (university) => (logos.has(slug(university)) ? `/v1/logos/${slug(university)}` : null);
 for (const subject of ['math', 'english']) for (const level of Object.keys(LEVELS)) courses[`${subject}-${level}`] = fakeCourse(subject, level);
 if (process.env.MOCK_CURRICULUM) {
   const fs = require('fs'); const path = require('path');
   for (const f of fs.readdirSync(process.env.MOCK_CURRICULUM).filter((x) => x.endsWith('.json'))) { const c = JSON.parse(fs.readFileSync(path.join(process.env.MOCK_CURRICULUM, f), 'utf8')); courses[`${c.subject}-${c.level}`] = c; }
   console.log('curriculum from', process.env.MOCK_CURRICULUM);
+  // Logos (never committed): <MOCK_CURRICULUM>/logos/<slug>.svg|png|webp
+  const dir = path.join(process.env.MOCK_CURRICULUM, 'logos');
+  if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) { const m = f.match(/^(.+)\.(svg|png|webp)$/); if (m) logos.set(m[1], { type: m[2] === 'svg' ? 'image/svg+xml' : `image/${m[2]}`, data: fs.readFileSync(path.join(dir, f)) }); }
 }
 const LEVEL_LABEL = { foundation: 'Foundation', 'pre-sat': 'Pre-SAT', advanced: 'Advanced' };
 const progress = new Map(); // login -> Map(lessonId -> { best, passed, hw: Set })
@@ -200,12 +206,12 @@ function buildRoadmap(p, id) {
   const units = order.map((uid, ui) => { const u = c.units.find((x) => x.id === uid); const beyond = free && ui >= freeUnits;
     const lessons = u.lessons.map((l) => { const done = lessonDone(p.login, l); const pr = prog(p.login, l.id);
       const status = beyond ? 'locked' : done ? 'done' : prevDone ? 'open' : 'locked'; const lock = beyond ? 'enrolled_only' : status === 'locked' ? 'previous' : null;
-      if (status === 'open' && !current) current = { unit_id: u.id, unit_title: u.title, lesson_id: l.id, lesson_title: l.title, university: u.stop.university };
+      if (status === 'open' && !current) current = { unit_id: u.id, unit_title: u.title, lesson_id: l.id, lesson_title: l.title, university: u.stop.university, logo_url: logoUrl(u.stop.university) };
       if (done && !beyond) lessonsDone++; prevDone = prevDone && done;
       return { id: l.id, title: l.title, minutes: l.minutes, status, lock, level_check: { questions: l.level_check.questions, best: pr.best, passed: pr.passed }, homework: { sets: l.homework.length, done: pr.hw.size } }; });
     const status = lessons.every((l) => l.status === 'done') ? 'done' : beyond ? 'locked' : lessons.some((l) => l.status !== 'locked') ? 'open' : 'locked';
     if (status === 'done') unitsDone++;
-    return { id: u.id, title: u.title, domain: u.domain, summary: u.summary, stop: u.stop, status, lock: beyond ? 'enrolled_only' : status === 'locked' ? 'previous' : null, lessons }; });
+    return { id: u.id, title: u.title, domain: u.domain, summary: u.summary, stop: { ...u.stop, logo_url: logoUrl(u.stop.university) }, status, lock: beyond ? 'enrolled_only' : status === 'locked' ? 'previous' : null, lessons }; });
   const summary = { id, subject: c.subject, level: c.level, title: `${c.subject === 'math' ? 'Math' : 'English'} · ${LEVEL_LABEL[c.level]}`, source: free ? 'onboarding' : 'group', group_name: free ? null : (p.groups.find((g) => g.discipline.toUpperCase().includes(c.subject.toUpperCase())) || {}).name || null,
     lessons_done: lessonsDone, lessons_total: units.reduce((a, u) => a + u.lessons.length, 0), units_done: unitsDone, units_total: units.length, current, free_units: freeUnits };
   return { ...summary, countries: c.countries.map((k) => ({ ...k, code: COUNTRY_CODES[k.id] || null })), units };
@@ -311,6 +317,7 @@ http.createServer(async (req, res) => {
     tickets.delete(body.ticket); passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false;
     return signIn(res, p);
   }
+  if (url.startsWith('/v1/logos/')) { const lg = logos.get(url.slice('/v1/logos/'.length)); if (!lg) return err(res, 404, 'not_found', 'no logo'); res.writeHead(200, { 'content-type': lg.type, 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox" }); return res.end(lg.data); }
   if (url.startsWith('/v1/photos/') && photos.has(url.slice('/v1/photos/'.length))) {
     const ph = photos.get(url.slice('/v1/photos/'.length)); res.writeHead(200, { 'content-type': ph.type, 'cache-control': 'public, max-age=31536000, immutable' }); return res.end(ph.data);
   }

@@ -9,6 +9,7 @@ import { Pill, Progress } from '@/components/ui';
 import { useTitle } from '@/lib/title';
 
 import { Flag } from './flags';
+import { logoOf } from './journey';
 import { Medallion } from './RoadmapMap';
 
 // A stop on the journey (a unit): its university and the lessons there, in
@@ -36,7 +37,7 @@ export function RoadmapUnit() {
       </Link>
       <header className="relative overflow-hidden rounded-card bg-[#0d1b33] p-5 text-white md:p-6">
         <div className="flex flex-wrap items-center gap-4">
-          <Medallion name={unit.stop.university} size={68} state={unit.status === 'done' ? 'done' : 'open'} country={Math.max(0, countryIndex)} />
+          <Medallion name={unit.stop.university} size={68} state={unit.status === 'done' ? 'done' : 'open'} country={Math.max(0, countryIndex)} logo={logoOf(unit.stop)} />
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#f6c343]">{unit.domain}</p>
             <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">{unit.title}</h1>
