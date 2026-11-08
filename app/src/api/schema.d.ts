@@ -509,6 +509,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set your profile photo
+         * @description The picture's bytes as the body (at most 512 KB). Replaces the old photo; Google or Telegram never set one again after this.
+         */
+        put: operations["setMyPhoto"];
+        post?: never;
+        /** Remove your profile photo */
+        delete: operations["removeMyPhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/profile": {
         parameters: {
             query?: never;
@@ -3702,6 +3723,57 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    setMyPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description The profile with its new photo_url */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            401: components["responses"]["Error"];
+            413: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+        };
+    };
+    removeMyPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile, photo_url null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            401: components["responses"]["Error"];
         };
     };
     saveProfile: {
