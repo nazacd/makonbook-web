@@ -55,6 +55,10 @@ export function describeError(error: unknown): string {
       return 'Telegram isn’t available right now. Use another way.';
     case 'telegram_taken':
       return 'That Telegram account is already linked to another SATMAKON account.';
+    case 'photo_too_large':
+      return 'That photo is too big. Choose a smaller picture.';
+    case 'invalid_photo':
+      return 'That file isn’t a picture we can use. Try a JPEG or PNG.';
     case 'phone_required':
       return 'Prove your phone number first to open this.';
     case 'phone_already_set':

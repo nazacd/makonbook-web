@@ -32,6 +32,7 @@ const tickets = new Map(); // ticket -> { phone, purpose } | { google: { sub, fi
 const googleLinks = new Map(); // sub -> login
 const tgLinks = new Map(); // telegram id -> login
 const tgStates = new Map(); // state -> { purpose, person, ret }
+const photos = new Map(); // id -> { type, data } (uploaded photos)
 const byEmail = (email) => (email ? Object.values(people).find((p) => p.email === String(email).toLowerCase()) : undefined);
 // Telegram's numbers come without "+", from any country.
 const normAny = (raw) => { const d = String(raw || '').replace(/\D/g, ''); return d.length >= 7 ? '+' + (d.length === 9 ? '998' + d : d) : null; };
@@ -156,7 +157,10 @@ const err = (res, status, code, message, extra = {}) => { res.writeHead(status, 
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
-  const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+  const raw = Buffer.concat(chunks);
+  // Pictures come as their own bytes; everything else is JSON.
+  const isImage = /^image\//.test(req.headers['content-type'] || '');
+  const body = chunks.length && !isImage ? JSON.parse(raw.toString()) : {};
   const auth = req.headers.authorization?.replace(/^Bearer /, '');
   const url = req.url.split('?')[0];
   if (url === '/v1/app/config') return json(res, 200, { min_app_version: { android: '1.0.0', ios: '1.0.0' }, signup: true, google: true, reset: true, email: true, telegram: true });
@@ -245,6 +249,9 @@ http.createServer(async (req, res) => {
     tickets.delete(body.ticket); passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false;
     return signIn(res, p);
   }
+  if (url.startsWith('/v1/photos/') && photos.has(url.slice('/v1/photos/'.length))) {
+    const ph = photos.get(url.slice('/v1/photos/'.length)); res.writeHead(200, { 'content-type': ph.type, 'cache-control': 'public, max-age=31536000, immutable' }); return res.end(ph.data);
+  }
   if (url.startsWith('/v1/photos/')) {
     const hue = [...url].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360;
     res.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'max-age=86400' });
@@ -277,6 +284,19 @@ http.createServer(async (req, res) => {
   }
   if (me.must_change_password) return err(res, 403, 'password_change_required', 'change the password first');
   if (url === '/v1/auth/username') { if (body.username === 'taken') return err(res, 409, 'username_taken', 'taken'); me.username = body.username; return json(res, 200, { username: body.username }); }
+  if (url === '/v1/me/photo' && req.method === 'PUT') {
+    if (!isImage) return err(res, 422, 'invalid_photo', 'send the picture as image/jpeg, png or webp');
+    if (raw.length > 512 * 1024) return err(res, 413, 'photo_too_large', 'at most 512 KB');
+    const jpeg = raw[0] === 0xff && raw[1] === 0xd8; const png = raw[0] === 0x89 && raw[1] === 0x50;
+    if (!jpeg && !png) return err(res, 422, 'invalid_photo', 'not a JPEG or PNG');
+    const id = 'up' + Math.random().toString(36).slice(2, 12); photos.set(id, { type: jpeg ? 'image/jpeg' : 'image/png', data: raw });
+    if (me.photo_url) photos.delete(me.photo_url.slice('/v1/photos/'.length));
+    me.photo_url = `/v1/photos/${id}`; me.photo_chosen = true; return json(res, 200, me);
+  }
+  if (url === '/v1/me/photo' && req.method === 'DELETE') {
+    if (me.photo_url) photos.delete(me.photo_url.slice('/v1/photos/'.length));
+    me.photo_url = null; me.photo_chosen = true; return json(res, 200, me);
+  }
   if (url === '/v1/me/phone/start' && req.method === 'POST') {
     if (me.phone) return err(res, 409, 'phone_already_set', 'this account has a phone number');
     const phone = normPhone(body.phone); if (!phone) return err(res, 422, 'invalid_phone', 'an Uzbek mobile number is needed');
