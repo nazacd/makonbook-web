@@ -3,7 +3,8 @@ import { useRef, useState, type FormEvent } from 'react';
 
 import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
-import { useChangePassword } from '@/api/queries';
+import { meKey, useChangePassword, useMe } from '@/api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
@@ -21,6 +22,10 @@ type PasswordFormProps = {
 // done; RequireAuth then opens the app) and /profile/password.
 export function PasswordForm({ forced, onDone }: PasswordFormProps) {
   const change = useChangePassword();
+  const queryClient = useQueryClient();
+  // Signed up with Telegram or Google, no password yet: the first one needs no current one.
+  const me = useMe().data;
+  const first = !forced && !!me && !me.has_password && !me.must_change_password;
   const newRef = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -35,7 +40,7 @@ export function PasswordForm({ forced, onDone }: PasswordFormProps) {
   // The server rejects the person's own phone number; the page doesn't know
   // it, so anything shaped like a phone number is flagged as it's typed.
   const looksLikePhone = /^\+?\d{9,12}$/.test(next.replace(/[\s()-]/g, ''));
-  const canSubmit = current !== '' && longEnough && matches && !looksLikePhone && !change.isPending;
+  const canSubmit = (first || current !== '') && longEnough && matches && !looksLikePhone && !change.isPending;
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -46,7 +51,10 @@ export function PasswordForm({ forced, onDone }: PasswordFormProps) {
     change.mutate(
       { current_password: current, new_password: next },
       {
-        onSuccess: () => onDone?.(),
+        onSuccess: () => {
+          void queryClient.invalidateQueries({ queryKey: meKey });
+          onDone?.();
+        },
         onError: (err) => {
           if (err instanceof ApiError && err.code === 'wrong_password') {
             setCurrentError("That isn't your current password.");
@@ -65,7 +73,8 @@ export function PasswordForm({ forced, onDone }: PasswordFormProps) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
       {forced && <p className="t-body text-ink-2">You signed in with the temporary password. Choose your own to continue. Only you will know it.</p>}
-      <TextField
+      {first && <p className="t-body text-ink-2">Set a password to sign in with your phone number, email or username too, here and in the phone app.</p>}
+      {!first && <TextField
         label={forced ? 'Temporary password' : 'Current password'}
         hint={forced ? 'The last 4 digits of your phone number.' : undefined}
         error={currentError}
@@ -77,7 +86,7 @@ export function PasswordForm({ forced, onDone }: PasswordFormProps) {
         }}
         autoComplete="current-password"
         autoFocus
-      />
+      />}
       <div className="flex flex-col gap-3">
         <TextField
           ref={newRef}
@@ -98,7 +107,7 @@ export function PasswordForm({ forced, onDone }: PasswordFormProps) {
         </ul>
       </div>
       {problem && <Notice tone="error" message={problem} />}
-      <Button type="submit" label={forced ? 'Save and continue' : 'Change password'} loading={change.isPending} disabled={!canSubmit && !change.isPending} />
+      <Button type="submit" label={forced ? 'Save and continue' : first ? 'Set password' : 'Change password'} loading={change.isPending} disabled={!canSubmit && !change.isPending} />
       {!forced && (
         <p className="t-footnote flex items-center justify-center gap-2 text-ink-3">
           <Icon as={LogOut} size={15} className="text-ink-3" />

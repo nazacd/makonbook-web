@@ -32,7 +32,7 @@ export function MasteryCard({ totals }: { totals: Totals }) {
   return (
     <RailCard>
       <div className="flex items-center gap-3">
-        {me && <Avatar kind={me.kind} firstName={me.first_name} lastName={me.last_name} id={me.id} size={36} />}
+        {me && <Avatar kind={me.kind} firstName={me.first_name} lastName={me.last_name} id={me.id} size={36} photo={me.photo_url} />}
         <div className="min-w-0">
           <p className="truncate text-[14px] font-bold leading-[18px] text-ink">{me ? `${me.first_name} ${me.last_name}` : ''}</p>
           <p className="text-[12px] font-medium leading-4 text-ink-3">Mastery repair</p>

@@ -17,10 +17,11 @@ const TEACHER_COLORS: [string, string][] = [
   ['#7A4590', '#ffffff'],
 ];
 
-type AvatarProps = { kind: 'student' | 'teacher'; firstName: string; lastName: string; id: number; size?: number };
+type AvatarProps = { kind: 'student' | 'teacher'; firstName: string; lastName: string; id: number; size?: number; /** Their own picture (from Telegram or Google), else the illustrated one. */ photo?: string | null };
 
-export function Avatar({ kind, firstName, lastName, id, size = 44, square = false }: AvatarProps & { square?: boolean }) {
+export function Avatar({ kind, firstName, lastName, id, size = 44, square = false, photo }: AvatarProps & { square?: boolean }) {
   const circle = { width: size, height: size, borderRadius: square ? 16 : size / 2 };
+  if (photo) return <img src={photo} alt="" width={size} height={size} style={circle} className="shrink-0 object-cover" />;
   if (kind === 'student') {
     const n = String(avatarIndex(firstName) + 1).padStart(2, '0');
     return <img src={`/avatars/${n}.webp`} alt="" width={size} height={size} style={circle} className="shrink-0 object-cover" />;

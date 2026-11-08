@@ -10,6 +10,8 @@ import { Card, PageHeader } from '@/components/ui';
 import { useNow } from '@/lib/clock';
 import { dayLetters, daysSpoken, normalCase, parseClassName, roomNumber } from '@/lib/groups';
 import { describeDay, nextClass, type Occurrence } from '@/lib/schedule';
+import { needsPhone } from '@/api/accounts';
+import { LockedHome } from '@/screens/LockedHome';
 import { useTitle } from '@/lib/title';
 
 const TeacherToday = lazy(() => import('./TeacherToday').then((m) => ({ default: m.TeacherToday })));
@@ -17,8 +19,9 @@ const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Das
 
 // "/": students see their dashboard, teachers their lessons for the day.
 export function Home() {
-  const kind = useMe().data?.kind;
-  return kind === 'teacher' ? <TeacherToday /> : <Dashboard />;
+  const me = useMe().data;
+  if (me?.kind === 'teacher') return <TeacherToday />;
+  return needsPhone(me) ? <LockedHome /> : <Dashboard />;
 }
 
 // "/classes": the student's classes, built around the next lesson.

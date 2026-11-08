@@ -1,18 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { deviceId } from '@/lib/device-id';
+
 import { api, call } from './client';
-import type { paths } from './schema';
 import { meKey } from './queries';
 import type { LoginResponse, Profile } from './types';
 
-// Accounts (makonbook-api docs/platform-spec.md, "Accounts"): sign-up and
-// password reset by SMS code, Google sign-in, and changing your own name.
-// Sign-up makes student accounts only; a phone that already belongs to a
-// SATMAKON student or teacher signs into that account instead.
+// Accounts (makonbook-api docs/platform-spec.md, "Accounts"):
+// - Telegram (Telegram's own page asks for the number and confirms it in the
+//   app) and Google sign in straight away: an account that has that Telegram,
+//   Google account, number or email, else a new one.
+// - Email: a code; an account with that email signs in, a new address goes
+//   on to name and password.
+// - Phone, email or username with a password.
+// An account without a phone number sees everything locked until the number
+// is proven (SMS or Telegram); proving a number that already has an account
+// moves the person into that account.
 
-export type Purpose = 'signup' | 'reset';
-
-/** What this server offers: sign-up by SMS, Google sign-in. */
+/** What this server offers: sign-up, Google, Telegram, email, password reset. */
 export function useAppConfig() {
   return useQuery({
     queryKey: ['app-config'],
@@ -21,79 +26,82 @@ export function useAppConfig() {
   });
 }
 
-export function sendCode(phone: string, purpose: Purpose) {
-  return call(api.POST('/v1/auth/phone/start', { body: { phone, purpose } }));
-}
+/** Signed up on the web without a phone number yet: everything is locked until it's proven. */
+export const needsPhone = (me: Profile | undefined) => !!me && me.kind === 'student' && me.status === 'registered' && !me.phone;
 
-/** Whose number it is, told after the code is verified (sign-up only): nobody's, a free account's, or a SATMAKON student's or teacher's. */
-export type NumberOwner = null | { status: 'registered' } | { status: 'enrolled'; kind: 'student' | 'teacher'; name: string };
-
-/** Who is signing up: a verified email or a Google account (one of the two). */
-export type Identity = { email_ticket: string; google_ticket?: null; telegram_ticket?: null } | { google_ticket: string; email_ticket?: null; telegram_ticket?: null } | { telegram_ticket: string; email_ticket?: null; google_ticket?: null };
-
-const ids = (identity?: Identity) => ({ email_ticket: identity?.email_ticket ?? null, google_ticket: identity?.google_ticket ?? null, telegram_ticket: identity?.telegram_ticket ?? null });
+// --- Email ---
 
 export function sendEmailCode(email: string) {
   return call(api.POST('/v1/auth/email/start', { body: { email } }));
 }
 
-export async function checkEmailCode(email: string, code: string) {
-  return (await call(api.POST('/v1/auth/email/verify', { body: { email, code } }))).email_ticket;
+export type EmailCheck = { status: 'signed_in'; login: LoginResponse } | { status: 'new'; email_ticket: string };
+
+/** The code checked: the account with this email signs in, or a ticket to create one. */
+export async function checkEmailCode(email: string, code: string): Promise<EmailCheck> {
+  const r = await call(api.POST('/v1/auth/email/verify', { body: { email, code, device_id: deviceId() } }));
+  if (r.status === 'signed_in') return { status: 'signed_in', login: { token: r.token, expires_at: r.expires_at, user: r.user } };
+  return { status: 'new', email_ticket: r.email_ticket };
 }
 
-export async function checkCode(phone: string, code: string, purpose: Purpose, identity?: Identity): Promise<{ ticket: string; account: NumberOwner }> {
-  const r = await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose, ...ids(identity) } }));
-  return { ticket: r.ticket, account: (r.account ?? null) as NumberOwner };
+export function signUp(body: { email_ticket: string; first_name: string; last_name: string; password: string }) {
+  return call(api.POST('/v1/auth/signup', { body: { ...body, device_id: deviceId() } }));
 }
 
-export function signUp(body: { ticket: string; first_name: string | null; last_name: string | null; password: string | null; google_ticket: string | null; email_ticket: string | null; telegram_ticket: string | null }) {
-  return call(api.POST('/v1/auth/signup', { body }));
-}
-
-export function resetPassword(ticket: string, password: string) {
-  return call(api.POST('/v1/auth/reset', { body: { ticket, password } }));
-}
-
-export function googleTicket(ticket: string) {
-  return call(api.POST('/v1/auth/google/ticket', { body: { ticket } }));
-}
+// --- Google ---
 
 /** Leaves the app for Google; Google comes back to /auth/google. */
 export function startGoogle(returnTo = '/') {
   window.location.assign(`/v1/auth/google/start?return=${encodeURIComponent(returnTo)}`);
 }
 
+export function googleTicket(ticket: string) {
+  return call(api.POST('/v1/auth/google/ticket', { body: { ticket, device_id: deviceId() } }));
+}
+
+// --- Telegram ---
+
 /**
- * Leaves the app for Telegram's sign-in page; Telegram comes back to
- * /auth/telegram with the signed data in the address (#tgAuthResult=…).
+ * Leaves the app for Telegram's page (it asks for the number and confirms in
+ * the Telegram app); Telegram comes back to /auth/telegram. "verify" proves
+ * the signed-in person's number.
  */
-export function startTelegram(botId: number) {
-  const origin = window.location.origin;
-  window.location.assign(`https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&request_access=write&return_to=${encodeURIComponent(`${origin}/auth/telegram`)}`);
+export async function startTelegram(purpose: 'signin' | 'verify', returnTo = '/') {
+  const r = await call(api.POST('/v1/auth/telegram/start', { body: { purpose, return: returnTo } }));
+  window.location.assign(r.url);
 }
 
-export type TelegramAuth = paths['/v1/auth/telegram']['post']['requestBody']['content']['application/json']['auth'];
-
-export function telegramSignIn(auth: TelegramAuth) {
-  return call(api.POST('/v1/auth/telegram', { body: { auth } }));
+export function telegramTicket(ticket: string) {
+  return call(api.POST('/v1/auth/telegram/ticket', { body: { ticket, device_id: deviceId() } }));
 }
 
-/** Checking the phone through the bot: a link to open in Telegram, then polling until the number is shared. */
-export function startTelegramPhone(purpose: Purpose, identity?: Identity) {
-  return call(api.POST('/v1/auth/phone/telegram/start', { body: { purpose, ...ids(identity) } }));
+export function verifyPhoneByTelegram(ticket: string) {
+  return call(api.POST('/v1/me/phone/telegram', { body: { ticket } }));
 }
 
-export type TelegramCheck =
-  | { status: 'pending' }
-  | { status: 'verified'; phone: string; ticket: string; account: NumberOwner }
-  /** The number was shared from the same Telegram account the person signed in with: they're signed into the account that has it. */
-  | { status: 'signed_in'; login: LoginResponse };
+// --- Phone ---
 
-export async function checkTelegramPhone(nonce: string): Promise<TelegramCheck> {
-  const r = (await call(api.POST('/v1/auth/phone/telegram/check', { body: { nonce } }))) as { status: string; phone?: string; ticket?: string; account?: unknown; token?: string; expires_at?: string; user?: Profile };
-  if (r.status === 'signed_in' && r.token && r.user) return { status: 'signed_in', login: { token: r.token, expires_at: r.expires_at ?? '', user: r.user } };
-  if (r.status !== 'verified') return { status: 'pending' };
-  return { status: 'verified', phone: r.phone ?? '', ticket: r.ticket ?? '', account: (r.account ?? null) as NumberOwner };
+/** A code to a new number for the signed-in person. */
+export function sendVerifyCode(phone: string) {
+  return call(api.POST('/v1/me/phone/start', { body: { phone } }));
+}
+
+/** The number proven: this account, or the account that already had it. */
+export function verifyPhone(phone: string, code: string) {
+  return call(api.POST('/v1/me/phone/verify', { body: { phone, code } }));
+}
+
+/** A forgotten password: a code to the account's number. */
+export function sendResetCode(phone: string) {
+  return call(api.POST('/v1/auth/phone/start', { body: { phone, purpose: 'reset' } }));
+}
+
+export async function checkResetCode(phone: string, code: string) {
+  return (await call(api.POST('/v1/auth/phone/verify', { body: { phone, code, purpose: 'reset' } }))).ticket;
+}
+
+export function resetPassword(ticket: string, password: string) {
+  return call(api.POST('/v1/auth/reset', { body: { ticket, password } }));
 }
 
 export function useSaveProfile() {

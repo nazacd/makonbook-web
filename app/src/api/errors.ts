@@ -38,7 +38,7 @@ export function describeError(error: unknown): string {
     case 'too_many_tries':
       return 'Too many wrong codes. Ask for a new one.';
     case 'invalid_ticket':
-      return 'That took too long. Start again from the phone number.';
+      return 'That took too long. Please start again.';
     case 'weak_password':
       return 'Use 8 to 128 characters, and not your phone number.';
     case 'invalid_profile':
@@ -49,16 +49,18 @@ export function describeError(error: unknown): string {
       return 'We can’t send emails right now. Please try again a little later, or continue with Google.';
     case 'email_taken':
       return 'An account already uses this email. Sign in instead, or reset your password.';
-    case 'identity_spent':
-      return 'For your security, start again with another email or Google account.';
     case 'invalid_telegram':
       return 'Telegram sign-in didn’t work this time. Try again, or use another way.';
     case 'telegram_unavailable':
       return 'Telegram isn’t available right now. Use another way.';
     case 'telegram_taken':
       return 'That Telegram account is already linked to another SATMAKON account.';
-    case 'phone_taken':
-      return 'This phone number already exists. Sign in, or reset your password if you’ve forgotten it.';
+    case 'phone_required':
+      return 'Prove your phone number first to open this.';
+    case 'phone_already_set':
+      return 'Your account already has a phone number.';
+    case 'telegram_no_phone':
+      return 'Telegram didn’t share your phone number. Try again and allow it, or use an SMS code.';
     case 'google_taken':
       return 'That Google account is already linked to another SATMAKON account.';
     case 'google_unavailable':

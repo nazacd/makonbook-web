@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { checkEmailCode, sendEmailCode } from '@/api/accounts';
+import { checkEmailCode, sendEmailCode, type EmailCheck } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
 
 // An email address, then the 6-digit code sent to it. Answers the address and
-// the server's ticket proving it.
-export function EmailCode({ onVerified }: { onVerified: (email: string, ticket: string) => void }) {
+// what the server says: signed into the account with it, or a ticket for a new one.
+export function EmailCode({ onVerified }: { onVerified: (email: string, result: EmailCheck) => void }) {
   const [email, setEmail] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
