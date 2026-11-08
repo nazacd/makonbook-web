@@ -42,6 +42,12 @@ const Drill = page(() => import('@/screens/Drill'), 'Drill');
 const ProblemQuestions = page(() => import('@/screens/ProblemQuestions'), 'ProblemQuestions');
 const SignUp = page(() => import('@/screens/SignUp'), 'SignUp');
 const ResetPassword = page(() => import('@/screens/ResetPassword'), 'ResetPassword');
+const Roadmaps = page(() => import('@/screens/roadmap/Roadmaps'), 'Roadmaps');
+const Onboarding = page(() => import('@/screens/roadmap/Onboarding'), 'Onboarding');
+const RoadmapMap = page(() => import('@/screens/roadmap/RoadmapMap'), 'RoadmapMap');
+const RoadmapUnit = page(() => import('@/screens/roadmap/RoadmapUnit'), 'RoadmapUnit');
+const RoadmapLesson = page(() => import('@/screens/roadmap/RoadmapLesson'), 'RoadmapLesson');
+const AssessmentRun = page(() => import('@/screens/roadmap/AssessmentRun'), 'AssessmentRun');
 const GoogleCallback = page(() => import('@/screens/GoogleCallback'), 'GoogleCallback');
 const TelegramCallback = page(() => import('@/screens/TelegramCallback'), 'TelegramCallback');
 
@@ -79,6 +85,8 @@ export function App() {
                 <Route path="/choose-password" element={<ChoosePassword />} />
                 {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
                 <Route element={<RequirePhone />}>
+                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/assessments/:id" element={<AssessmentRun />} />
                   <Route path="/practice/run/:code" element={<PracticeRun />} />
                   <Route path="/words/study" element={<Study />} />
                   <Route path="/training-hall/drill" element={<Drill />} />
@@ -100,6 +108,10 @@ export function App() {
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<Words />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
+                  <Route path="/roadmaps" element={<Roadmaps />} />
+                  <Route path="/roadmaps/:id" element={<RoadmapMap />} />
+                  <Route path="/roadmaps/:id/units/:unitId" element={<RoadmapUnit />} />
+                  <Route path="/roadmaps/:id/lessons/:lessonId" element={<RoadmapLesson />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/profile/username" element={<Username />} />
                   <Route path="/profile/password" element={<Password />} />
