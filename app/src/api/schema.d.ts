@@ -487,28 +487,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/photos/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * A profile photo (no token; long cache)
-         * @description The `photo_url` of a profile. A copy of the Google or Telegram picture
-         *     (JPEG, PNG or WebP, at most 512 KB), served from the API's origin so
-         *     pages that load images from their own origin only can show it.
-         */
-        get: operations["photo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/me/photo": {
         parameters: {
             query?: never;
@@ -518,13 +496,46 @@ export interface paths {
         };
         get?: never;
         /**
-         * Set your profile photo
-         * @description The picture's bytes as the body (at most 512 KB). Replaces the old photo; Google or Telegram never set one again after this.
+         * Set your own photo (the raw image as the body)
+         * @description Everyone signed in (students and teachers, with or without a phone,
+         *     even on the default password). JPEG, PNG or WebP, at most 512 KB;
+         *     what the bytes are counts, not the header, and the image must decode
+         *     (not necessarily square). It gets a new address (`photo_url`; old
+         *     ones are cached forever); the previous photo is deleted. From then on
+         *     Google's or Telegram's picture is never copied over it. 20 uploads an
+         *     hour per person.
          */
         put: operations["setMyPhoto"];
         post?: never;
-        /** Remove your profile photo */
+        /**
+         * Remove your photo
+         * @description The photo is deleted; Google's or Telegram's picture isn't copied again.
+         */
         delete: operations["removeMyPhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/photos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A profile photo (no token; long cache)
+         * @description The `photo_url` of a profile: one the person uploaded, or a copy of
+         *     the Google or Telegram picture (JPEG, PNG or WebP, at most 512 KB),
+         *     served from the API's origin so pages that load images from their own
+         *     origin only can show it. A photo never changes (a new one gets a new
+         *     id), hence the year-long immutable cache.
+         */
+        get: operations["photo"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2611,7 +2622,7 @@ export interface components {
                  * @description Stable machine-readable code.
                  * @enum {string}
                  */
-                code: "not_found" | "internal" | "unavailable" | "bad_request" | "unauthorized" | "forbidden" | "rate_limited" | "invalid_credentials" | "account_locked" | "password_change_required" | "wrong_password" | "weak_password" | "invalid_username" | "username_taken" | "attendance_disabled" | "too_early" | "lesson_over" | "session_closed" | "invalid_code" | "code_expired" | "not_in_roster" | "device_already_used" | "marked_absent" | "edit_window_closed" | "not_admin" | "set_by_admin" | "super_admin_protected" | "fired" | "version_conflict" | "invalid_question" | "invalid_attempt" | "attempt_id_taken" | "invalid_reviews" | "invalid_parent_code" | "invalid_report" | "test_not_found" | "invalid_parked" | "report_id_taken" | "invalid_goals" | "sms_unavailable" | "invalid_phone" | "too_many_tries" | "invalid_ticket" | "invalid_profile" | "no_account" | "google_taken" | "invalid_email" | "email_taken" | "email_unavailable" | "telegram_unavailable" | "telegram_no_phone" | "phone_already_set" | "phone_required" | "google_unavailable" | "enrolled_only";
+                code: "not_found" | "internal" | "unavailable" | "bad_request" | "unauthorized" | "forbidden" | "rate_limited" | "invalid_credentials" | "account_locked" | "password_change_required" | "wrong_password" | "weak_password" | "invalid_username" | "username_taken" | "attendance_disabled" | "too_early" | "lesson_over" | "session_closed" | "invalid_code" | "code_expired" | "not_in_roster" | "device_already_used" | "marked_absent" | "edit_window_closed" | "not_admin" | "set_by_admin" | "super_admin_protected" | "fired" | "version_conflict" | "invalid_question" | "invalid_attempt" | "attempt_id_taken" | "invalid_reviews" | "invalid_parent_code" | "invalid_report" | "test_not_found" | "invalid_parked" | "report_id_taken" | "invalid_goals" | "sms_unavailable" | "invalid_phone" | "too_many_tries" | "invalid_ticket" | "invalid_profile" | "no_account" | "google_taken" | "invalid_email" | "email_taken" | "email_unavailable" | "telegram_unavailable" | "telegram_no_phone" | "phone_already_set" | "phone_required" | "photo_too_large" | "invalid_photo" | "google_unavailable" | "enrolled_only";
                 /** @description Human-readable explanation; may change. */
                 message: string;
                 /** @description For a rejected form (`invalid_question`): what is wrong, per field (e.g. `stem`, `choices.B`). */
@@ -3694,6 +3705,82 @@ export interface operations {
             };
         };
     };
+    setMyPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description The profile, with the new photo_url */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            401: components["responses"]["Error"];
+            /** @description `photo_too_large`: over 512 KB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invalid_photo`: not a JPEG, PNG or WebP image that decodes */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `rate_limited` */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    removeMyPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile, with photo_url null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
     photo: {
         parameters: {
             query?: never;
@@ -3723,57 +3810,6 @@ export interface operations {
                 };
                 content?: never;
             };
-        };
-    };
-    setMyPhoto: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "image/jpeg": string;
-                "image/png": string;
-                "image/webp": string;
-            };
-        };
-        responses: {
-            /** @description The profile with its new photo_url */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Profile"];
-                };
-            };
-            401: components["responses"]["Error"];
-            413: components["responses"]["Error"];
-            422: components["responses"]["Error"];
-            429: components["responses"]["Error"];
-        };
-    };
-    removeMyPhoto: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The profile, photo_url null */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Profile"];
-                };
-            };
-            401: components["responses"]["Error"];
         };
     };
     saveProfile: {
