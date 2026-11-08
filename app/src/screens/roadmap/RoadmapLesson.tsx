@@ -31,7 +31,7 @@ export function RoadmapLesson() {
         <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
       {lesson.isPending ? (
-        <Skeleton className="h-[480px] rounded-card" />
+        <Skeleton height={480} radius={16} />
       ) : lesson.isError ? (
         <LessonError err={lesson.error} back={back.to} />
       ) : (

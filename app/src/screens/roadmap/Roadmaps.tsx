@@ -30,8 +30,8 @@ export function Roadmaps() {
       />
       {list.isPending ? (
         <div className="grid gap-3.5 md:grid-cols-2">
-          <Skeleton className="h-[176px] rounded-card" />
-          <Skeleton className="h-[176px] rounded-card" />
+          <Skeleton height={176} radius={16} />
+          <Skeleton height={176} radius={16} />
         </div>
       ) : list.isError ? (
         <Notice tone="error" message={describeError(list.error)} />

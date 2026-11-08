@@ -22,7 +22,7 @@ export function RoadmapUnit() {
   const country = r?.countries[countryIndex];
   useTitle(unit?.title ?? 'Roadmap');
 
-  if (roadmap.isPending) return <Skeleton className="mx-auto h-[420px] max-w-[880px] rounded-card" />;
+  if (roadmap.isPending) return <Skeleton height={420} radius={16} />;
   if (roadmap.isError) return <Notice tone="error" message={describeError(roadmap.error)} />;
   if (!unit || !r) return <Notice tone="error" message="This stop isn’t on your roadmap." />;
 

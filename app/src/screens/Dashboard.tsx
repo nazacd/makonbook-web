@@ -420,7 +420,7 @@ function RoadmapWidget() {
         }
       />
       {list.isPending ? (
-        <Skeleton className="h-24 rounded-control" />
+        <Skeleton height={96} radius={12} />
       ) : !r ? (
         <div className="py-3 text-center">
           <p className="t-subhead text-ink-2">Build your study roadmap, one stop at a time.</p>

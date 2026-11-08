@@ -23,7 +23,7 @@ export function RoadmapMap() {
   const { id = '' } = useParams();
   const roadmap = useRoadmap(id);
   useTitle(roadmap.data?.title ?? 'Roadmap');
-  if (roadmap.isPending) return <Skeleton className="h-[calc(100dvh-140px)] rounded-panel md:h-[calc(100dvh-48px)]" />;
+  if (roadmap.isPending) return <Skeleton height={640} radius={20} />;
   if (roadmap.isError) return <Notice tone="error" message={describeError(roadmap.error)} />;
   return <Journey r={roadmap.data} />;
 }

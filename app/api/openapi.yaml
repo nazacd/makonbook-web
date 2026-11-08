@@ -823,6 +823,184 @@ paths:
             image/webp: { schema: { type: string, format: binary } }
         "404": { description: No such photo }
 
+  # Roadmaps: added here ahead of makonbook-api's copy (replaced by it).
+  /v1/me/onboarding:
+    get:
+      operationId: getOnboarding
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: saveOnboarding
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [graduation, sat_dates, current, target, focus, schedule]
+              properties:
+                graduation: { type: string }
+                sat_dates: { type: array, items: { type: string } }
+                current: { type: [object, "null"], additionalProperties: true }
+                target: { type: object, required: [total, math, rw], properties: { total: { type: integer }, math: { type: integer }, rw: { type: integer } } }
+                focus: { type: string, enum: [math, english, both] }
+                schedule: { type: object, required: [days, minutes], properties: { days: { type: array, items: { type: string } }, minutes: { type: integer } } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/me/roadmaps:
+    get:
+      operationId: listRoadmaps
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [roadmaps], properties: { roadmaps: { type: array, items: { type: object, additionalProperties: true } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /v1/me/roadmaps/{id}:
+    get:
+      operationId: getRoadmap
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/me/roadmaps/{id}/lessons/{lessonId}:
+    get:
+      operationId: getRoadmapLesson
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: lessonId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/me/roadmaps/{id}/lessons/{lessonId}/assessments:
+    post:
+      operationId: startAssessment
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: lessonId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [kind], properties: { kind: { type: string, enum: [level_check, homework] }, index: { type: integer } } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/me/assessments/{id}:
+    get:
+      operationId: getAssessment
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /v1/me/assessments/{id}/answers:
+    put:
+      operationId: saveAssessmentAnswers
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [answers], properties: { answers: { type: object, additionalProperties: { type: [string, "null"] } } } }
+      responses:
+        "204": { description: Saved }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /v1/me/assessments/{id}/submit:
+    post:
+      operationId: submitAssessment
+      tags: [roadmaps]
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [answers], properties: { answers: { type: object, additionalProperties: { type: [string, "null"] } } } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /v1/me/profile:
     put:
       summary: Change your own name
@@ -3264,6 +3442,7 @@ components:
         google: { type: boolean, description: A Google account is linked }
         telegram: { type: boolean, description: A Telegram account is linked }
         photo_url: { type: [string, "null"], description: "Their photo, e.g. /v1/photos/…, on the API's origin (no token needed)" }
+        onboarded: { type: boolean, description: "Free accounts: onboarding done (true for everyone else)" }
         has_password: { type: boolean, description: "Their own password (false while on the default one, or signed up with Google only)" }
         groups:
           type: array
