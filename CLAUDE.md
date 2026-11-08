@@ -6,15 +6,20 @@ container on the VPS next to the API.
 
 **Read `docs/handoff.md` first.** It has the decisions already made, the
 scope and milestones, the logic that must be copied from the mobile app
-unchanged, the API facts, how deployment works and the ground rules. The API
-contract is `app/api/openapi.yaml` (a copy of `nazacd/makonbook-api`'s; see
-`app/api/README.md`); the product is that repo's `docs/platform-spec.md`; the
-app's design is `docs/design.md` (the SATMAKON design system; the phone app
-keeps its own).
+unchanged, the API facts, how deployment works and the ground rules. It
+predates the relaunch, the accounts rework and the roadmaps (both below):
+the stack, the deployment and the copied logic still hold, but the app's
+design is `docs/design.md` (the SATMAKON design system; the phone app keeps
+its own), not the phone's. The API contract is `app/api/openapi.yaml` (a copy
+of `nazacd/makonbook-api`'s; see `app/api/README.md`; `app/api/SOURCE` names
+the commit it came from); the product is that repo's `docs/platform-spec.md`
+(§9 practice, §21 accounts, §22 roadmaps).
 
 Ground rules, short:
 - Never commit secrets (the Desmos key, passwords, tokens). `.env` files only.
-- Never put student data or test content in the repo.
+- Never put student data or test content in the repo; nor the curriculum,
+  the university logos, or the design reference and its screenshots.
+  `app/shots/` is git-ignored for Playwright screenshots.
 - Before calling a step done: `npm run typecheck`, `npm run lint`,
   `npm run check:csp`, `npm run build` must pass (CI runs them, then builds the image and starts
   nginx in it), and try the flow in a real browser at laptop and phone widths.
@@ -32,7 +37,7 @@ In `app/src`: `api/` (client, generated `schema.d.ts`, queries, the error
 wording), `auth/session.tsx` (who is signed in; the token in localStorage,
 read once per tab: a sign-in or sign-out in another tab restarts this one,
 and multi-request jobs check `sameSession()` before each request),
-`layouts/` (`RequireAuth`/`RequireGuest` decide who sees what, like the mobile
+`layouts/` (`RequireAuth`/`RequireGuest`/`RequirePhone` decide who sees what, like the mobile
 app's route guards; `AppShell` is the frame: sidebar on laptops, top bar and
 bottom tabs on phones), `screens/` (students' home is `Dashboard`; their
 classes are at /classes), `api/learning.ts` (question stats, Ask later,
@@ -63,5 +68,63 @@ ever derived from the log. Teachers: `lib/attendance/code.ts` is the phone's
 copy of the QR signing and must match the API's
 `internal/attendance/token.go`; the session screen polls every 3 s while
 open and draws the code itself from the session secret. Type comes from the `t-*`
-classes in `styles.css`, colours from the tokens, never `dark:` variants. `app/mock/api.cjs` is a fictional API for working
-without the real one (README).
+classes in `styles.css`, colours from the tokens, never `dark:` variants.
+
+Accounts (spec §21; `api/accounts.ts`, `components/accounts/`): anyone can
+make a student account. **Telegram** (`TelegramButton`; Telegram's own page
+asks for the number) and **Google** (`startGoogle`) sign straight in, with no
+form: the linked account, else the one with that phone or email, else a new
+account with `status: 'registered'`. **Email** (`EmailCode`): a 6-digit code;
+an account with the address signs in, a new address goes on to name, surname
+and password (`SignUp`). `SignIn` takes a phone, email or username with a
+password. Google comes back to `/auth/google#ticket=…` (`GoogleCallback`,
+guests only); Telegram to `/auth/telegram?ticket=…&purpose=signin|verify`
+(`TelegramCallback`, signed in or not: `verify` proves the signed-in person's
+number). `/reset-password` is a code by SMS, then a new password. Show only
+the ways `useAppConfig` says are on (`signup`, `email`, `google`, `telegram`,
+`reset`). **No phone means locked:** `needsPhone(me)` (a registered student
+without a phone) sees only the dashboard (`LockedHome`) and Profile;
+`AppShell` greys the rest (`isLocked`), `PhoneLocked` stands in for a locked
+page, `RequirePhone` keeps them off the full-screen routes, and the prove-phone
+panel (`components/shell/ProvePhone`: `useProvePanel` offers it once per visit,
+shortly after the first click or after 10 s, and again whenever something
+locked is opened) proves the number by SMS code (`PhoneCode`,
+`purpose="verify"`) or Telegram. Proving a number that already has an account
+**merges** this one into it (the API answers a login for that account):
+`adopt` the login and reload the page. Registered students with a phone see
+Classes locked (`enrolledOnly` items, `LockedModal`) and only the mock tests
+marked open to all (`enrolled_only` on the others: `LockedTestCard`). Profile:
+own names (`EditProfile`, `useSaveProfile`), a photo (`PhotoEditor` crops and
+zooms to a 512×512 JPEG; `useSetPhoto`/`useRemovePhoto`; `photo_url` is a
+path on the API's origin, as the Telegram photo copied at sign-up is), and a
+first password for passwordless accounts (`has_password` false: the current
+password is sent empty).
+
+Roadmaps (spec §22; `api/roadmaps.ts`, with types derived from `paths[…]`;
+`LessonDetail` is the client's return type because openapi-fetch drops
+null-only fields): a student's courses as journeys, countries → units (a
+university each) → lessons. `screens/roadmap/`: `Roadmaps` (a card per
+course; a free account that hasn't done onboarding is offered it first),
+`Onboarding` (full screen under `RequirePhone`, seven steps; `POST
+/v1/me/onboarding` sets the goals and builds the roadmaps; the SAT dates it
+offers are `lib/satDates.ts`, to update each year), `RoadmapMap`
+(`/roadmaps/:id`: a night map scrolled bottom to top, laid out by
+`journey.ts`; `Medallion` draws a stop from `stop.logo_url`, else the
+university's initials; `flags.tsx` wraps flag-icons), `RoadmapUnit` (a stop's
+lessons on a timeline), `RoadmapLesson` (objectives, notes, worked examples,
+common mistakes, then the level check and the homework sets: a level check
+passes at 70 %, and a lesson is done once it is passed and every set is
+finished, which opens the next lesson), `AssessmentRun` (`/assessments/:id`,
+full screen: answers go to the server as you go, grading happens there on
+submit, then the result with explanations; submitting invalidates the
+`['roadmaps']` queries). Free accounts see the units past the first country
+locked `enrolled_only`; a locked lesson answers 403 `lesson_locked` or
+`enrolled_only`. Teachers have no roadmaps. The curriculum and the logos are
+SATMAKON's own and never committed: the mock makes a course up, or loads
+real files from `MOCK_CURRICULUM=<folder>` (with `logos/`) on your machine.
+
+`app/mock/api.cjs` is a fictional API for working without the real one (its
+header comment says how): the password is `demo-pass` unless
+`MB_DEMO_PASSWORD` says otherwise, SMS and email codes are `123456`, Google
+is `/v1/auth/google/start?as=name&email=…`, and Telegram's page is a small
+form at `/v1/auth/telegram/mock`.
