@@ -20,6 +20,13 @@ import type { PackageImage } from '@/lib/practice/types';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 
+/** Where leaving goes: the assignment's tab, or the roadmap lesson. */
+const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
+export function backOf(a: Assessment): string {
+  if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
+  return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
+}
+
 export function AssessmentRun() {
   const { id = '' } = useParams();
   const a = useAssessment(id);
@@ -66,7 +73,7 @@ function Run({ a }: { a: Assessment }) {
   const [confirm, setConfirm] = useState(false);
   const q = a.questions[i]!;
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
-  const back = `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}`;
+  const back = backOf(a);
 
   // Saved to the server a moment after each change, so a reload or another device continues.
   const pending = useRef<Record<string, string | null>>({});
@@ -237,8 +244,8 @@ function Result({ a }: { a: Assessment }) {
   const navigate = useNavigate();
   const r = a.result!;
   const { images, links } = useImages(a);
-  const again = useStartAssessment(a.roadmap_id, a.lesson_id);
-  const back = `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}`;
+  const again = useStartAssessment(a.roadmap_id ?? '', a.lesson_id ?? '');
+  const back = backOf(a);
   const level = a.kind === 'level_check';
   const verdict = level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
   const ring = 2 * Math.PI * 52;
