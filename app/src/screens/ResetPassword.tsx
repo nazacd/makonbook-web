@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { resetPassword } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
+import { EmailCode } from '@/components/accounts/EmailCode';
 import { PhoneCode } from '@/components/accounts/PhoneCode';
 import { AuthCard } from '@/components/brand/AuthCard';
 import { Button } from '@/components/Button';
@@ -11,16 +12,21 @@ import { Notice } from '@/components/Notice';
 import { TextField } from '@/components/TextField';
 import { useTitle } from '@/lib/title';
 
-// A forgotten password: a code to the account's phone, then a new password,
-// and you're signed in. Works for SATMAKON students and teachers too.
+// A forgotten password:
+// - by phone: a code to the account's number, then a new password, and
+//   you're signed in (SATMAKON students and teachers too);
+// - by email: the code signs you into the account with that email; a new
+//   password is then set in Profile.
 export function ResetPassword() {
   useTitle('Reset password');
   const { adopt, status } = useAuth();
   const navigate = useNavigate();
+  const [by, setBy] = useState<'phone' | 'email'>('phone');
   const [ticket, setTicket] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [noAccount, setNoAccount] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -39,20 +45,46 @@ export function ResetPassword() {
   return (
     <AuthCard
       title="Reset your password"
-      subtitle="We’ll send a code to your account’s phone number."
+      subtitle={by === 'phone' ? 'We’ll send a code to your account’s phone number.' : 'We’ll send a code to your account’s email.'}
       aside={
         <Link to={status === 'signedIn' ? '/profile' : '/sign-in'} className="t-subhead font-bold text-accent hover:underline">
           {status === 'signedIn' ? 'Back to your profile' : 'Back to sign in'}
         </Link>
       }>
-      {!ticket ? (
-        <PhoneCode purpose="reset" onVerified={(_, t) => setTicket(t)} />
-      ) : (
+      {ticket ? (
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
           <TextField label="New password" secure value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus hint="At least 8 characters, and not your phone number." />
           {problem && <Notice tone="error" message={problem} />}
           <Button type="submit" label="Save and sign in" loading={busy} disabled={password.length < 8 && !busy} className="w-full" />
         </form>
+      ) : by === 'phone' ? (
+        <>
+          <PhoneCode purpose="reset" onVerified={(_, t) => setTicket(t)} />
+          <button type="button" onClick={() => setBy('email')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
+            Use my email instead
+          </button>
+        </>
+      ) : (
+        <>
+          <EmailCode
+            onVerified={(_, r) => {
+              if (r.status === 'new') {
+                setNoAccount(true);
+                return;
+              }
+              adopt(r.login);
+              void navigate('/profile/password', { replace: true });
+            }}
+          />
+          {noAccount && (
+            <div className="mt-3">
+              <Notice tone="error" message="No account has this email. Try your phone number, or create an account." />
+            </div>
+          )}
+          <button type="button" onClick={() => setBy('phone')} className="t-footnote mt-4 w-full text-center font-bold text-accent hover:underline">
+            Use my phone number instead
+          </button>
+        </>
       )}
     </AuthCard>
   );

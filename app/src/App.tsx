@@ -7,7 +7,7 @@ import { AuthProvider } from '@/auth/session';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoading } from '@/components/PageLoading';
 import { AppShell } from '@/layouts/AppShell';
-import { RequireAuth, RequireGuest } from '@/layouts/RequireAuth';
+import { RequireAuth, RequireGuest, RequirePhone } from '@/layouts/RequireAuth';
 import { AppearanceProvider } from '@/lib/appearance';
 import { Attendance } from '@/screens/Attendance';
 import { ChoosePassword } from '@/screens/ChoosePassword';
@@ -68,18 +68,21 @@ export function App() {
             <Routes>
               {/* Signed in or not: a forgotten password, or a first one after signing up with Google. */}
               <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Signing in with Telegram, or (signed in) proving the number with it. */}
+              <Route path="/auth/telegram" element={<TelegramCallback />} />
               <Route element={<RequireGuest />}>
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/auth/google" element={<GoogleCallback />} />
-                <Route path="/auth/telegram" element={<TelegramCallback />} />
               </Route>
               <Route element={<RequireAuth />}>
                 <Route path="/choose-password" element={<ChoosePassword />} />
                 {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
-                <Route path="/practice/run/:code" element={<PracticeRun />} />
-                <Route path="/words/study" element={<Study />} />
-                <Route path="/training-hall/drill" element={<Drill />} />
+                <Route element={<RequirePhone />}>
+                  <Route path="/practice/run/:code" element={<PracticeRun />} />
+                  <Route path="/words/study" element={<Study />} />
+                  <Route path="/training-hall/drill" element={<Drill />} />
+                </Route>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<Home />} />
                   <Route path="/classes" element={<StudentClasses />} />

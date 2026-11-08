@@ -1,12 +1,11 @@
-import { CircleAlert, UserCheck } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 
-import { signUp, startGoogle, useAppConfig, type Identity, type NumberOwner } from '@/api/accounts';
+import { signUp, useAppConfig } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
 import { EmailCode } from '@/components/accounts/EmailCode';
-import { PhoneCode } from '@/components/accounts/PhoneCode';
+import { GoogleButton, Or } from '@/components/accounts/Providers';
 import { TelegramButton } from '@/components/accounts/TelegramButton';
 import { AuthCard } from '@/components/brand/AuthCard';
 import { Button } from '@/components/Button';
@@ -14,99 +13,40 @@ import { Notice } from '@/components/Notice';
 import { TextField } from '@/components/TextField';
 import { useTitle } from '@/lib/title';
 
-import { GoogleG } from './SignIn';
-
-// Creating a student account: first who you are (an email checked with a
-// code, Google or Telegram), then the phone, checked by SMS or in the
-// Telegram bot. With an email, name and password come before the phone; with
-// Google or Telegram the phone comes first and the name form (password
-// optional) only for a new number. A number shared in the bot from the same
-// Telegram account signs straight into the account that has it. Otherwise,
-// by whose number it turns out to be:
-// - nobody's: the account is created;
-// - a free account's: "this phone number already exists";
-// - a SATMAKON student's or teacher's: "Is this you?"; yes signs into that
-//   account and links the email or Google account to it.
-// An email or Google account can be used to look up one taken number only.
-export type GoogleSignup = { google_ticket: string; first_name: string; last_name: string; email: string };
-export type TelegramSignup = { telegram_ticket: string; first_name: string; last_name: string };
-
-type Step = { kind: 'identity' } | { kind: 'details'; ticket?: string } | { kind: 'phone' } | { kind: 'exists' } | { kind: 'confirm'; ticket: string; owner: Extract<NumberOwner, { status: 'enrolled' }> } | { kind: 'not-me' };
-
+// Creating a student account:
+// - Telegram or Google: straight in (an account that already has that
+//   Telegram, Google account, number or email signs in instead).
+// - Email: a code; if an account has that email, it signs in, otherwise name,
+//   surname and a password make a new one.
+// Accounts made with Google or email have no phone number: everything stays
+// locked until they prove one (the panel in the app).
 export function SignUp() {
   useTitle('Create account');
   const { adopt } = useAuth();
-  const state = useLocation().state as { google?: GoogleSignup; telegram?: TelegramSignup } | null;
-  const google = state?.google ?? null;
-  const telegram = state?.telegram ?? null;
-  // Signed in with a provider (Google or Telegram): name filled in, password optional.
-  const provider = google ?? telegram;
   const config = useAppConfig();
-  const [identity, setIdentity] = useState<Identity | null>(google ? { google_ticket: google.google_ticket } : telegram ? { telegram_ticket: telegram.telegram_ticket } : null);
-  const [email, setEmail] = useState<string | null>(null);
-  // With Google or Telegram the phone comes first; name and password only for a new number.
-  const [step, setStep] = useState<Step>(provider ? { kind: 'phone' } : { kind: 'identity' });
-  const [first, setFirst] = useState(provider?.first_name ?? '');
-  const [last, setLast] = useState(provider?.last_name ?? '');
+  const [email, setEmail] = useState<{ address: string; ticket: string } | null>(null);
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const verified = (_phone: string, ticket: string, owner: NumberOwner) => {
-    if (owner?.status === 'registered') setStep({ kind: 'exists' });
-    else if (owner?.status === 'enrolled') setStep({ kind: 'confirm', ticket, owner });
-    else if (provider) setStep({ kind: 'details', ticket });
-    else void submit(ticket, true);
-  };
-
-  async function submit(ticket: string, names: boolean) {
-    if (busy || !identity) return;
+  async function submit() {
+    if (!email || busy) return;
     setBusy(true);
     setProblem(null);
     try {
-      adopt(
-        await signUp({
-          ticket,
-          first_name: names ? first.trim() : null,
-          last_name: names ? last.trim() : null,
-          password: password || null,
-          google_ticket: identity.google_ticket ?? null,
-          email_ticket: identity.email_ticket ?? null,
-          telegram_ticket: identity.telegram_ticket ?? null,
-        }),
-      );
+      adopt(await signUp({ email_ticket: email.ticket, first_name: first.trim(), last_name: last.trim(), password }));
     } catch (err) {
       setProblem(describeError(err));
       setBusy(false);
     }
   }
 
-  const passwordOk = provider ? password === '' || password.length >= 8 : password.length >= 8;
-  const passwordField = () => (
-    <TextField
-      label={provider ? 'Password (optional)' : 'Password'}
-      secure
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      autoComplete="new-password"
-      hint={provider ? 'Set one to sign in with your phone number or email too, here and in the phone app.' : 'At least 8 characters. You’ll sign in with your email or phone number and this.'}
-    />
-  );
-
-  const titles: Record<Step['kind'], [string, string]> = {
-    identity: ['Create your account', 'Free practice tests, vocabulary and the Training Hall. SATMAKON students get everything.'],
-    details: ['About you', google ? `Signing up with Google (${google.email}).` : telegram ? 'Signing up with Telegram.' : `Signing up with ${email ?? 'your email'}.`],
-    phone: ['Your phone number', provider ? 'If you already have a SATMAKON account, it finds it; if not, we’ll set one up.' : 'Last step: SATMAKON uses it to find your classes once you enrol.'],
-    exists: ['This number is taken', 'It already has a SATMAKON account.'],
-    confirm: ['Is this you?', 'This number belongs to a SATMAKON account.'],
-    'not-me': ['This number is in use', 'It belongs to someone else’s SATMAKON account.'],
-  };
-  const [title, subtitle] = titles[step.kind];
-
   return (
     <AuthCard
-      title={title}
-      subtitle={subtitle}
+      title={email ? 'About you' : 'Create your account'}
+      subtitle={email ? `Signing up with ${email.address}.` : 'Free practice tests, vocabulary and the Training Hall. SATMAKON students get everything.'}
       aside={
         <p className="t-subhead text-ink-2">
           Already have an account?{' '}
@@ -115,40 +55,31 @@ export function SignUp() {
           </Link>
         </p>
       }>
-      {step.kind === 'identity' && (
+      {!email ? (
         <>
           {(config.data?.google || config.data?.telegram) && (
             <>
-              <div className="mb-2.5">
+              <div className="flex flex-col gap-2.5">
                 <TelegramButton />
+                {config.data?.google && <GoogleButton />}
               </div>
-              {config.data?.google && <button type="button" onClick={() => startGoogle('/')} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
-                <GoogleG />
-                Continue with Google
-              </button>}
-              <div className="my-4 flex items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-                <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-              </div>
+              <Or />
             </>
           )}
           {config.data?.email !== false && (
             <EmailCode
-              onVerified={(address, ticket) => {
-                setEmail(address);
-                setIdentity({ email_ticket: ticket });
-                setStep({ kind: 'details' });
+              onVerified={(address, r) => {
+                if (r.status === 'signed_in') adopt(r.login);
+                else setEmail({ address, ticket: r.email_ticket });
               }}
             />
           )}
         </>
-      )}
-
-      {step.kind === 'details' && (
+      ) : (
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (step.ticket) void submit(step.ticket, true);
-            else setStep({ kind: 'phone' });
+            void submit();
           }}
           className="flex flex-col gap-4"
           noValidate>
@@ -156,71 +87,13 @@ export function SignUp() {
             <TextField label="First name" value={first} onChange={(e) => setFirst(e.target.value)} autoComplete="given-name" autoFocus />
             <TextField label="Surname" value={last} onChange={(e) => setLast(e.target.value)} autoComplete="family-name" />
           </div>
-          {passwordField()}
+          <TextField label="Password" secure value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" hint="At least 8 characters. You’ll sign in with your email and this." />
           {problem && <Notice tone="error" message={problem} />}
-          <Button type="submit" label={step.ticket ? 'Create account' : 'Continue'} loading={busy} disabled={(first.trim() === '' || last.trim() === '' || !passwordOk) && !busy} className="w-full" />
+          <Button type="submit" label="Create account" loading={busy} disabled={(first.trim() === '' || last.trim() === '' || password.length < 8) && !busy} className="w-full" />
+          <button type="button" onClick={() => setEmail(null)} className="t-footnote font-bold text-accent hover:underline">
+            Use another email
+          </button>
         </form>
-      )}
-
-      {step.kind === 'phone' && identity && (
-        <>
-          <PhoneCode purpose="signup" identity={identity} onVerified={verified} onSignedIn={adopt} />
-          {busy && <p className="t-footnote mt-3 text-center text-ink-2">Creating your account…</p>}
-          {problem && (
-            <div className="mt-3">
-              <Notice tone="error" message={problem} />
-            </div>
-          )}
-        </>
-      )}
-
-      {step.kind === 'exists' && (
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-3 rounded-card bg-surface-2 p-4">
-            <CircleAlert size={20} className="mt-0.5 shrink-0 text-watch" aria-hidden="true" />
-            <p className="t-subhead text-ink">This phone number already exists. Sign in to that account, or reset its password if you’ve forgotten it.</p>
-          </div>
-          <Link to="/sign-in" className="lift flex h-[46px] items-center justify-center rounded-card bg-primary text-[15px] font-bold text-on-primary hover:bg-primary-hover">
-            Sign in
-          </Link>
-          <Link to="/reset-password" className="t-subhead text-center font-bold text-accent hover:underline">
-            Forgot your password?
-          </Link>
-        </div>
-      )}
-
-      {step.kind === 'confirm' && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 rounded-card border border-line bg-surface-2 p-4">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-tint text-primary">
-              <UserCheck size={20} aria-hidden="true" />
-            </span>
-            <div>
-              <p className="t-headline text-ink">{step.owner.name}</p>
-              <p className="t-footnote text-ink-2">SATMAKON {step.owner.kind === 'teacher' ? 'teacher' : 'student'}</p>
-            </div>
-          </div>
-          <p className="t-subhead text-ink-2">This number belongs to the SATMAKON {step.owner.kind === 'teacher' ? 'teacher' : 'student'} account above. Is this you?</p>
-          {problem && <Notice tone="error" message={problem} />}
-          <Button label="Yes, that’s me" loading={busy} onClick={() => void submit(step.ticket, false)} className="w-full" />
-          <Button label="No, it’s not me" variant="secondary" onClick={() => setStep({ kind: 'not-me' })} className="w-full" />
-        </div>
-      )}
-
-      {step.kind === 'not-me' && (
-        <div className="flex flex-col gap-4">
-          <p className="t-subhead text-ink-2">A number can belong to one account only. If it really is yours, ask the SATMAKON office to update the number on that account. To use another number, start again.</p>
-          <Button
-            label="Start again"
-            onClick={() => {
-              setProblem(null);
-              setIdentity(null);
-              setEmail(null);
-              setStep({ kind: 'identity' });
-            }}
-            className="w-full"
-          />
-        </div>
       )}
     </AuthCard>
   );

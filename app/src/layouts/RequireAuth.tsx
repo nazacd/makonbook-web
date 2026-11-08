@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 
+import { needsPhone } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import { useAuth } from '@/auth/session';
@@ -52,5 +53,12 @@ export function RequireGuest() {
   const { status } = useAuth();
   const location = useLocation() as { state?: { from?: { pathname?: string } } };
   if (status === 'signedIn') return <Navigate to={location.state?.from?.pathname ?? '/'} replace />;
+  return <Outlet />;
+}
+
+/** The full-screen pages (a test, a study session, a drill): an account without a proven phone number goes home. */
+export function RequirePhone() {
+  const me = useMe().data;
+  if (needsPhone(me)) return <Navigate to="/" replace />;
   return <Outlet />;
 }

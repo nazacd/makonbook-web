@@ -2,7 +2,7 @@ import { AtSign, KeyRound, LogOut, Monitor, Moon, Pencil, Sun, type LucideIcon }
 import { useState } from 'react';
 import { Link } from 'react-router';
 
-import { formatUzPhone } from '@/api/accounts';
+import { formatUzPhone, needsPhone } from '@/api/accounts';
 import { useGoals } from '@/api/learning';
 import { useMe, useParentCode } from '@/api/queries';
 import type { Profile as ProfileType } from '@/api/types';
@@ -12,6 +12,7 @@ import { Avatar } from '@/components/Avatar';
 import { ShieldMark } from '@/components/brand/Logo';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
 import { Icon } from '@/components/Icon';
+import { useProvePhone } from '@/components/shell/ProvePhone';
 import { Pill } from '@/components/ui';
 import { ScreenTitle } from '@/layouts/AppShell';
 import { useAppearance, type AppearanceMode } from '@/lib/appearance';
@@ -35,7 +36,10 @@ export function Profile() {
   const appearance = useAppearance();
   const student = profile.kind === 'student';
   const parentCode = useParentCode(student);
-  const goals = useGoals(student);
+  const phoneless = needsPhone(profile);
+  const prove = useProvePhone();
+  const goals = useGoals(student && !phoneless);
+  const firstPassword = profile.has_password === false && !profile.must_change_password;
   const now = useNow();
   const [editGoals, setEditGoals] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -49,7 +53,7 @@ export function Profile() {
       <div className="grid gap-3.5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="relative overflow-hidden rounded-card border border-line bg-surface p-5" style={{ background: 'radial-gradient(60% 80% at 0% 0%, var(--color-accent-tint), transparent 60%), var(--color-surface)' }}>
           <div className="flex flex-wrap items-center gap-5">
-            <Avatar kind={profile.kind} firstName={profile.first_name} lastName={profile.last_name} id={profile.id} size={112} square />
+            <Avatar kind={profile.kind} firstName={profile.first_name} lastName={profile.last_name} id={profile.id} size={112} square photo={profile.photo_url} />
             <div className="min-w-0">
               <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-ink">{name}</h1>
               <p className="t-subhead flex flex-wrap items-center gap-2 text-ink-2">
@@ -60,8 +64,8 @@ export function Profile() {
                 <button type="button" onClick={() => setEditing(true)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3.5 text-[13px] font-bold text-on-primary hover:bg-primary-hover">
                   <Pencil size={14} aria-hidden="true" /> Edit profile
                 </button>
-                <Link to={profile.has_password === false ? '/reset-password' : '/profile/password'} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-[13px] font-bold text-ink hover:bg-surface-2">
-                  <KeyRound size={14} aria-hidden="true" /> {profile.has_password === false ? 'Set password' : 'Change password'}
+                <Link to="/profile/password" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-[13px] font-bold text-ink hover:bg-surface-2">
+                  <KeyRound size={14} aria-hidden="true" /> {firstPassword ? 'Set password' : 'Change password'}
                 </Link>
                 <Link to="/profile/username" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3.5 text-[13px] font-bold text-ink hover:bg-surface-2">
                   <AtSign size={14} aria-hidden="true" /> {profile.username ? 'Change username' : 'Set a username'}
@@ -72,11 +76,27 @@ export function Profile() {
           <dl className="mt-6 grid gap-4 sm:grid-cols-2">
             <div>
               <dt className="t-micro text-ink-3">Phone</dt>
-              <dd className="t-callout mt-1 text-ink">{profile.phone ? `+998 ${formatUzPhone(profile.phone)}` : 'Not provided'}</dd>
+              <dd className="t-callout mt-1 text-ink">
+                {profile.phone ? (
+                  formatPhone(profile.phone)
+                ) : phoneless ? (
+                  <button type="button" onClick={prove} className="font-bold text-accent hover:underline">
+                    Not proven yet — prove it
+                  </button>
+                ) : (
+                  'Not provided'
+                )}
+              </dd>
             </div>
+            {profile.email && (
+              <div>
+                <dt className="t-micro text-ink-3">Email</dt>
+                <dd className="t-callout mt-1 break-all text-ink">{profile.email}</dd>
+              </div>
+            )}
             <div>
               <dt className="t-micro text-ink-3">Username</dt>
-              <dd className="t-callout mt-1 text-ink">{profile.username ? `@${profile.username}` : 'Not set — you sign in with your phone number'}</dd>
+              <dd className="t-callout mt-1 text-ink">{profile.username ? `@${profile.username}` : 'Not set'}</dd>
             </div>
             {student && (
               <div>
@@ -179,4 +199,9 @@ function ParentCode({ code, failed }: { code: string | null; failed: boolean }) 
       <p className="t-caption mt-0.5 text-ink-3">Parents enter it in the MakonBook app, under “Ota-onalar uchun”.</p>
     </div>
   );
+}
+
+// "+998 90 123 45 67" for Uzbek numbers; others (from Telegram) as they are.
+function formatPhone(phone: string): string {
+  return phone.startsWith('+998') ? `+998 ${formatUzPhone(phone)}` : phone;
 }

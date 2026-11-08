@@ -31,6 +31,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageLoading } from '@/components/PageLoading';
 import { CommandSearch } from '@/components/shell/CommandSearch';
 import { LockedModal } from '@/components/shell/LockedModal';
+import { PhoneLocked, ProvePanelContext, ProvePhonePanel, useProvePanel } from '@/components/shell/ProvePhone';
+import { needsPhone } from '@/api/accounts';
 import { NotificationsDrawer } from '@/components/shell/NotificationsDrawer';
 import { useAppearance } from '@/lib/appearance';
 import { useTrackPracticeVisits } from '@/lib/practice/summary';
@@ -105,7 +107,13 @@ export function AppShell() {
   const teacher = me?.kind === 'teacher';
   // Signed up on the web, not (yet) a SATMAKON student: some pages are locked.
   const registered = me?.status === 'registered';
+  // No phone number yet: everything but the dashboard and Profile is locked
+  // until it's proven (the panel from the bottom).
+  const phoneless = needsPhone(me);
+  const isLocked = (item: Item) => (phoneless ? item.to !== '/' : registered && !!item.enrolledOnly);
   const [locked, setLocked] = useState<Item | null>(null);
+  const prove = useProvePanel(phoneless);
+  const onLocked = (item: Item) => (phoneless ? prove.open() : setLocked(item));
   useTrackPracticeVisits(teacher);
   const items = teacher ? TEACHER : STUDENT;
   const tabs = teacher ? TEACHER_TABS : STUDENT_TABS;
@@ -132,22 +140,23 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} registered={registered} onLocked={setLocked} />
+      <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} isLocked={isLocked} onLocked={onLocked} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} />
         <main className="w-full flex-1 px-4 pb-28 pt-4 md:px-7 md:pb-12 md:pt-6">
           {/* A page that crashes or is still loading keeps the frame around it. */}
           <ErrorBoundary>
             <Suspense fallback={<PageLoading />}>
-              <Outlet />
+              {phoneless && pathname !== '/' && !pathname.startsWith('/profile') ? <PhoneLocked onProve={prove.open} /> : <ProvePanelContext value={prove.open}><Outlet /></ProvePanelContext>}
             </Suspense>
           </ErrorBoundary>
         </main>
       </div>
-      <BottomBar items={items} tabs={tabs} onMore={() => setMore(true)} moreActive={!tabs.some((t) => isActive(pathname, items.find((i) => i.to === t)!))} registered={registered} onLocked={setLocked} />
-      {more && <MoreSheet items={items.filter((i) => !tabs.includes(i.to))} onClose={() => setMore(false)} />}
+      <BottomBar items={items} tabs={tabs} onMore={() => setMore(true)} moreActive={!tabs.some((t) => isActive(pathname, items.find((i) => i.to === t)!))} isLocked={isLocked} onLocked={onLocked} />
+      {more && <MoreSheet items={items.filter((i) => !tabs.includes(i.to))} isLocked={isLocked} onLocked={onLocked} onClose={() => setMore(false)} />}
       {overlay === 'search' && <CommandSearch pages={pages} onClose={() => setOverlay(null)} />}
       {overlay === 'notifications' && <NotificationsDrawer onClose={() => setOverlay(null)} />}
+      {prove.shown && <ProvePhonePanel onClose={prove.close} />}
       {locked && (
         <LockedModal
           title={`${locked.label} Locked`}
@@ -161,7 +170,7 @@ export function AppShell() {
 
 const isActive = (pathname: string, item: Item) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
-function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications, registered, onLocked }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void; onSearch: () => void; onNotifications: () => void; registered: boolean; onLocked: (item: Item) => void }) {
+function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications, isLocked, onLocked }: { items: Item[]; collapsed: boolean; onCollapse: (v: boolean) => void; onSearch: () => void; onNotifications: () => void; isLocked: (item: Item) => boolean; onLocked: (item: Item) => void }) {
   const row = `flex h-[39px] w-full items-center gap-2.5 rounded-chip px-2.5 text-[15px] text-nav transition-colors duration-150 hover:bg-surface-2 hover:text-ink ${collapsed ? 'justify-center' : ''}`;
   return (
     <aside
@@ -196,7 +205,7 @@ function Sidebar({ items, collapsed, onCollapse, onSearch, onNotifications, regi
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto no-scrollbar">
         {items.map((item) =>
-          registered && item.enrolledOnly ? (
+          isLocked(item) ? (
             <button key={item.to} type="button" onClick={() => onLocked(item)} title={collapsed ? `${item.label} (locked)` : undefined} className={`${row} opacity-45`}>
               <item.icon size={18} strokeWidth={1.9} aria-hidden="true" />
               {!collapsed && (
@@ -274,7 +283,7 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
         aria-expanded={open}
         aria-haspopup="menu"
         className={`flex w-full items-center gap-2.5 rounded-chip p-1.5 text-left hover:bg-surface-2 ${collapsed ? 'justify-center' : ''}`}>
-        <Avatar kind={me.kind} firstName={me.first_name} lastName={me.last_name} id={me.id} size={32} />
+        <Avatar kind={me.kind} firstName={me.first_name} lastName={me.last_name} id={me.id} size={32} photo={me.photo_url} />
         {!collapsed && (
           <>
             <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{name}</span>
@@ -314,13 +323,13 @@ function TopBar({ onSearch, onNotifications }: { onSearch: () => void; onNotific
   );
 }
 
-function BottomBar({ items, tabs, onMore, moreActive, registered, onLocked }: { items: Item[]; tabs: string[]; onMore: () => void; moreActive: boolean; registered: boolean; onLocked: (item: Item) => void }) {
+function BottomBar({ items, tabs, onMore, moreActive, isLocked, onLocked }: { items: Item[]; tabs: string[]; onMore: () => void; moreActive: boolean; isLocked: (item: Item) => boolean; onLocked: (item: Item) => void }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden" aria-label="Sections">
       <ul className="flex h-[65px] items-center justify-around px-1">
         {tabs.map((to) => {
           const item = items.find((i) => i.to === to)!;
-          if (registered && item.enrolledOnly) {
+          if (isLocked(item)) {
             return (
               <li key={to}>
                 <button type="button" onClick={() => onLocked(item)} className={`${tabClass(false)} opacity-45`} aria-label={`${item.label} (locked)`}>
@@ -353,7 +362,7 @@ function BottomBar({ items, tabs, onMore, moreActive, registered, onLocked }: { 
 const tabClass = (on: boolean) =>
   `flex h-[52px] w-[72px] flex-col items-center justify-center gap-0.5 rounded-chip transition-colors ${on ? 'bg-primary/10 text-primary' : 'text-ink-2'}`;
 
-function MoreSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
+function MoreSheet({ items, isLocked, onLocked, onClose }: { items: Item[]; isLocked: (item: Item) => boolean; onLocked: (item: Item) => void; onClose: () => void }) {
   const me = useMe().data;
   const { signOut } = useAuth();
   useEffect(() => {
@@ -374,12 +383,28 @@ function MoreSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
         <ul className="flex flex-col">
           {[...items, { to: '/profile', label: 'Profile', icon: User }].map((item) => (
             <li key={item.to}>
-              <NavLink to={item.to} onClick={onClose} className="flex h-12 items-center gap-3 rounded-chip px-2 text-[15px] font-semibold text-ink active:bg-surface-2">
-                <span className="flex size-8 items-center justify-center rounded-[9px] bg-accent-tint text-primary">
-                  <item.icon size={17} aria-hidden="true" />
-                </span>
-                {item.label}
-              </NavLink>
+              {isLocked(item) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLocked(item);
+                  }}
+                  className="flex h-12 w-full items-center gap-3 rounded-chip px-2 text-left text-[15px] font-semibold text-ink opacity-45 active:bg-surface-2">
+                  <span className="flex size-8 items-center justify-center rounded-[9px] bg-accent-tint text-primary">
+                    <item.icon size={17} aria-hidden="true" />
+                  </span>
+                  <span className="flex-1">{item.label}</span>
+                  <Lock size={14} className="text-primary" aria-label="Locked" />
+                </button>
+              ) : (
+                <NavLink to={item.to} onClick={onClose} className="flex h-12 items-center gap-3 rounded-chip px-2 text-[15px] font-semibold text-ink active:bg-surface-2">
+                  <span className="flex size-8 items-center justify-center rounded-[9px] bg-accent-tint text-primary">
+                    <item.icon size={17} aria-hidden="true" />
+                  </span>
+                  {item.label}
+                </NavLink>
+              )}
             </li>
           ))}
           <li>

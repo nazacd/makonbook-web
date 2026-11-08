@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 
-import { telegramSignIn, type TelegramAuth } from '@/api/accounts';
+import { telegramTicket, verifyPhoneByTelegram } from '@/api/accounts';
 import { describeError } from '@/api/errors';
 import { useAuth } from '@/auth/session';
 import { AuthCard } from '@/components/brand/AuthCard';
@@ -9,50 +9,53 @@ import { Spinner } from '@/components/Button';
 import { Notice } from '@/components/Notice';
 import { useTitle } from '@/lib/title';
 
-// Where Telegram's sign-in page sends people back: #tgAuthResult=<base64 JSON
-// signed by Telegram>. The API checks the signature; a linked Telegram
-// account signs in, a new one goes on to sign-up.
-function readResult(): TelegramAuth | null {
-  const raw = new URLSearchParams(window.location.hash.slice(1)).get('tgAuthResult');
-  if (!raw) return null;
-  try {
-    const b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
-    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))) as TelegramAuth;
-  } catch {
-    return null;
-  }
-}
+// Where Telegram sends people back (through the API's callback):
+// ?ticket=…&purpose=signin|verify&return=… or ?error=….
+// - signin: the account with that Telegram or that number, else a new one.
+// - verify: the signed-in person's number is proven; if another account
+//   already had it, they're moved into that account.
+const ERRORS: Record<string, string> = {
+  telegram_denied: 'Telegram sign-in was cancelled.',
+  telegram_failed: 'Telegram sign-in didn’t work this time. Try again, or use another way.',
+};
 
 export function TelegramCallback() {
-  useTitle('Signing in');
-  const { adopt } = useAuth();
-  const navigate = useNavigate();
-  const [auth] = useState(readResult);
+  const { adopt, status } = useAuth();
+  // Read once, before the first render: what Telegram's round trip brought back.
+  const [q] = useState(() => new URLSearchParams(window.location.search));
+  const ticket = q.get('ticket');
+  const error = q.get('error');
+  const verify = q.get('purpose') === 'verify';
+  const ret = q.get('return')?.startsWith('/') ? q.get('return')! : '/';
+  useTitle(verify ? 'Checking your number' : 'Signing in');
   const [failed, setFailed] = useState<string | null>(null);
-  const problem = auth ? failed : 'Telegram sign-in was cancelled or didn’t finish. Try again, or use another way.';
+  const problem = error || !ticket ? (ERRORS[error ?? ''] ?? ERRORS.telegram_failed!) : failed;
   const done = useRef(false);
 
   useEffect(() => {
     window.history.replaceState(null, '', window.location.pathname);
-    if (done.current || !auth) return;
+    if (done.current || !ticket || error) return; // a ticket works once
+    if (verify && status !== 'signedIn') return;
     done.current = true;
-    telegramSignIn(auth).then(
-      (r) => {
-        if (r.status === 'signed_in') adopt({ token: r.token, expires_at: r.expires_at, user: r.user });
-        else void navigate('/sign-up', { replace: true, state: { telegram: { telegram_ticket: r.telegram_ticket, first_name: r.first_name, last_name: r.last_name } } });
+    (verify ? verifyPhoneByTelegram(ticket) : telegramTicket(ticket)).then(
+      (login) => {
+        adopt(login);
+        // A fresh start: after proving a number the person may now be another
+        // account (the one that already had it).
+        window.location.replace(ret);
       },
       (err: unknown) => setFailed(describeError(err)),
     );
-  }, [adopt, navigate, auth]);
+  }, [adopt, ticket, error, verify, status, ret]);
 
+  const back = verify && status === 'signedIn' ? { to: ret, label: 'Back to SATMAKON' } : { to: '/sign-in', label: 'Back to sign in' };
   return (
-    <AuthCard title={problem ? 'Couldn’t sign in with Telegram' : 'Signing you in…'}>
+    <AuthCard title={problem ? (verify ? 'Couldn’t check your number' : 'Couldn’t sign in with Telegram') : verify ? 'Checking your number…' : 'Signing you in…'}>
       {problem ? (
         <div className="flex flex-col gap-4">
           <Notice tone="error" message={problem} />
-          <Link to="/sign-in" className="t-subhead text-center font-bold text-accent hover:underline">
-            Back to sign in
+          <Link to={back.to} className="t-subhead text-center font-bold text-accent hover:underline">
+            {back.label}
           </Link>
         </div>
       ) : (

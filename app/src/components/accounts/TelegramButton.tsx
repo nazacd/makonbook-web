@@ -1,14 +1,35 @@
-import { startTelegram, useAppConfig } from '@/api/accounts';
+import { useState } from 'react';
 
-// "Continue with Telegram", shown when the server has a bot set up.
-export function TelegramButton() {
+import { startTelegram, useAppConfig } from '@/api/accounts';
+import { describeError } from '@/api/errors';
+import { Spinner } from '@/components/Button';
+
+// "Continue with Telegram" (or "Verify with Telegram"), shown when the server
+// has Telegram login set up. Telegram's page asks for the phone number and
+// the person confirms in the Telegram app.
+export function TelegramButton({ purpose = 'signin', label = 'Continue with Telegram', returnTo = '/' }: { purpose?: 'signin' | 'verify'; label?: string; returnTo?: string }) {
   const telegram = useAppConfig().data?.telegram;
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   if (!telegram) return null;
+  async function go() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await startTelegram(purpose, returnTo);
+    } catch (err) {
+      setProblem(describeError(err));
+      setBusy(false);
+    }
+  }
   return (
-    <button type="button" onClick={() => startTelegram(telegram.bot_id)} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2">
-      <TelegramMark />
-      Continue with Telegram
-    </button>
+    <div>
+      <button type="button" onClick={() => void go()} disabled={busy} className="flex h-12 w-full items-center justify-center gap-3 rounded-card border border-line-strong bg-surface text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-70">
+        {busy ? <Spinner className="size-[18px] text-[#2AABEE]" /> : <TelegramMark />}
+        {label}
+      </button>
+      {problem && <p className="t-footnote mt-1.5 text-bad">{problem}</p>}
+    </div>
   );
 }
 
