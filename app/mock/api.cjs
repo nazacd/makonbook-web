@@ -156,7 +156,7 @@ const groupVocab = { words: 1220, students: roster.map(([client_id, first_name, 
 
 // --- Roadmaps (fictional curriculum; MOCK_CURRICULUM=<folder> loads course
 // JSON files from your machine instead — never commit real ones) ---
-const COUNTRY_CODES = { uzbekistan: 'uz', 'south-korea': 'kr', japan: 'jp', singapore: 'sg', turkey: 'tr', germany: 'de', switzerland: 'ch', 'united-kingdom': 'gb', canada: 'ca', 'united-states': 'us' };
+const COUNTRY_CODES = { uzbekistan: 'uz', 'south-korea': 'kr', japan: 'jp', singapore: 'sg', turkey: 'tr', germany: 'de', switzerland: 'ch', 'united-kingdom': 'gb', canada: 'ca', 'united-states': 'us', usa: 'us' };
 const LEVELS = { foundation: [['uzbekistan', 'Uzbekistan'], ['south-korea', 'South Korea'], ['japan', 'Japan'], ['singapore', 'Singapore']], 'pre-sat': [['turkey', 'Turkey'], ['germany', 'Germany'], ['switzerland', 'Switzerland'], ['united-kingdom', 'United Kingdom']], advanced: [['canada', 'Canada'], ['united-states', 'United States']] };
 function fakeCourse(subject, level) {
   const countries = LEVELS[level]; const per = 8 / countries.length; const units = [];

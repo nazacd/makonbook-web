@@ -48,12 +48,12 @@ export function Onboarding() {
   const navigate = useNavigate();
   const save = useSaveOnboarding();
   const [step, setStep] = useState(0);
-  const [graduation, setGraduation] = useState<string | null>(null);
+  const [graduation, setGraduation] = useState<Answers['graduation'] | null>(null);
   const [dates, setDates] = useState<string[] | null>(null); // [] = not decided
   const [current, setCurrent] = useState<Current>({ kind: 'total', total: 1000 });
   const [target, setTarget] = useState<{ math: number; rw: number } | null>(null);
   const [focus, setFocus] = useState<Answers['focus'] | null>(null);
-  const [days, setDays] = useState<string[]>(['mon', 'wed', 'fri']);
+  const [days, setDays] = useState<Answers['schedule']['days']>(['mon', 'wed', 'fri']);
   const [minutes, setMinutes] = useState<Answers['schedule']['minutes']>(30);
 
   if (me && (me.kind !== 'student' || me.status !== 'registered')) return <Navigate to="/roadmaps" replace />;
@@ -124,7 +124,7 @@ export function Onboarding() {
       {step === 0 && (
         <Question title="When do you graduate from school?">
           <div className="grid grid-cols-2 gap-2.5">
-            {['2027', '2028', '2029', '2030', '2031', '2032'].map((y) => (
+            {(['2027', '2028', '2029', '2030', '2031', '2032'] as const).map((y) => (
               <Tile
                 key={y}
                 on={graduation === y}
