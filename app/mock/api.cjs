@@ -25,7 +25,7 @@ const tokens = new Map();
 // codes are always 123456 here. Google sign-in skips Google and comes back
 // with a made-up account (/v1/auth/google/start?as=name&email=…); Telegram's
 // page is a small form at /v1/auth/telegram/mock (Telegram id, name, phone).
-for (const [login, p] of Object.entries(people)) Object.assign(p, { status: 'enrolled', phone: p.kind === 'teacher' ? '+998901110077' : `+99890111${String(p.id).padStart(4, '0')}`, google: false, telegram: false, photo_url: null, has_password: true, email: null, login });
+for (const [login, p] of Object.entries(people)) Object.assign(p, { status: 'enrolled', phone: p.kind === 'teacher' ? '+998901110077' : `+99890111${String(p.id).padStart(4, '0')}`, google: false, telegram: false, photo_url: null, onboarded: true, has_password: true, email: null, login });
 const passwords = new Map(); // login -> own password (sign-ups, resets)
 const codes = new Map(); // phone:purpose -> { code, at }
 const tickets = new Map(); // ticket -> { phone, purpose } | { google: { sub, first_name, last_name, email } }
@@ -38,7 +38,7 @@ const byEmail = (email) => (email ? Object.values(people).find((p) => p.email ==
 const normAny = (raw) => { const d = String(raw || '').replace(/\D/g, ''); return d.length >= 7 ? '+' + (d.length === 9 ? '998' + d : d) : null; };
 function newPerson({ first, last, phone = null, email = null, photo = false }) {
   const id = nextSelfId--; const login = 'u' + -id;
-  const p = { kind: 'student', id, first_name: first || 'New', last_name: last || 'Student', username: null, must_change_password: false, status: 'registered', phone, email, google: false, telegram: false, has_password: false, photo_url: photo ? `/v1/photos/p${-id}` : null, groups: [], login };
+  const p = { kind: 'student', id, first_name: first || 'New', last_name: last || 'Student', username: null, must_change_password: false, status: 'registered', phone, email, google: false, telegram: false, onboarded: false, has_password: false, photo_url: photo ? `/v1/photos/p${-id}` : null, groups: [], login };
   people[login] = p; return p;
 }
 function linkTelegram(p, id) { if (!tgLinks.has(id) && !p.telegram) { tgLinks.set(id, p.login); p.telegram = true; } }
@@ -152,6 +152,68 @@ const groupPractice = { students: roster.map(([client_id, first_name, last_name]
   { id: `0000000b-0000-4000-8000-00000000000${i}`, test: 'DAY1', title: 'DAY1', version: 2, sections: ['math'], started_at: new Date(Date.now() - 86400e3 * 3).toISOString(), finished_at: new Date(Date.now() - 86400e3 * 3 + 3600e3).toISOString(), scores: { math: { raw: 2, questions: 6, score: 400 } }, total: null },
 ] : [] })) };
 const groupVocab = { words: 1220, students: roster.map(([client_id, first_name, last_name], i) => ({ client_id, first_name, last_name, started: i * 20, learned: i * 7, reviews_week: i < 3 ? 30 - i * 10 : 0, last_review: i < 4 ? new Date(Date.now() - 86400e3 * i).toISOString() : null })) };
+
+
+// --- Roadmaps (fictional curriculum; MOCK_CURRICULUM=<folder> loads course
+// JSON files from your machine instead — never commit real ones) ---
+const COUNTRY_CODES = { uzbekistan: 'uz', 'south-korea': 'kr', japan: 'jp', singapore: 'sg', turkey: 'tr', germany: 'de', switzerland: 'ch', 'united-kingdom': 'gb', canada: 'ca', 'united-states': 'us', usa: 'us' };
+const LEVELS = { foundation: [['uzbekistan', 'Uzbekistan'], ['south-korea', 'South Korea'], ['japan', 'Japan'], ['singapore', 'Singapore']], 'pre-sat': [['turkey', 'Turkey'], ['germany', 'Germany'], ['switzerland', 'Switzerland'], ['united-kingdom', 'United Kingdom']], advanced: [['canada', 'Canada'], ['united-states', 'United States']] };
+function fakeCourse(subject, level) {
+  const countries = LEVELS[level]; const per = 8 / countries.length; const units = [];
+  for (let i = 0; i < 8; i++) {
+    const [cid, cname] = countries[Math.floor(i / per)]; const uid = `${subject[0]}-${level[0]}-0${i + 1}`;
+    units.push({ id: uid, title: `${subject === 'math' ? 'Math' : 'English'} topic ${i + 1}`, domain: subject === 'math' ? 'Algebra' : 'Craft and Structure', summary: 'A fictional unit for trying the app.', stop: { university: `Mock University of ${cname} ${i + 1}`, city: `${cname} City`, country: cname },
+      lessons: [1, 2].map((n) => ({ id: `${uid}-0${n}`, title: `Fictional lesson ${i + 1}.${n}`, skills: ['Demo skill'], prerequisites: [], minutes: 60,
+        objectives: ['Students can try the fictional lesson.', 'Students can see how \\(x + 1\\) is written.'],
+        notes: 'This is **made-up** text for the mock API.\n\nA formula: \\(3x + 5 = 20\\), so \\(x = 5\\).\n\n| Step | What |\n| --- | --- |\n| 1 | Read |\n| 2 | Try |',
+        examples: [{ problem: 'Solve \\(2x = 8\\).', steps: ['Divide both sides by 2.', 'So \\(x = 4\\).'], answer: '\\(4\\)' }],
+        common_mistakes: ['Forgetting to *check* the answer.'],
+        level_check: { questions: 6, mix: { easy: 4, medium: 2, hard: 0 }, skills: ['Demo skill'] },
+        homework: [{ title: 'Practice set A', skills: ['Demo skill'], difficulty: 'easy', questions: 4 }, { title: 'Practice set B', skills: ['Demo skill'], difficulty: 'medium', questions: 3 }] })) });
+  }
+  return { subject, level, countries: countries.map(([id, name], k) => ({ id, name, units: units.slice(k * per, (k + 1) * per).map((u) => u.id) })), units };
+}
+const courses = {};
+for (const subject of ['math', 'english']) for (const level of Object.keys(LEVELS)) courses[`${subject}-${level}`] = fakeCourse(subject, level);
+if (process.env.MOCK_CURRICULUM) {
+  const fs = require('fs'); const path = require('path');
+  for (const f of fs.readdirSync(process.env.MOCK_CURRICULUM).filter((x) => x.endsWith('.json'))) { const c = JSON.parse(fs.readFileSync(path.join(process.env.MOCK_CURRICULUM, f), 'utf8')); courses[`${c.subject}-${c.level}`] = c; }
+  console.log('curriculum from', process.env.MOCK_CURRICULUM);
+}
+const LEVEL_LABEL = { foundation: 'Foundation', 'pre-sat': 'Pre-SAT', advanced: 'Advanced' };
+const progress = new Map(); // login -> Map(lessonId -> { best, passed, hw: Set })
+const onboardings = new Map(); // login -> answers
+const assessments = new Map(); // id -> { ...assessment, owner, key }
+const prog = (login, lid) => { if (!progress.has(login)) progress.set(login, new Map()); const m = progress.get(login); if (!m.has(lid)) m.set(lid, { best: null, passed: false, hw: new Set() }); return m.get(lid); };
+function roadmapIds(p) {
+  if (p.kind !== 'student') return [];
+  if (p.status === 'registered') { const o = onboardings.get(p.login); if (!o) return []; const lv = (sec) => { const c = o.current; const v = !c ? null : c.total != null ? c.total / 2 : c[sec]; return v == null || v < 450 ? 'foundation' : v < 600 ? 'pre-sat' : 'advanced'; };
+    return [...(o.focus !== 'english' ? [`math-${lv('math')}`] : []), ...(o.focus !== 'math' ? [`english-${lv('rw')}`] : [])]; }
+  const ids = [];
+  for (const g of p.groups) { const d = g.discipline.toUpperCase(); const subj = /MATH/.test(d) ? 'math' : /ENGLISH/.test(d) ? 'english' : null; const lvl = /FOUND/.test(d) ? 'foundation' : /PRE ?-?SAT/.test(d) ? 'pre-sat' : /ADV/.test(d) ? 'advanced' : null; if (subj && lvl && !ids.includes(`${subj}-${lvl}`)) ids.push(`${subj}-${lvl}`); }
+  return ids;
+}
+function lessonDone(login, l) { const pr = prog(login, l.id); return pr.passed && l.homework.every((_, i) => pr.hw.has(i)); }
+function buildRoadmap(p, id) {
+  const c = courses[id]; const free = p.status === 'registered'; const freeUnits = free ? c.countries[0].units.length : null;
+  let prevDone = true; let lessonsDone = 0; let unitsDone = 0; let current = null; const order = c.countries.flatMap((k) => k.units);
+  const units = order.map((uid, ui) => { const u = c.units.find((x) => x.id === uid); const beyond = free && ui >= freeUnits;
+    const lessons = u.lessons.map((l) => { const done = lessonDone(p.login, l); const pr = prog(p.login, l.id);
+      const status = beyond ? 'locked' : done ? 'done' : prevDone ? 'open' : 'locked'; const lock = beyond ? 'enrolled_only' : status === 'locked' ? 'previous' : null;
+      if (status === 'open' && !current) current = { unit_id: u.id, unit_title: u.title, lesson_id: l.id, lesson_title: l.title, university: u.stop.university };
+      if (done && !beyond) lessonsDone++; prevDone = prevDone && done;
+      return { id: l.id, title: l.title, minutes: l.minutes, status, lock, level_check: { questions: l.level_check.questions, best: pr.best, passed: pr.passed }, homework: { sets: l.homework.length, done: pr.hw.size } }; });
+    const status = lessons.every((l) => l.status === 'done') ? 'done' : beyond ? 'locked' : lessons.some((l) => l.status !== 'locked') ? 'open' : 'locked';
+    if (status === 'done') unitsDone++;
+    return { id: u.id, title: u.title, domain: u.domain, summary: u.summary, stop: u.stop, status, lock: beyond ? 'enrolled_only' : status === 'locked' ? 'previous' : null, lessons }; });
+  const summary = { id, subject: c.subject, level: c.level, title: `${c.subject === 'math' ? 'Math' : 'English'} · ${LEVEL_LABEL[c.level]}`, source: free ? 'onboarding' : 'group', group_name: free ? null : (p.groups.find((g) => g.discipline.toUpperCase().includes(c.subject.toUpperCase())) || {}).name || null,
+    lessons_done: lessonsDone, lessons_total: units.reduce((a, u) => a + u.lessons.length, 0), units_done: unitsDone, units_total: units.length, current, free_units: freeUnits };
+  return { ...summary, countries: c.countries.map((k) => ({ ...k, code: COUNTRY_CODES[k.id] || null })), units };
+}
+const findLesson = (id, lid) => { const c = courses[id]; for (const u of c.units) for (const l of u.lessons) if (l.id === lid) return { u, l }; return null; };
+const strip = (q) => ({ id: q.id, position: q.position, type: q.type, passage: q.passage, stem: q.stem, choices: q.choices, figures: q.figures, domain: q.domain, skill: q.skill, difficulty: q.difficulty });
+const assessmentOut = (a) => ({ id: a.id, kind: a.kind, roadmap_id: a.roadmap_id, lesson_id: a.lesson_id, homework_index: a.homework_index, title: a.title, subject: a.subject, created_at: a.created_at, finished_at: a.finished_at,
+  questions: a.finished_at ? a.questions : a.questions.map(strip), images: {}, answers: a.answers, result: a.result });
 
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
@@ -267,6 +329,57 @@ http.createServer(async (req, res) => {
   if (!me) return err(res, 401, 'unauthorized', 'session ended');
   if (url === '/v1/auth/logout') { tokens.delete(auth); return json(res, 204); }
   if (url === '/v1/me') return json(res, 200, me);
+  // Onboarding and roadmaps.
+  if (url === '/v1/me/onboarding' && req.method === 'GET') { const o = onboardings.get(me.login); return o ? json(res, 200, o) : err(res, 404, 'not_found', 'no onboarding yet'); }
+  if (url === '/v1/me/onboarding' && req.method === 'POST') {
+    if (me.status !== 'registered' || me.kind !== 'student') return err(res, 409, 'not_needed', 'enrolled people get their roadmaps from their groups');
+    if (!['math', 'english', 'both'].includes(body.focus) || !body.target || !body.schedule?.days?.length) return err(res, 422, 'invalid_onboarding', 'focus, target and schedule are needed');
+    onboardings.set(me.login, body); me.onboarded = true;
+    goals.set(me.login, { target_math: body.target.math, target_rw: body.target.rw, exam_date: [...(body.sat_dates || [])].sort()[0] || null, updated_at: new Date().toISOString() });
+    return json(res, 200, { profile: me, roadmaps: roadmapIds(me).map((id) => { const r = buildRoadmap(me, id); delete r.countries; delete r.units; return r; }) });
+  }
+  if (url === '/v1/me/roadmaps') return json(res, 200, { roadmaps: roadmapIds(me).map((id) => { const r = buildRoadmap(me, id); delete r.countries; delete r.units; return r; }) });
+  let mm;
+  if ((mm = url.match(/^\/v1\/me\/roadmaps\/([^/]+)$/))) { if (!roadmapIds(me).includes(mm[1])) return err(res, 404, 'not_found', 'no such roadmap'); return json(res, 200, buildRoadmap(me, mm[1])); }
+  if ((mm = url.match(/^\/v1\/me\/roadmaps\/([^/]+)\/lessons\/([^/]+)(\/assessments)?$/))) {
+    const [, rid, lid, isA] = mm; if (!roadmapIds(me).includes(rid)) return err(res, 404, 'not_found', 'no such roadmap');
+    const found = findLesson(rid, lid); if (!found) return err(res, 404, 'not_found', 'no such lesson');
+    const rl = buildRoadmap(me, rid).units.flatMap((u) => u.lessons).find((x) => x.id === lid);
+    if (rl.status === 'locked') return rl.lock === 'enrolled_only' ? err(res, 403, 'enrolled_only', 'enrol to continue') : err(res, 403, 'lesson_locked', 'finish the lesson before');
+    const { u, l } = found; const pr = prog(me.login, lid); const mine = [...assessments.values()].filter((a) => a.owner === me.login && a.lesson_id === lid);
+    if (!isA) {
+      const lcs = mine.filter((a) => a.kind === 'level_check');
+      return json(res, 200, { lesson: { id: l.id, title: l.title, unit_id: u.id, minutes: l.minutes, skills: l.skills, objectives: l.objectives, notes: l.notes, examples: l.examples, common_mistakes: l.common_mistakes, status: rl.status, lock: rl.lock },
+        level_check: { questions: l.level_check.questions, mix: l.level_check.mix, pass_percent: 70, best: pr.best, passed: pr.passed, attempts: lcs.filter((a) => a.finished_at).map((a) => ({ id: a.id, percent: a.result.percent, finished_at: a.finished_at })), open: (lcs.find((a) => !a.finished_at) && { id: lcs.find((a) => !a.finished_at).id }) || null },
+        homework: l.homework.map((h, i) => { const hs = mine.filter((a) => a.kind === 'homework' && a.homework_index === i); const fin = hs.filter((a) => a.finished_at).pop(); const open = hs.find((a) => !a.finished_at);
+          return { index: i, title: h.title, difficulty: h.difficulty, questions: h.questions, done: pr.hw.has(i), attempt: fin ? { id: fin.id, percent: fin.result.percent, finished_at: fin.finished_at } : null, open: open ? { id: open.id } : null }; }) });
+    }
+    if (req.method !== 'POST') return err(res, 405, 'method_not_allowed', 'POST');
+    const kind = body.kind; const idx = kind === 'homework' ? Number(body.index) : null;
+    if (kind === 'homework' && !l.homework[idx]) return err(res, 422, 'invalid_request', 'no such homework set');
+    const existing = mine.find((a) => !a.finished_at && a.kind === kind && a.homework_index === idx); if (existing) return json(res, 200, assessmentOut(existing));
+    const subject = courses[rid].subject; const pool = subject === 'math' ? [...mathQuestions(1), ...mathQuestions(2)] : [...rwQuestions(1), ...rwQuestions(2)];
+    const n = kind === 'homework' ? l.homework[idx].questions : l.level_check.questions; const seed = assessments.size;
+    const qs = Array.from({ length: n }, (_, i) => { const src = pool[(i + seed) % pool.length]; return { ...src, id: `${src.id.slice(0, -4)}${String(i).padStart(4, '0')}`, position: i + 1 }; });
+    const a = { id: `asm-${Math.random().toString(36).slice(2, 10)}`, owner: me.login, kind, roadmap_id: rid, lesson_id: lid, homework_index: idx, title: kind === 'homework' ? l.homework[idx].title : `Level check: ${l.title}`, subject, created_at: new Date().toISOString(), finished_at: null, questions: qs, answers: {}, result: null };
+    assessments.set(a.id, a); return json(res, 200, assessmentOut(a));
+  }
+  if ((mm = url.match(/^\/v1\/me\/assessments\/([^/]+)(\/answers|\/submit)?$/))) {
+    const a = assessments.get(mm[1]); if (!a || a.owner !== me.login) return err(res, 404, 'not_found', 'no such assessment');
+    if (!mm[2]) return json(res, 200, assessmentOut(a));
+    if (a.finished_at) return err(res, 409, 'finished', 'already submitted');
+    a.answers = { ...a.answers, ...(body.answers || {}) };
+    if (mm[2] === '/answers') return json(res, 204);
+    const items = a.questions.map((q) => { const given = a.answers[q.id] ?? null; const ok = given != null && (q.type === 'mcq' ? given === q.correct : (q.accepted || []).includes(String(given).trim()));
+      return { question_id: q.id, given, correct: ok, correct_answer: q.type === 'mcq' ? q.correct : (q.accepted || [''])[0], explanation: q.explanation }; });
+    const correct = items.filter((x) => x.correct).length; const percent = Math.round((100 * correct) / items.length);
+    const pr = prog(me.login, a.lesson_id); const passed = a.kind === 'homework' ? true : percent >= 70;
+    if (a.kind === 'level_check') { pr.best = Math.max(pr.best ?? 0, percent); pr.passed = pr.passed || passed; } else pr.hw.add(a.homework_index);
+    const { l } = findLesson(a.roadmap_id, a.lesson_id);
+    a.finished_at = new Date().toISOString(); a.result = { percent, correct, total: items.length, passed, lesson_done: lessonDone(me.login, l), items };
+    return json(res, 200, assessmentOut(a));
+  }
+
   if (url === '/v1/me/profile' && req.method === 'PUT') {
     for (const k of ['first_name', 'last_name']) {
       const v = body[k] == null ? null : String(body[k]).trim();

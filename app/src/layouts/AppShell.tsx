@@ -19,6 +19,7 @@ import {
   User,
   X,
   type LucideIcon,
+  Signpost,
 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
@@ -47,13 +48,14 @@ type Item = { to: string; label: string; icon: LucideIcon; end?: boolean; enroll
 const STUDENT: Item[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/classes', label: 'Classes', icon: CalendarDays, enrolledOnly: true },
+  { to: '/roadmaps', label: 'Roadmaps', icon: Signpost },
   { to: '/practice', label: 'Mock tests', icon: ClipboardList },
   { to: '/training-hall', label: 'Training Hall', icon: Dumbbell },
   { to: '/problem-questions', label: 'Problem questions', icon: Bookmark },
   { to: '/words', label: 'Vocabulary', icon: SpellCheck },
 ];
 // The phone's bottom bar: four of them and More.
-const STUDENT_TABS = ['/', '/classes', '/practice', '/words'];
+const STUDENT_TABS = ['/', '/classes', '/roadmaps', '/practice'];
 
 const TEACHER: Item[] = [
   { to: '/', label: 'Today', icon: CalendarCheck, end: true },
@@ -62,7 +64,7 @@ const TEACHER: Item[] = [
 ];
 const TEACHER_TABS = ['/', '/practice', '/words'];
 
-const SHORT: Record<string, string> = { '/': 'Home', '/practice': 'Tests', '/words': 'Words' };
+const SHORT: Record<string, string> = { '/': 'Home', '/practice': 'Tests', '/words': 'Words', '/roadmaps': 'Roadmap' };
 
 function useCollapsed(): [boolean, (v: boolean) => void] {
   const [collapsed, set] = useState(() => {

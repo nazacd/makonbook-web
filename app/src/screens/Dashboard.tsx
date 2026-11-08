@@ -9,6 +9,7 @@ import {
   LineChart,
   Pencil,
   PlayCircle,
+  Signpost,
   SpellCheck,
   Target,
   XCircle,
@@ -19,6 +20,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useGoals, type Goals } from '@/api/learning';
+import { useRoadmaps } from '@/api/roadmaps';
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Profile } from '@/api/types';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
@@ -46,6 +48,7 @@ const A = {
   continue: 'var(--color-pink)',
   vocab: 'var(--color-violet)',
   scores: 'var(--color-teal)',
+  roadmap: 'var(--color-green)',
 };
 
 export function Dashboard() {
@@ -88,7 +91,8 @@ export function Dashboard() {
         <ThisWeek answered={answered} reviewDays={vocab.hasDeck ? vocab.log.map((r) => schoolDate(Date.parse(r.reviewed_at))) : []} resolved={resolved} now={now} />
       </div>
 
-      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
+        <RoadmapWidget />
         <Continue runs={inProgress} />
         <VocabWidget v={vocab} now={now} />
         <Scores totals={totals.map((a) => ({ total: a.total!, at: a.finished_at, title: a.title }))} goal={goals.data?.target_total ?? null} />
@@ -386,6 +390,66 @@ function ThisWeek({ answered, reviewDays, resolved, now }: { answered: Answered[
         <p className="t-footnote mt-2 text-ink">
           {[math != null && `Math ${math}% right`, english != null && `Reading & Writing ${english}% right`].filter(Boolean).join(' · ')}
         </p>
+      )}
+    </Widget>
+  );
+}
+
+// The current roadmap: progress, where you are, and Continue (the reference's Roadmap widget).
+function RoadmapWidget() {
+  const list = useRoadmaps();
+  const [k, setK] = useState(0);
+  const all = list.data ?? [];
+  const r = all[Math.min(k, all.length - 1)];
+  const pct = r && r.lessons_total ? Math.round((100 * r.lessons_done) / r.lessons_total) : 0;
+  const ring = 2 * Math.PI * 22;
+  return (
+    <Widget accent={A.roadmap}>
+      <WidgetLabel
+        icon={Signpost}
+        label="Roadmap"
+        accent={A.roadmap}
+        right={
+          all.length > 1 ? (
+            <span className="flex gap-1">
+              {all.map((x, i) => (
+                <button key={x.id} type="button" onClick={() => setK(i)} aria-label={x.title} aria-pressed={i === k} className={`size-2 rounded-full ${i === k ? 'bg-green' : 'bg-line-strong'}`} />
+              ))}
+            </span>
+          ) : undefined
+        }
+      />
+      {list.isPending ? (
+        <Skeleton height={96} radius={12} />
+      ) : !r ? (
+        <div className="py-3 text-center">
+          <p className="t-subhead text-ink-2">Build your study roadmap, one stop at a time.</p>
+          <Link to="/roadmaps" className="t-subhead mt-2 inline-flex items-center gap-1 font-bold text-accent hover:underline">
+            Open roadmaps <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="relative size-14 shrink-0">
+              <svg viewBox="0 0 56 56" className="size-full -rotate-90" aria-hidden="true">
+                <circle cx="28" cy="28" r="22" fill="none" stroke="var(--color-track)" strokeWidth="6" />
+                <circle cx="28" cy="28" r="22" fill="none" stroke="var(--color-green)" strokeWidth="6" strokeLinecap="round" strokeDasharray={ring} strokeDashoffset={ring * (1 - pct / 100)} />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[13px] font-bold text-ink">{pct}%</span>
+            </div>
+            <div className="min-w-0">
+              <p className="t-headline truncate text-ink">{r.title}</p>
+              <p className="t-caption truncate text-ink-2">{r.current ? `${r.current.unit_title} · ${r.current.university}` : r.lessons_done === r.lessons_total ? 'Journey complete' : 'Enrol to continue'}</p>
+            </div>
+          </div>
+          <p className="t-caption mt-3 text-ink-2">
+            {r.units_done} stops done · {r.units_total - r.units_done} to go · Lessons {r.lessons_done}/{r.lessons_total}
+          </p>
+          <Link to={r.current ? `/roadmaps/${r.id}/lessons/${r.current.lesson_id}` : `/roadmaps/${r.id}`} className="t-subhead mt-2 inline-flex items-center gap-1 font-bold text-accent hover:underline">
+            {r.current ? 'Continue' : 'Open the map'} <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </>
       )}
     </Widget>
   );
