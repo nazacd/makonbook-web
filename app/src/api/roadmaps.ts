@@ -78,18 +78,20 @@ export function useAssessment(id: string) {
   });
 }
 
-export function saveAnswers(id: string, answers: Record<string, string | null>) {
-  return call(api.PUT('/v1/me/assessments/{id}/answers', { params: { path: { id } }, body: { answers } }));
+/** Saves answers (and seconds spent per question, for the teacher's statistics). */
+export function saveAnswers(id: string, answers: Record<string, string | null>, times?: Record<string, number>) {
+  return call(api.PUT('/v1/me/assessments/{id}/answers', { params: { path: { id } }, body: { answers, ...(times && Object.keys(times).length ? { times } : {}) } }));
 }
 
 export function useSubmitAssessment(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (answers: Record<string, string | null>) => (await call(api.POST('/v1/me/assessments/{id}/submit', { params: { path: { id } }, body: { answers } }))),
+    mutationFn: async ({ answers, times }: { answers: Record<string, string | null>; times: Record<string, number> }) => (await call(api.POST('/v1/me/assessments/{id}/submit', { params: { path: { id } }, body: { answers, times } }))),
     onSuccess: (a) => {
       queryClient.setQueryData(assessmentKey(id), a);
-      // Progress changed: the map, the lesson and the list.
+      // Progress changed: the map, the lesson and the list; and the assignments.
       void queryClient.invalidateQueries({ queryKey: roadmapsKey });
+      void queryClient.invalidateQueries({ queryKey: ['assignments'] });
     },
   });
 }

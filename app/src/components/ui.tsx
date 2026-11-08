@@ -91,7 +91,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
             role="tab"
             aria-selected={on}
             onClick={() => onChange(o.value)}
-            className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors duration-150 ${on ? 'bg-accent-tint text-accent' : 'text-ink-2 hover:text-ink'}`}>
+            className={`flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold transition-colors duration-150 ${on ? 'bg-accent-tint text-accent' : 'text-ink-2 hover:text-ink'}`}>
             {o.label}
             {o.count != null && <span className={`tabular ${on ? 'text-accent' : 'text-ink-3'}`}>{o.count}</span>}
           </button>

@@ -1,5 +1,8 @@
 import {
   ArrowRight,
+  BookOpenCheck,
+  ClipboardCheck,
+  ClipboardList,
   CalendarClock,
   Clock,
   Compass,
@@ -19,10 +22,13 @@ import {
 import { useState } from 'react';
 import { Link } from 'react-router';
 
+import { isDue, KIND, useMyAssignments, type StudentAssignment } from '@/api/assignments';
 import { useGoals, type Goals } from '@/api/learning';
 import { useRoadmaps } from '@/api/roadmaps';
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Profile } from '@/api/types';
+import { examPath } from '@/components/assignments/AssignmentCard';
+import { dueRelative, dueShort } from '@/components/assignments/format';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
 import { Skeleton } from '@/components/States';
 import { Progress, Widget, WidgetLabel } from '@/components/ui';
@@ -47,8 +53,9 @@ const A = {
   week: 'var(--color-amber)',
   continue: 'var(--color-pink)',
   vocab: 'var(--color-violet)',
-  scores: 'var(--color-teal)',
-  roadmap: 'var(--color-green)',
+  scores: 'var(--color-slate)',
+  roadmap: 'var(--color-teal)',
+  due: 'var(--color-green)',
 };
 
 export function Dashboard() {
@@ -63,6 +70,8 @@ export function Dashboard() {
   const runs = useRuns();
   const catalog = useCatalog();
   const [editGoals, setEditGoals] = useState(false);
+  const assignments = useMyAssignments(profile.status !== 'registered');
+  const soon = (assignments.data ?? []).filter((a) => isDue(a) && Date.parse(a.due_at) - now < 2 * 86_400_000).sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
 
   const inProgress = Object.values(runs.data ?? {});
   const finishedCodes = new Set(attempts.map((a) => a.code));
@@ -80,7 +89,7 @@ export function Dashboard() {
 
       <div className="grid gap-3.5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.85fr)_minmax(0,1fr)]">
         <div className="lg:col-span-2 xl:col-span-1">
-          <TodaysPlan repair={repair} vocabToStudy={vocab.hasDeck ? vocab.toStudy : 0} run={inProgress[0]} nextTest={nextTest} loading={isPending} />
+          <TodaysPlan due={soon} now={now} repair={repair} vocabToStudy={vocab.hasDeck ? vocab.toStudy : 0} run={inProgress[0]} nextTest={nextTest} loading={isPending} />
         </div>
         <NextClassWidget profile={profile} now={now} />
         <YourSat goals={goals.data} latest={totals.at(-1)?.total ?? null} now={now} onEdit={() => setEditGoals(true)} />
@@ -91,9 +100,13 @@ export function Dashboard() {
         <ThisWeek answered={answered} reviewDays={vocab.hasDeck ? vocab.log.map((r) => schoolDate(Date.parse(r.reviewed_at))) : []} resolved={resolved} now={now} />
       </div>
 
-      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
-        <RoadmapWidget />
+      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+        <DueWork list={assignments.data} loading={assignments.isPending && profile.status !== 'registered'} registered={profile.status === 'registered' || profile.groups.length === 0} now={now} />
         <Continue runs={inProgress} />
+        <RoadmapWidget />
+      </div>
+
+      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2">
         <VocabWidget v={vocab} now={now} />
         <Scores totals={totals.map((a) => ({ total: a.total!, at: a.finished_at, title: a.title }))} goal={goals.data?.target_total ?? null} />
       </div>
@@ -133,12 +146,25 @@ function topSkill(repair: Answered[]) {
   return [...counts.values()].sort((x, y) => y.n - x.n)[0];
 }
 
-// One suggestion, with why: mistakes first, then words due, then the test
-// half-done, then a test not yet tried.
-function TodaysPlan({ repair, vocabToStudy, run, nextTest, loading }: { repair: Answered[]; vocabToStudy: number; run?: { code: string; title: string }; nextTest?: { code: string; title: string }; loading: boolean }) {
+// One suggestion, with why: work due within two days first, then mistakes,
+// then words due, then the test half-done, then a test not yet tried.
+function TodaysPlan({ due, now, repair, vocabToStudy, run, nextTest, loading }: { due?: StudentAssignment; now: number; repair: Answered[]; vocabToStudy: number; run?: { code: string; title: string }; nextTest?: { code: string; title: string }; loading: boolean }) {
   let body: { title: string; topic: string; chips: [LucideIcon, string][]; why: string; to: string; cta: string };
   const top = topSkill(repair);
-  if (top) {
+  if (due) {
+    const late = Date.parse(due.due_at) < now;
+    body = {
+      title: due.mine.status === 'in_progress' ? `Finish ${testName(due.title)}` : testName(due.title),
+      topic: `${KIND[due.kind].label} · ${due.lesson?.title ?? parseClassName(due.group_name).title}`,
+      chips: [
+        [CalendarClock, late ? `was due ${dueRelative(due.due_at, now)}` : `due ${dueRelative(due.due_at, now)}`],
+        [ClipboardList, `${due.questions} questions`],
+      ],
+      why: late ? 'The deadline has passed, but your teacher still takes it, marked late. Better late than blank.' : 'Your teacher set it, and the deadline is close. Get it done and the rest of the day is yours.',
+      to: due.kind === 'exam' ? examPath(due) : KIND[due.kind].path,
+      cta: due.mine.status === 'in_progress' ? 'Continue' : 'Start',
+    };
+  } else if (top) {
     const n = Math.min(20, top.n);
     body = {
       title: n === 1 ? 'One mistake to clear' : `Clear ${n} mistakes`,
@@ -453,6 +479,84 @@ function RoadmapWidget() {
       )}
     </Widget>
   );
+}
+
+const DUE_ICON = { homework: BookOpenCheck, level_check: ClipboardCheck, exam: CalendarClock };
+
+// What the teachers set and isn't done, soonest deadline first, with a pill
+// per group to narrow it down (the reference's Due work).
+function DueWork({ list, loading, registered, now }: { list?: StudentAssignment[]; loading: boolean; registered: boolean; now: number }) {
+  const [group, setGroup] = useState<number | null>(null);
+  const all = list ?? [];
+  const groups = [...new Map(all.map((a) => [a.group_id, parseClassName(a.group_name).title])).entries()];
+  const inGroup = all.filter((a) => group == null || a.group_id === group);
+  const due = inGroup.filter(isDue).sort((a, b) => a.due_at.localeCompare(b.due_at));
+  const done = inGroup.filter((a) => a.mine.finished_at).length;
+  return (
+    <Widget accent={A.due}>
+      <WidgetLabel
+        icon={CalendarClock}
+        label="Due work"
+        accent={A.due}
+        right={
+          groups.length > 1 ? (
+            <div className="flex max-w-[60%] gap-1.5 overflow-x-auto no-scrollbar">
+              {[[null, 'All'] as const, ...groups].map(([id, title]) => (
+                <button key={id ?? 'all'} type="button" onClick={() => setGroup(id)} aria-pressed={group === id} className={`h-6 shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-semibold ${group === id ? 'border-green/40 bg-green/10 text-green' : 'border-line text-ink-2 hover:text-ink'}`}>
+                  {title}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
+      />
+      {registered ? (
+        <div className="py-4 text-center">
+          <p className="t-subhead text-ink-2">Teachers’ homework shows up here once you’re in a group. Your roadmap has some for every lesson.</p>
+          <Link to="/roadmaps" className="t-subhead mt-2 inline-flex items-center gap-1 font-bold text-accent hover:underline">
+            Open roadmaps <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </div>
+      ) : loading ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton height={52} radius={12} />
+          <Skeleton height={52} radius={12} />
+        </div>
+      ) : due.length === 0 ? (
+        <p className="t-subhead py-6 text-center text-ink-2">{all.length ? 'All done. Nothing due right now.' : 'Nothing set yet. Homework, level checks and exams from your teachers land here.'}</p>
+      ) : (
+        <ul className="flex max-h-[188px] flex-col gap-2 overflow-y-auto overscroll-contain">
+          {due.map((a) => {
+            const I = DUE_ICON[a.kind];
+            const late = Date.parse(a.due_at) < now;
+            return (
+              <li key={a.id}>
+                <Link to={a.kind === 'exam' ? examPath(a) : KIND[a.kind].path} className="flex items-center gap-3 rounded-control bg-surface-2 px-3 py-2.5 hover:bg-line">
+                  <I size={17} className="shrink-0 text-green" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="t-headline block truncate text-ink">{testName(a.title)}</span>
+                    <span className={`t-caption ${late ? 'text-bad' : 'text-ink-2'}`}>
+                      {KIND[a.kind].label} · {late ? 'overdue' : 'due'} {dueShort(a.due_at, now)}
+                    </span>
+                  </span>
+                  <ChevronRightIcon />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {!registered && all.length > 0 && (
+        <Link to="/homework" className="t-caption mt-3 flex justify-end font-bold text-green hover:underline">
+          {done}/{inGroup.length} done →
+        </Link>
+      )}
+    </Widget>
+  );
+}
+
+function ChevronRightIcon() {
+  return <ArrowRight size={15} className="shrink-0 text-ink-2" aria-hidden="true" />;
 }
 
 function Continue({ runs }: { runs: { code: string; title: string; stage: number; sections: string[]; startedAt: string }[] }) {

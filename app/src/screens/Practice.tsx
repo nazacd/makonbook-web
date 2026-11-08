@@ -1,6 +1,7 @@
 import { ClipboardList, CloudUpload, Search, SearchX, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
+import { isDue, useMyAssignments } from '@/api/assignments';
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import { Icon } from '@/components/Icon';
@@ -63,6 +64,9 @@ function StudentPractice() {
   const server = useServerAttempts(false);
   useUploadAttempts(true);
   const runStore = useRunStore();
+  // Tests a teacher assigned and the student hasn't done: their deadline instead of "Published".
+  const assignedDue = new Map<string, string>();
+  for (const a of useMyAssignments().data ?? []) if (a.kind === 'exam' && a.test && isDue(a) && !(assignedDue.get(a.test.code)! < a.due_at)) assignedDue.set(a.test.code, a.due_at);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Tab | null>(readTab);
 
@@ -183,7 +187,7 @@ function StudentPractice() {
             if (c.kind === 'locked') return <LockedTestCard key={c.code} test={c.test} name={name} index={i} />;
             if (c.kind === 'new') {
               const pkg = localPackage(packages, c.code, c.test.version);
-              return <NewTestCard key={c.code} test={c.test} name={name} rows={plannedRows(shapeOf(pkg, c.test))} index={i} />;
+              return <NewTestCard key={c.code} test={c.test} name={name} rows={plannedRows(shapeOf(pkg, c.test))} index={i} due={assignedDue.get(c.code)} />;
             }
             if (c.kind === 'run') {
               const pkg = localPackage(packages, c.code, c.run.version);
@@ -200,6 +204,7 @@ function StudentPractice() {
                   questions={questions}
                   index={i}
                   onDiscard={() => discard(c.code, name)}
+                  due={assignedDue.get(c.code)}
                 />
               );
             }

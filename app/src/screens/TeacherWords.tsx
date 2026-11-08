@@ -58,21 +58,23 @@ export function TeacherWords() {
 
 // A group's vocabulary: how many studied this week, then every student by
 // when they last studied, with the words they've learned.
-export function GroupVocab() {
+export function GroupVocab({ groupId }: { groupId?: string } = {}) {
   const now = useNow();
-  const { id = '' } = useParams();
+  const params = useParams();
+  const id = groupId ?? params.id ?? '';
+  const embedded = groupId != null;
   const query = useGroupVocab(id);
   const group = useMe().data?.groups.find((g) => String(g.id) === id);
   const title = group ? groupTitle(group) : 'Words';
-  useTitle(`${title} · Words`);
+  useTitle(embedded ? null : `${title} · Words`);
   const students = query.data?.students ?? [];
   const started = students.filter((s) => s.last_review).sort((a, b) => b.last_review!.localeCompare(a.last_review!));
   const notStarted = students.filter((s) => !s.last_review);
   const studied = students.filter((s) => s.reviews_week > 0).length;
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <BackLink to="/words" label="Words" />
-      <ScreenTitle title={title} />
+    <div className={embedded ? 'w-full max-w-xl' : 'mx-auto w-full max-w-xl'}>
+      {!embedded && <BackLink to="/words" label="Words" />}
+      {!embedded && <ScreenTitle title={title} />}
       {query.isPending ? (
         <RowsSkeleton />
       ) : query.isError ? (

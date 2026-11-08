@@ -216,13 +216,15 @@ function buildRoadmap(p, id) {
     lessons_done: lessonsDone, lessons_total: units.reduce((a, u) => a + u.lessons.length, 0), units_done: unitsDone, units_total: units.length, current, free_units: freeUnits };
   return { ...summary, countries: c.countries.map((k) => ({ ...k, code: COUNTRY_CODES[k.id] || null })), units };
 }
-const findLesson = (id, lid) => { const c = courses[id]; for (const u of c.units) for (const l of u.lessons) if (l.id === lid) return { u, l }; return null; };
+const findLesson = (id, lid) => { const c = courses[id]; if (!c) return null; for (const u of c.units) for (const l of u.lessons) if (l.id === lid) return { u, l }; return null; };
 const strip = (q) => ({ id: q.id, position: q.position, type: q.type, passage: q.passage, stem: q.stem, choices: q.choices, figures: q.figures, domain: q.domain, skill: q.skill, difficulty: q.difficulty });
-const assessmentOut = (a) => ({ id: a.id, kind: a.kind, roadmap_id: a.roadmap_id, lesson_id: a.lesson_id, homework_index: a.homework_index, title: a.title, subject: a.subject, created_at: a.created_at, finished_at: a.finished_at,
-  questions: a.finished_at ? a.questions : a.questions.map(strip), images: {}, answers: a.answers, result: a.result });
+const assessmentOut = (a) => ({ id: a.id, kind: a.kind, roadmap_id: a.roadmap_id, lesson_id: a.lesson_id, homework_index: a.homework_index, assignment: a.assignment || null, title: a.title, subject: a.subject, created_at: a.created_at, finished_at: a.finished_at,
+  questions: a.finished_at ? a.questions : a.questions.map(strip), images: {}, answers: Object.fromEntries(a.questions.map((q) => [q.id, a.answers[q.id] ?? null])), times: a.times || {}, result: a.result });
 
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
+// Assignments and notifications (mock/assignments.cjs).
+const assignmentsApi = require('./assignments.cjs')({ people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err });
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
   const raw = Buffer.concat(chunks);
@@ -376,14 +378,18 @@ http.createServer(async (req, res) => {
     if (!mm[2]) return json(res, 200, assessmentOut(a));
     if (a.finished_at) return err(res, 409, 'finished', 'already submitted');
     a.answers = { ...a.answers, ...(body.answers || {}) };
+    a.times = { ...(a.times || {}), ...(body.times || {}) };
     if (mm[2] === '/answers') return json(res, 204);
     const items = a.questions.map((q) => { const given = a.answers[q.id] ?? null; const ok = given != null && (q.type === 'mcq' ? given === q.correct : (q.accepted || []).includes(String(given).trim()));
       return { question_id: q.id, given, correct: ok, correct_answer: q.type === 'mcq' ? q.correct : (q.accepted || [''])[0], explanation: q.explanation }; });
     const correct = items.filter((x) => x.correct).length; const percent = Math.round((100 * correct) / items.length);
-    const pr = prog(me.login, a.lesson_id); const passed = a.kind === 'homework' ? true : percent >= 70;
-    if (a.kind === 'level_check') { pr.best = Math.max(pr.best ?? 0, percent); pr.passed = pr.passed || passed; } else pr.hw.add(a.homework_index);
-    const { l } = findLesson(a.roadmap_id, a.lesson_id);
-    a.finished_at = new Date().toISOString(); a.result = { percent, correct, total: items.length, passed, lesson_done: lessonDone(me.login, l), items };
+    const passed = a.kind === 'homework' ? true : percent >= 70; let lessonIsDone = false;
+    if (a.lesson_id) {
+      const pr = prog(me.login, a.lesson_id);
+      if (a.kind === 'level_check') { pr.best = Math.max(pr.best ?? 0, percent); pr.passed = pr.passed || passed; } else if (a.homework_index != null) pr.hw.add(a.homework_index);
+      const found = findLesson(a.roadmap_id, a.lesson_id); lessonIsDone = !!found && lessonDone(me.login, found.l);
+    }
+    a.finished_at = new Date().toISOString(); a.result = { percent, correct, total: items.length, passed, lesson_done: lessonIsDone, items };
     return json(res, 200, assessmentOut(a));
   }
 
@@ -434,7 +440,8 @@ http.createServer(async (req, res) => {
     return signIn(res, applyPhone(me, t.tg.phone, t.tg.id));
   }
   // No phone yet: everything with content stays shut.
-  if (me.status === 'registered' && !me.phone && /^\/v1\/(practice|vocab|learning|me\/(practice|vocab|goals|parked|questions|reports|issues))/.test(url)) return err(res, 403, 'phone_required', 'prove a phone number first');
+  if (me.status === 'registered' && !me.phone && /^\/v1\/(practice|vocab|learning|me\/(practice|vocab|goals|parked|questions|reports|issues|assignments))/.test(url)) return err(res, 403, 'phone_required', 'prove a phone number first');
+  if (assignmentsApi(req, res, url, body, me) !== false) return;
   if (url === '/v1/me/attendance') return me.kind === 'student' ? json(res, 200, attendance) : err(res, 403, 'forbidden', 'not a student');
   if (url === '/v1/practice/tests') {
     if (me.status !== 'registered') return json(res, 200, catalog);

@@ -89,6 +89,8 @@ export class ApiError extends Error {
     readonly requestId?: string,
     /** From a 429's Retry-After header, in seconds. */
     readonly retryAfter?: number,
+    /** For a rejected form: what is wrong, per field. */
+    readonly fields?: Record<string, string>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -107,7 +109,7 @@ export async function call<T>(promise: Promise<Result<T>>): Promise<T> {
   }
   if (res.response.ok) return res.data as T;
   const body = (res.error ?? {}) as {
-    error?: { code?: string; message?: string; request_id?: string };
+    error?: { code?: string; message?: string; request_id?: string; fields?: Record<string, string> };
   };
   const retryAfter = Number(res.response.headers.get('Retry-After'));
   throw new ApiError(
@@ -116,5 +118,6 @@ export async function call<T>(promise: Promise<Result<T>>): Promise<T> {
     body.error?.message ?? `Unexpected answer (${res.response.status}).`,
     body.error?.request_id,
     Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+    body.error?.fields,
   );
 }

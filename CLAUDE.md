@@ -13,7 +13,7 @@ design is `docs/design.md` (the SATMAKON design system; the phone app keeps
 its own), not the phone's. The API contract is `app/api/openapi.yaml` (a copy
 of `nazacd/makonbook-api`'s; see `app/api/README.md`; `app/api/SOURCE` names
 the commit it came from); the product is that repo's `docs/platform-spec.md`
-(§9 practice, §21 accounts, §22 roadmaps).
+(§9 practice, §21 accounts, §22 roadmaps, §23 assignments).
 
 Ground rules, short:
 - Never commit secrets (the Desmos key, passwords, tokens). `.env` files only.
@@ -122,6 +122,27 @@ locked `enrolled_only`; a locked lesson answers 403 `lesson_locked` or
 `enrolled_only`. Teachers have no roadmaps. The curriculum and the logos are
 SATMAKON's own and never committed: the mock makes a course up, or loads
 real files from `MOCK_CURRICULUM=<folder>` (with `logos/`) on your machine.
+
+Assignments (spec §23; `api/assignments.ts`): teachers give their groups
+homework, level checks and exams with deadlines; the whole group gets the same
+questions; the first finished work is the result (later tries are practice),
+work after the deadline is marked late. Students: `/homework`,
+`/level-checks`, `/exams` (`screens/StudentAssignments`, cards in
+`components/assignments/AssignmentCard`), the sidebar's due counters, the
+dashboard's Due work and Today's plan; homework and level checks run in
+`AssessmentRun` (which also sends seconds per question as `times`), an exam
+opens its mock test with `?sections=` chosen and is matched to the assignment
+by the API. Accounts without a group see a pointer to their roadmap. On phones
+the bottom bar's Assess tab opens the three lists; Mock tests is in More.
+Teachers (sidebar Today, Assignments, Groups, Mock tests, Vocabulary):
+`screens/teacher/Assignments` (the list), `NewAssignment` (group and kind,
+then a curriculum lesson, skills and a mix, or a mock test; the drawn
+questions with Swap through `QuestionPicker`; then title and dates in school
+time), `AssignmentDetail` (students, per-question answers and time, skills; a
+student's work; edit, close, delete while untouched) and `Groups` (each group's
+hub: students, assignments, a students × lessons roadmap matrix, mock tests,
+vocabulary, problem questions). New assignments notify the group's students
+(`NotificationsDrawer`, unread badge on the bell).
 
 `app/mock/api.cjs` is a fictional API for working without the real one (its
 header comment says how): the password is `demo-pass` unless

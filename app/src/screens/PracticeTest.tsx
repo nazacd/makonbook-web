@@ -1,6 +1,9 @@
-import { ChevronLeft, History, Info, RotateCcw } from 'lucide-react';
+import { CalendarClock, ChevronLeft, History, Info, RotateCcw } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+
+import { isDue, useMyAssignments } from '@/api/assignments';
+import { dueLong } from '@/components/assignments/format';
 
 import { describeError } from '@/api/errors';
 import { Spinner } from '@/components/Button';
@@ -41,7 +44,11 @@ export function PracticeTest() {
   const lastFull = mine.find((a) => a.total != null);
   const title = testName(test?.title ?? run?.title ?? code);
   useTitle(title);
-  const [choice, setChoice] = useState<Choice>('full');
+  // An exam assigned by a teacher arrives with its sections (?sections=math).
+  const [params] = useSearchParams();
+  const wanted = (params.get('sections') ?? '').split(',').filter((x): x is Subject => x === 'english' || x === 'math');
+  const [choice, setChoice] = useState<Choice>(wanted.length === 1 ? wanted[0]! : 'full');
+  const assigned = (useMyAssignments().data ?? []).filter((a) => a.kind === 'exam' && a.test?.code === code && isDue(a)).sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
   const ready = !!pkg.data;
 
   const has = (subject: Subject) => (pkg.data ? pkg.data.package.sections.some((s) => s.subject === subject) : test ? test[subject] > 0 : true);
@@ -99,6 +106,15 @@ export function PracticeTest() {
 
   return (
     <Page title={title}>
+      {assigned && (
+        <p className="flex items-start gap-3 rounded-[8px] border border-primary/30 bg-accent-tint px-4 py-3 text-[14px] leading-5 text-ink" role="note">
+          <CalendarClock size={17} strokeWidth={2} aria-hidden="true" className="mt-0.5 shrink-0 text-primary" />
+          <span>
+            <b className="font-bold">{testName(assigned.title)}</b> is due {dueLong(assigned.due_at)}
+            {assigned.status === 'overdue' && ' (overdue: it still counts, marked late)'}. Your first finished {assigned.test!.sections.length === 2 ? 'full test' : `${SECTION_LABEL[assigned.test!.sections[0]!]} section`} counts for your teacher.
+          </span>
+        </p>
+      )}
       <p className="flex min-h-[52px] items-center gap-3 rounded-[8px] border border-line-strong bg-surface px-4 py-3 text-[16px] font-medium leading-6 text-ink" role="note">
         <Info size={17} strokeWidth={2} aria-hidden="true" className="shrink-0 text-ink" />
         {hint}
