@@ -112,6 +112,31 @@ export function useSaveProfile() {
   });
 }
 
+/** Your own photo: a square JPEG (the editor makes 512×512), or none. */
+export function useSetPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (photo: Blob) =>
+      call(
+        api.PUT('/v1/me/photo', {
+          // The picture's bytes as they are, not JSON.
+          body: photo as unknown as string,
+          bodySerializer: (b: unknown) => b as Blob,
+          headers: { 'Content-Type': photo.type || 'image/jpeg' },
+        }),
+      ),
+    onSuccess: (profile: Profile) => queryClient.setQueryData(meKey, profile),
+  });
+}
+
+export function useRemovePhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => call(api.DELETE('/v1/me/photo')),
+    onSuccess: (profile: Profile) => queryClient.setQueryData(meKey, profile),
+  });
+}
+
 /** "+998 90 123 45 67" from what a person typed (9 digits, or with 998). */
 export function formatUzPhone(digits: string): string {
   const d = digits.replace(/\D/g, '').replace(/^998/, '').slice(0, 9);

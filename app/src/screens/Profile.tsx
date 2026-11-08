@@ -1,4 +1,4 @@
-import { AtSign, KeyRound, LogOut, Monitor, Moon, Pencil, Sun, type LucideIcon } from 'lucide-react';
+import { AtSign, Camera, KeyRound, LogOut, Monitor, Moon, Pencil, Sun, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -8,6 +8,7 @@ import { useMe, useParentCode } from '@/api/queries';
 import type { Profile as ProfileType } from '@/api/types';
 import { useAuth } from '@/auth/session';
 import { EditProfile } from '@/components/accounts/EditProfile';
+import { PhotoEditor } from '@/components/accounts/PhotoEditor';
 import { Avatar } from '@/components/Avatar';
 import { ShieldMark } from '@/components/brand/Logo';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
@@ -43,6 +44,7 @@ export function Profile() {
   const now = useNow();
   const [editGoals, setEditGoals] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [photo, setPhoto] = useState(false);
   const name = normalCase(`${profile.first_name} ${profile.last_name}`);
   const g = goals.data;
   const days = g?.exam_date ? Math.round((Date.parse(`${g.exam_date}T00:00:00Z`) - Date.parse(`${schoolDate(now)}T00:00:00Z`)) / 86_400_000) : null;
@@ -53,7 +55,12 @@ export function Profile() {
       <div className="grid gap-3.5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="relative overflow-hidden rounded-card border border-line bg-surface p-5" style={{ background: 'radial-gradient(60% 80% at 0% 0%, var(--color-accent-tint), transparent 60%), var(--color-surface)' }}>
           <div className="flex flex-wrap items-center gap-5">
-            <Avatar kind={profile.kind} firstName={profile.first_name} lastName={profile.last_name} id={profile.id} size={112} square photo={profile.photo_url} />
+            <button type="button" onClick={() => setPhoto(true)} aria-label={profile.photo_url ? 'Change your photo' : 'Add a photo'} className="group relative shrink-0 rounded-[16px]">
+              <Avatar kind={profile.kind} firstName={profile.first_name} lastName={profile.last_name} id={profile.id} size={112} square photo={profile.photo_url} />
+              <span className="absolute -bottom-1.5 -right-1.5 flex size-9 items-center justify-center rounded-full border-2 border-surface bg-primary text-on-primary shadow-sm transition-transform group-hover:scale-105">
+                <Camera size={16} aria-hidden="true" />
+              </span>
+            </button>
             <div className="min-w-0">
               <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-ink">{name}</h1>
               <p className="t-subhead flex flex-wrap items-center gap-2 text-ink-2">
@@ -181,7 +188,17 @@ export function Profile() {
         </section>
       </div>
       {editGoals && <GoalsModal goals={g} onClose={() => setEditGoals(false)} />}
-      {editing && <EditProfile profile={profile} onClose={() => setEditing(false)} />}
+      {editing && (
+        <EditProfile
+          profile={profile}
+          onClose={() => setEditing(false)}
+          onPhoto={() => {
+            setEditing(false);
+            setPhoto(true);
+          }}
+        />
+      )}
+      {photo && <PhotoEditor profile={profile} onClose={() => setPhoto(false)} />}
     </div>
   );
 }
