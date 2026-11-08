@@ -77,9 +77,3 @@ export function pathBetween(a: Stop, b: Stop, regions: Region[], width: number) 
   const above = { x: width / 2, y: wallBottom - WALL + 10 };
   return `${segment(a, below)} L ${above.x} ${above.y} ${segment(above, b).replace(/^M [^C]+/, '')}`;
 }
-
-/** A stop's logo link, when the API sends one (null otherwise). */
-export function logoOf(stop: object): string | null {
-  const v = (stop as { logo_url?: unknown }).logo_url;
-  return typeof v === 'string' ? v : null;
-}

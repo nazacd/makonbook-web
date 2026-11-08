@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/States';
 import { useTitle } from '@/lib/title';
 
 import { Flag } from './flags';
-import { GOAL, GROUND, REGION_COLORS, initials, layout, logoOf, pathBetween, segment, type Region, type Stop } from './journey';
+import { GOAL, GROUND, REGION_COLORS, initials, layout, pathBetween, segment, type Region, type Stop } from './journey';
 
 // "/roadmaps/:id": the journey. A dark night map scrolled bottom to top: the
 // start, each country's stops (a university each, a unit of the course)
@@ -160,7 +160,7 @@ function Journey({ r }: { r: Roadmap }) {
             </button>
           )}
           <div className="flex w-full max-w-[460px] items-center gap-3 rounded-[18px] border border-white/10 bg-[#0b1426]/90 p-2.5 pl-3 shadow-2xl backdrop-blur">
-            <Medallion name={current.unit.stop.university} size={42} state="open" country={current.country} logo={logoOf(current.unit.stop)} />
+            <Medallion name={current.unit.stop.university} size={42} state="open" country={current.country} logo={current.unit.stop.logo_url} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14.5px] font-bold text-white">{r.current.unit_title}</p>
               <p className="truncate text-[12px] text-white/65">{r.current.university}</p>
@@ -271,7 +271,7 @@ function StopNode({ s, current, onOpen }: { s: Stop; current: boolean; onOpen: (
       aria-label={`Stop ${s.index + 1}: ${u.title}, ${u.stop.university}. ${state === 'done' ? 'Done' : state === 'open' ? `${lessonsDone} of ${u.lessons.length} lessons done` : u.lock === 'enrolled_only' ? 'For SATMAKON students' : 'Locked'}`}>
       <span className="relative">
         {current && <span className="absolute -inset-2 animate-ping rounded-full bg-[#f6c343]/25 motion-reduce:animate-none" aria-hidden="true" />}
-        <Medallion name={u.stop.university} size={74} state={state} country={s.country} current={current} logo={logoOf(u.stop)} />
+        <Medallion name={u.stop.university} size={74} state={state} country={s.country} current={current} logo={u.stop.logo_url} />
         <span className={`absolute -bottom-0.5 -left-0.5 flex size-6 items-center justify-center rounded-full border-2 border-[#0d1b33] text-[11px] font-bold ${state === 'locked' ? 'bg-[#4b5468] text-white/80' : 'bg-[#f6c343] text-[#1a1300]'}`}>{s.index + 1}</span>
         {state === 'done' && (
           <span className="absolute -right-0.5 -top-0.5 flex size-6 items-center justify-center rounded-full border-2 border-[#0d1b33] bg-[#22c55e] text-white">
