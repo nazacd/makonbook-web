@@ -229,7 +229,7 @@ module.exports = function assignments(ctx) {
     if (url === '/v1/me/notifications/read' && req.method === 'PUT') { const l = notes.get(me.login) || []; if (!body.all && !Array.isArray(body.ids)) return err(res, 400, 'bad_request', 'ids or all'); for (const n of l) if (body.all || body.ids.includes(n.id)) n.read_at = n.read_at || iso(Date.now()); return json(res, 200, { unread: l.filter((n) => !n.read_at).length }); }
     if (url === '/v1/me/assignments') {
       if (me.kind !== 'student' || me.status === 'registered') return json(res, 200, { assignments: [] });
-      const mine = [...list.values()].filter((a) => me.groups.some((g) => g.id === a.group_id) && statusOf(a) !== 'scheduled').map((a) => studentOut(a, me)).filter((a) => a.status !== 'closed' || a.mine.status !== 'new');
+      const mine = [...list.values()].filter((a) => me.groups.some((g) => g.id === a.group_id)).map((a) => studentOut(a, me)).filter((a) => a.status !== 'closed' || a.mine.status !== 'new');
       return json(res, 200, { assignments: mine.sort((x, y) => x.due_at.localeCompare(y.due_at)) });
     }
     if ((m = url.match(/^\/v1\/me\/assignments\/([^/]+)\/start$/)) && req.method === 'POST') {

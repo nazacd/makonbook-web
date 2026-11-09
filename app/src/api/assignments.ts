@@ -66,7 +66,8 @@ export function useStartAssignment() {
 }
 
 /** What a student still has to do: open or overdue, not done. */
-export const isDue = (a: StudentAssignment) => a.mine.status !== 'done' && a.status !== 'closed';
+/** Work to do now: not finished, open (a scheduled one is shown locked, not counted), not closed. */
+export const isDue = (a: StudentAssignment) => a.mine.status !== 'done' && a.status !== 'closed' && a.status !== 'scheduled';
 
 // --- Notifications ---
 

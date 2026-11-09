@@ -6,10 +6,11 @@ import type { AssignmentKind, StudentAssignment } from '@/api/assignments';
 import { formatStamp, REF, SECTION_LABEL } from '@/components/practice/results/format';
 import { SolidPill, ToneBar } from '@/components/practice/cards/TestCard';
 import { Skeleton } from '@/components/States';
+import { useNow } from '@/lib/clock';
 import { parseClassName } from '@/lib/groups';
 import { testName } from '@/lib/practice/run';
 
-import { dueLong, tabOf } from './format';
+import { dueLong, dueShort, tabOf } from './format';
 
 // An assignment as a card, laid out like the mock-test cards (the design
 // reference's assessment cards): the title centred, the deadline and the
@@ -41,13 +42,16 @@ export function AssignmentCard({ a, index, onStart, starting }: { a: StudentAssi
   const m = a.mine;
   const exam = a.kind === 'exam';
   const closed = a.status === 'closed';
+  const now = useNow();
+  // Scheduled: shown locked until it opens (the clock opens it here without a refetch).
+  const locked = a.status === 'scheduled' && Date.parse(a.opens_at) > now;
   const I = ICON[a.kind];
   const group = parseClassName(a.group_name).title;
 
   const deadline = (
     <Tile
       top={<span className="truncate text-[13px] font-medium leading-4 text-ink">{dueLong(a.due_at)}</span>}
-      bottom={closed ? <SolidPill color={REF.omitted}>Closed</SolidPill> : a.status === 'overdue' && tab !== 'passed' ? <SolidPill color={REF.deadline}>Overdue</SolidPill> : <SolidPill color={REF.deadline}>Deadline</SolidPill>}
+      bottom={closed ? <SolidPill color={REF.omitted}>Closed</SolidPill> : locked ? <SolidPill color={REF.omitted}>Opens {dueShort(a.opens_at, now)}</SolidPill> : a.status === 'overdue' && tab !== 'passed' ? <SolidPill color={REF.deadline}>Overdue</SolidPill> : <SolidPill color={REF.deadline}>Deadline</SolidPill>}
     />
   );
   const tiles =
@@ -71,7 +75,7 @@ export function AssignmentCard({ a, index, onStart, starting }: { a: StudentAssi
     );
 
   const status: { text: string; color: string } =
-    tab === 'passed' ? (m.late ? { text: 'Late', color: REF.deadline } : { text: 'Finished', color: REF.finished }) : tab === 'run' ? { text: 'In progress', color: 'var(--color-primary)' } : { text: 'Planned', color: REF.planned };
+    tab === 'passed' ? (m.late ? { text: 'Late', color: REF.deadline } : { text: 'Finished', color: REF.finished }) : tab === 'run' ? { text: 'In progress', color: 'var(--color-primary)' } : locked ? { text: 'Locked', color: REF.omitted } : { text: 'Planned', color: REF.planned };
 
   return (
     <article aria-label={`${a.title}, ${status.text}`} className="rise flex flex-col gap-3 rounded-card border border-line bg-surface p-[18px]" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
@@ -107,7 +111,11 @@ export function AssignmentCard({ a, index, onStart, starting }: { a: StudentAssi
         )}
       </div>
 
-      {closed && tab !== 'passed' && m.status !== 'in_progress' ? (
+      {locked ? (
+        <button type="button" disabled className="flex h-10 w-full cursor-default items-center justify-center gap-2 rounded-control bg-surface-2 text-[14px] font-bold text-ink-2">
+          <Lock size={15} aria-hidden="true" /> Opens {dueLong(a.opens_at)}
+        </button>
+      ) : closed && tab !== 'passed' && m.status !== 'in_progress' ? (
         <button type="button" disabled className="flex h-10 w-full cursor-default items-center justify-center gap-2 rounded-control bg-surface-2 text-[14px] font-bold text-ink-3">
           <Lock size={15} aria-hidden="true" /> Closed by your teacher
         </button>
