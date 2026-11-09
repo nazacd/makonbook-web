@@ -163,8 +163,10 @@ function standing(s: GroupStudent) {
 
 // A group's practice: how many practised since the last lesson, then every
 // student by their latest result.
-export function GroupPractice() {
-  const { id = '' } = useParams();
+export function GroupPractice({ groupId }: { groupId?: string } = {}) {
+  const route = useParams();
+  const id = groupId ?? route.id ?? '';
+  const embedded = groupId != null;
   const [params] = useSearchParams();
   const query = useGroupPractice(id);
   const [open, setOpen] = useState<number | null>(params.get('student') ? Number(params.get('student')) : null);
@@ -173,14 +175,14 @@ export function GroupPractice() {
   const visit = useLastVisit();
   const group = useMe().data?.groups.find((g) => String(g.id) === id);
   const title = group ? groupTitle(group) : 'Practice';
-  useTitle(`${title} · Practice`);
+  useTitle(embedded ? null : `${title} · Practice`);
   const lesson = group ? lastClass(group, now) : null;
   const tried = students.filter((s) => s.attempts.length > 0).sort((a, b) => b.attempts[0]!.finished_at.localeCompare(a.attempts[0]!.finished_at));
   const untried = students.filter((s) => s.attempts.length === 0);
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <BackLink to="/practice" label="Practice" />
-      <ScreenTitle title={title} />
+    <div className={embedded ? 'w-full max-w-xl' : 'mx-auto w-full max-w-xl'}>
+      {!embedded && <BackLink to="/practice" label="Practice" />}
+      {!embedded && <ScreenTitle title={title} />}
       {query.isPending ? (
         <RowsSkeleton />
       ) : query.isError ? (
@@ -220,7 +222,7 @@ export function GroupPractice() {
           )}
         </>
       )}
-      {group && (
+      {group && !embedded && (
         <section className="mt-8 rounded-card border border-line bg-surface p-[18px]">
           <GroupParked groupId={group.id} />
         </section>

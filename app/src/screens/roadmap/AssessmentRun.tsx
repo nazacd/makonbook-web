@@ -2,13 +2,16 @@ import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, LayoutGrid, Ro
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { useStartAssignment } from '@/api/assignments';
 import { describeError } from '@/api/errors';
+import { dueShort } from '@/components/assignments/format';
 import { saveAnswers, useAssessment, useStartAssessment, useSubmitAssessment, type Assessment, type AssessmentQuestion, type AssessmentResult } from '@/api/roadmaps';
 import { Spinner } from '@/components/Button';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { RichContent, type ImageLinks } from '@/components/practice/RichContent';
 import { Notice } from '@/components/Notice';
+import { useNow } from '@/lib/clock';
 import { useTitle } from '@/lib/title';
 import type { PackageImage } from '@/lib/practice/types';
 
@@ -19,6 +22,13 @@ import type { PackageImage } from '@/lib/practice/types';
 // the right answer and its explanation.
 
 const LETTERS = ['A', 'B', 'C', 'D'];
+
+/** Where leaving goes: the assignment's tab, or the roadmap lesson. */
+const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
+export function backOf(a: Assessment): string {
+  if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
+  return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
+}
 
 export function AssessmentRun() {
   const { id = '' } = useParams();
@@ -66,7 +76,38 @@ function Run({ a }: { a: Assessment }) {
   const [confirm, setConfirm] = useState(false);
   const q = a.questions[i]!;
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
-  const back = `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}`;
+  const back = backOf(a);
+  const now = useNow();
+
+  // Seconds spent on each question: counted while it is on screen and the
+  // tab is visible, kept with the answers (the teacher's statistics).
+  const times = useRef<Record<string, number>>({ ...a.times });
+  const shownSince = useRef<number | null>(null);
+  const shown = useRef<string | null>(null); // the question being counted
+  const timesDirty = useRef(false);
+  // Adds the time since the last tally to the question on screen, and starts counting again.
+  const tally = () => {
+    const id = shown.current;
+    if (id && shownSince.current != null) {
+      const secs = Math.round((Date.now() - shownSince.current) / 1000);
+      if (secs > 0) {
+        times.current[id] = Math.min(21_600, (times.current[id] ?? 0) + secs);
+        timesDirty.current = true;
+      }
+    }
+    shownSince.current = document.visibilityState === 'visible' ? Date.now() : null;
+  };
+  // A new question starts its own count (the previous one is tallied first).
+  useEffect(() => {
+    shown.current = q.id;
+    shownSince.current = document.visibilityState === 'visible' ? Date.now() : null;
+    const onVisibility = () => tally();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      tally();
+    };
+  }, [q.id]);
 
   // Saved to the server a moment after each change, so a reload or another device continues.
   const pending = useRef<Record<string, string | null>>({});
@@ -74,7 +115,13 @@ function Run({ a }: { a: Assessment }) {
   const flush = () => {
     const batch = pending.current;
     pending.current = {};
-    if (Object.keys(batch).length) saveAnswers(a.id, batch).catch(() => (pending.current = { ...batch, ...pending.current }));
+    const sendTimes = timesDirty.current;
+    timesDirty.current = false;
+    if (Object.keys(batch).length || sendTimes)
+      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch(() => {
+        pending.current = { ...batch, ...pending.current };
+        timesDirty.current = timesDirty.current || sendTimes;
+      });
   };
   useEffect(() => () => {
     clearTimeout(timer.current);
@@ -90,7 +137,9 @@ function Run({ a }: { a: Assessment }) {
   const finish = () => {
     clearTimeout(timer.current);
     pending.current = {};
-    submit.mutate(answers, { onSuccess: () => window.scrollTo(0, 0) });
+    tally();
+    timesDirty.current = false;
+    submit.mutate({ answers, times: { ...times.current } }, { onSuccess: () => window.scrollTo(0, 0) });
   };
 
   return (
@@ -109,8 +158,9 @@ function Run({ a }: { a: Assessment }) {
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-ink">{a.title}</p>
-            <p className="t-footnote text-ink-2">
+            <p className="t-footnote truncate text-ink-2">
               {a.kind === 'level_check' ? 'Level check' : 'Homework'} · {answered}/{a.questions.length} answered
+              {a.assignment && ` · due ${dueShort(a.assignment.due_at, now)}`}
             </p>
           </div>
           <button type="button" onClick={() => setGrid(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-bold text-ink hover:bg-surface-2">
@@ -237,8 +287,14 @@ function Result({ a }: { a: Assessment }) {
   const navigate = useNavigate();
   const r = a.result!;
   const { images, links } = useImages(a);
-  const again = useStartAssessment(a.roadmap_id, a.lesson_id);
-  const back = `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}`;
+  const again = useStartAssessment(a.roadmap_id ?? '', a.lesson_id ?? '');
+  const againAssigned = useStartAssignment();
+  const retake = () =>
+    a.assignment
+      ? againAssigned.mutate(a.assignment.id, { onSuccess: (n) => void navigate(`/assessments/${n.id}`) })
+      : again.mutate({ kind: 'level_check' }, { onSuccess: (n) => void navigate(`/assessments/${n.id}`) });
+  const retaking = again.isPending || againAssigned.isPending;
+  const back = backOf(a);
   const level = a.kind === 'level_check';
   const verdict = level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
   const ring = 2 * Math.PI * 52;
@@ -246,7 +302,7 @@ function Result({ a }: { a: Assessment }) {
     <div className="min-h-dvh bg-brand">
       <div className="mx-auto max-w-[880px] px-4 py-6">
         <Link to={back} className="t-subhead mb-4 inline-flex items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
-          <ArrowLeft size={16} aria-hidden="true" /> Back to the lesson
+          <ArrowLeft size={16} aria-hidden="true" /> {a.assignment ? `Back to ${a.assignment.kind === 'level_check' ? 'level checks' : 'homework'}` : 'Back to the lesson'}
         </Link>
         <section className="rise flex flex-col items-center rounded-card border border-line bg-surface p-6 text-center">
           <p className="t-micro text-ink-3">{level ? 'Level check complete' : 'Homework complete'}</p>
@@ -263,12 +319,12 @@ function Result({ a }: { a: Assessment }) {
             {level && !r.passed ? '70% passes. Read the explanations below, then try again with new questions.' : r.lesson_done ? 'Lesson complete: the next one is open on your map.' : level ? 'Now finish the homework to complete the lesson.' : 'Its mistakes are below, with explanations.'}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-            <button type="button" onClick={() => void navigate(r.lesson_done ? `/roadmaps/${a.roadmap_id}` : back)} className="lift flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
-              {r.lesson_done ? 'Back to the map' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
+            <button type="button" onClick={() => void navigate(r.lesson_done && a.roadmap_id ? `/roadmaps/${a.roadmap_id}` : back)} className="lift flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
+              {r.lesson_done && a.roadmap_id ? 'Back to the map' : a.assignment ? 'Done' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
             </button>
-            {level && !r.passed && (
-              <button type="button" disabled={again.isPending} onClick={() => again.mutate({ kind: 'level_check' }, { onSuccess: (n) => void navigate(`/assessments/${n.id}`) })} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
-                <RotateCcw size={15} aria-hidden="true" /> {again.isPending ? 'Preparing…' : 'Try again'}
+            {((level && !r.passed) || a.assignment) && (
+              <button type="button" disabled={retaking} onClick={retake} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
+                <RotateCcw size={15} aria-hidden="true" /> {retaking ? 'Preparing…' : 'Try again'}
               </button>
             )}
           </div>

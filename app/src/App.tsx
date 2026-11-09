@@ -50,6 +50,12 @@ const RoadmapLesson = page(() => import('@/screens/roadmap/RoadmapLesson'), 'Roa
 const AssessmentRun = page(() => import('@/screens/roadmap/AssessmentRun'), 'AssessmentRun');
 const GoogleCallback = page(() => import('@/screens/GoogleCallback'), 'GoogleCallback');
 const TelegramCallback = page(() => import('@/screens/TelegramCallback'), 'TelegramCallback');
+const StudentAssignments = lazy(() => import('@/screens/StudentAssignments').then((m) => ({ default: m.StudentAssignments })));
+const TeacherAssignments = page(() => import('@/screens/teacher/Assignments'), 'TeacherAssignments');
+const NewAssignment = page(() => import('@/screens/teacher/NewAssignment'), 'NewAssignment');
+const AssignmentDetail = page(() => import('@/screens/teacher/AssignmentDetail'), 'AssignmentDetail');
+const TeacherGroups = page(() => import('@/screens/teacher/Groups'), 'TeacherGroups');
+const GroupHub = page(() => import('@/screens/teacher/Groups'), 'GroupHub');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -108,6 +114,14 @@ export function App() {
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<Words />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
+                  <Route path="/homework" element={<StudentAssignments kind="homework" />} />
+                  <Route path="/level-checks" element={<StudentAssignments kind="level_check" />} />
+                  <Route path="/exams" element={<StudentAssignments kind="exam" />} />
+                  <Route path="/assignments" element={<TeacherAssignments />} />
+                  <Route path="/assignments/new" element={<NewAssignment />} />
+                  <Route path="/assignments/:id" element={<AssignmentDetail />} />
+                  <Route path="/groups" element={<TeacherGroups />} />
+                  <Route path="/groups/:id" element={<GroupHub />} />
                   <Route path="/roadmaps" element={<Roadmaps />} />
                   <Route path="/roadmaps/:id" element={<RoadmapMap />} />
                   <Route path="/roadmaps/:id/units/:unitId" element={<RoadmapUnit />} />

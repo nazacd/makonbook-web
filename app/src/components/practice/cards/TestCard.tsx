@@ -68,11 +68,11 @@ const number = (value: ReactNode, of?: string) => (
   </span>
 );
 
-/** The left tile of a test not finished: its date and a pill under it. */
-const dateTile = (iso: string | null | undefined): Tile => ({
+/** The left tile of a test not finished: its date and a pill under it (an assigned test: its deadline). */
+const dateTile = (iso: string | null | undefined, due?: string | null): Tile => ({
   key: 'date',
-  top: <span className="truncate text-[13px] font-medium leading-4 text-ink">{formatDay(iso)}</span>,
-  bottom: <SolidPill color={REF.deadline}>Published</SolidPill>,
+  top: <span className="truncate text-[13px] font-medium leading-4 text-ink">{formatDay(due ?? iso)}</span>,
+  bottom: <SolidPill color={REF.deadline}>{due ? 'Deadline' : 'Published'}</SolidPill>,
 });
 const totalTile = (questions: number): Tile => ({ key: 'total', top: label('Total questions'), bottom: number(questions || '—') });
 
@@ -123,11 +123,11 @@ function ModulesPanel({ rows }: { rows: ModuleRow[] }) {
   );
 }
 
-export function NewTestCard({ test, name, rows, index }: { test: CatalogTest; name: string; rows: ModuleRow[]; index: number }) {
+export function NewTestCard({ test, name, rows, index, due }: { test: CatalogTest; name: string; rows: ModuleRow[]; index: number; due?: string | null }) {
   return (
-    <Frame label={name} index={index}>
+    <Frame label={due ? `${name}, assigned` : name} index={index}>
       <Title>{name}</Title>
-      <Tiles tiles={[dateTile(test.published_at), totalTile(test.questions)]} />
+      <Tiles tiles={[dateTile(test.published_at, due), totalTile(test.questions)]} />
       <ModulesPanel rows={rows} />
       <Link to={testPath(test.code)} className={PRIMARY} aria-label={`Let’s start ${name}`}>
         Let’s start!
@@ -136,7 +136,7 @@ export function NewTestCard({ test, name, rows, index }: { test: CatalogTest; na
   );
 }
 
-export function RunTestCard({ code, name, run, rows, published, questions, index, onDiscard }: { code: string; name: string; run: Run; rows: ModuleRow[]; published: string | null; questions: number; index: number; onDiscard: () => void }) {
+export function RunTestCard({ code, name, run, rows, published, questions, index, onDiscard, due }: { code: string; name: string; run: Run; rows: ModuleRow[]; published: string | null; questions: number; index: number; onDiscard: () => void; due?: string | null }) {
   return (
     <Frame
       label={`${name}, in progress`}
@@ -155,7 +155,7 @@ export function RunTestCard({ code, name, run, rows, published, questions, index
         </>
       }>
       <Title>{name}</Title>
-      <Tiles tiles={[dateTile(published), totalTile(questions)]} />
+      <Tiles tiles={[dateTile(published, due), totalTile(questions)]} />
       <ModulesPanel rows={rows} />
       <Link to={`/practice/run/${encodeURIComponent(code)}`} className={PRIMARY} aria-label={`Continue ${name}`}>
         Continue
