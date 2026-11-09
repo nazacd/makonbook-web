@@ -74,7 +74,8 @@ export function AssignmentDetail() {
               <SolidPill color={pill.color}>{pill.text}</SolidPill>
             </div>
             <p className="t-subhead mt-1 text-ink-2">
-              {KIND[d.kind].label} · <Link to={`/groups/${d.group_id}`} className="font-semibold text-accent hover:underline">{teacherTitle(parseClassName(d.group_name))}</Link> · due {dueLong((a ?? d).due_at)} ({dueRelative((a ?? d).due_at, now)})
+              {KIND[d.kind].label} · <Link to={`/groups/${d.group_id}`} className="font-semibold text-accent hover:underline">{teacherTitle(parseClassName(d.group_name))}</Link>
+              {d.status === 'scheduled' && <> · opens {dueLong(d.opens_at)} ({dueRelative(d.opens_at, now)})</>} · due {dueLong((a ?? d).due_at)} ({dueRelative((a ?? d).due_at, now)})
             </p>
             {d.lesson && <p className="t-footnote mt-0.5 text-ink-3">{d.lesson.unit_title} · {d.lesson.title}</p>}
              {d.test && <p className="t-footnote mt-0.5 text-ink-3">{testName(d.test.title)} · {d.test.sections.map((x) => SECTION_LABEL[x]).join(' + ')}</p>}
@@ -139,6 +140,8 @@ function Actions({ d, hasWork, onEdit }: { d: Detail; hasWork: boolean; onEdit: 
   const closed = !!d.closed_at;
   const toggle = () =>
     update.mutate({ title: d.title, instructions: d.instructions, opens_at: d.opens_at, due_at: d.due_at, closed: !closed });
+  const openNow = () =>
+    update.mutate({ title: d.title, instructions: d.instructions, opens_at: new Date().toISOString(), due_at: d.due_at, closed });
   const del = () =>
     confirm({
       title: `Delete “${d.title}”?`,
@@ -149,6 +152,11 @@ function Actions({ d, hasWork, onEdit }: { d: Detail; hasWork: boolean; onEdit: 
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap gap-2">
+        {d.status === 'scheduled' && (
+          <button type="button" onClick={openNow} disabled={update.isPending} title="Students see it locked until it opens" className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-[14px] font-bold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+            <LockOpen size={15} aria-hidden="true" /> Open now
+          </button>
+        )}
         <button type="button" onClick={onEdit} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-4 text-[14px] font-bold text-ink hover:bg-surface-2">
           <Pencil size={15} aria-hidden="true" /> Edit
         </button>

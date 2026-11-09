@@ -126,7 +126,9 @@ real files from `MOCK_CURRICULUM=<folder>` (with `logos/`) on your machine.
 Assignments (spec §23; `api/assignments.ts`): teachers give their groups
 homework, level checks and exams with deadlines; the whole group gets the same
 questions; the first finished work is the result (later tries are practice),
-work after the deadline is marked late. Students: `/homework`,
+work after the deadline is marked late; one that opens later shows to its
+students locked ("Opens …", not counted as due), and its teacher can Open
+now. Students: `/homework`,
 `/level-checks`, `/exams` (`screens/StudentAssignments`, cards in
 `components/assignments/AssignmentCard`), the sidebar's due counters, the
 dashboard's Due work and Today's plan; homework and level checks run in
