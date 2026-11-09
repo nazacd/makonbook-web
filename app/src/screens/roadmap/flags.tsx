@@ -1,22 +1,13 @@
 import { Globe2 } from 'lucide-react';
 
-import ca from 'flag-icons/flags/4x3/ca.svg';
-import ch from 'flag-icons/flags/4x3/ch.svg';
-import de from 'flag-icons/flags/4x3/de.svg';
-import gb from 'flag-icons/flags/4x3/gb.svg';
-import jp from 'flag-icons/flags/4x3/jp.svg';
-import kr from 'flag-icons/flags/4x3/kr.svg';
-import sg from 'flag-icons/flags/4x3/sg.svg';
-import tr from 'flag-icons/flags/4x3/tr.svg';
-import us from 'flag-icons/flags/4x3/us.svg';
-import uz from 'flag-icons/flags/4x3/uz.svg';
-
-// The countries of the journeys, as round flags (flag-icons, MIT; bundled
-// with the app, since Windows draws flag emoji as two letters).
-const FLAGS: Record<string, string> = { ca, ch, de, gb, jp, kr, sg, tr, us, uz };
+// Every country's flag as a round badge (flag-icons, MIT; bundled with the
+// app, since Windows draws flag emoji as two letters). Each is its own small
+// file, fetched only when shown.
+const FILES = import.meta.glob<string>('../../../../node_modules/flag-icons/flags/4x3/*.svg', { eager: true, query: '?no-inline', import: 'default' });
+const FLAGS: Record<string, string> = Object.fromEntries(Object.entries(FILES).map(([path, url]) => [path.slice(path.lastIndexOf('/') + 1, -4), url]));
 
 export function Flag({ code, size = 28, className = '' }: { code: string | null; size?: number; className?: string }) {
-  const src = code ? FLAGS[code] : undefined;
+  const src = code ? FLAGS[code.toLowerCase()] : undefined;
   if (!src) return <Flagless size={size} className={className} />;
   return <img src={src} alt="" width={size} height={size} className={`shrink-0 rounded-full object-cover ring-2 ring-white/80 ${className}`} style={{ width: size, height: size }} />;
 }
