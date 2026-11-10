@@ -28,7 +28,7 @@ export function DreamStep({
   browsing: boolean;
   onBrowse: () => void;
   onChoose: (u: University) => void;
-  onLook: (p: { lat: number; lng: number }) => void;
+  onLook: (p: { lat: number; lng: number; zoom?: number }) => void;
   onMatches: (ids: string[]) => void;
 }) {
   return (

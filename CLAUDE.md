@@ -111,8 +111,11 @@ loaded; land dots from `public/globe/land.png`, Natural Earth) rises from the
 bottom; the student chooses a **dream university** on it
 (`components/onboarding/`: `UniversityPicker`, the tilting `UniversityCard`,
 `Crest` for universities without a logo, `Mascot` slots, see
-`docs/mascot-brief.md`), then the SAT questions float over it, the target
-starting from the university's admitted range; the finale draws an arc from
+`docs/mascot-brief.md`), then the SAT questions float over it: scores are
+dragged along an arc (`ScoreArc`: today in teal, the goal in gold, the climb
+between, the dream's admitted range as a band), SAT dates are calendar leaves
+with a countdown, the schedule is a week of seven columns; the target
+starts from the university's admitted range; the finale draws an arc from
 Tashkent. `POST /v1/me/onboarding` sets the goals (with `university_id`) and
 builds the roadmaps; the SAT dates it offers are `lib/satDates.ts`, to update
 each year. Universities: `api/universities.ts`, spec §24; the globe is

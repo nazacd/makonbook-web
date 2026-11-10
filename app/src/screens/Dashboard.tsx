@@ -284,8 +284,8 @@ function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number
       </div>
       <div className="flex items-center gap-4">
         {dream ? (
-          <Link to="/dream" aria-label={`Your dream university: ${dream.name}. Change it`} className="shrink-0 rounded-full shadow-[0_0_0_3px_rgba(255,255,255,0.85),0_0_24px_rgba(246,195,67,0.45)]">
-            <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={64} />
+          <Link to="/dream" aria-label={`Your dream university: ${dream.name}. Change it`} className="shrink-0 rounded-full">
+            <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={64} ring="white" />
           </Link>
         ) : (
           <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white text-primary">

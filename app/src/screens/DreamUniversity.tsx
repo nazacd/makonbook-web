@@ -30,7 +30,7 @@ function Chooser({ initial, goals }: { initial: University | null; goals: Return
   const save = useSaveGoals();
   const [dream, setDream] = useState<University | null>(initial);
   const [browsing, setBrowsing] = useState(!initial);
-  const [look, setLook] = useState<{ lat: number; lng: number } | null>(null);
+  const [look, setLook] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
   const [matches, setMatches] = useState<string[]>([]);
   const list = universities.data;
   const points = useMemo(() => (list ?? []).filter((u) => u.location).map((u) => ({ id: u.id, lat: u.location!.lat, lng: u.location!.lng })), [list]);
@@ -52,7 +52,7 @@ function Chooser({ initial, goals }: { initial: University | null; goals: Return
     <div className="onb relative flex h-dvh flex-col overflow-hidden">
       <div className="absolute inset-0">
         <Suspense fallback={null}>
-          <Globe points={points} selected={dream?.id ?? null} matches={matches} look={look} arcTo={null} mode="hero" onPick={(id) => { const u = list?.find((x) => x.id === id); if (u) choose(u); }} />
+          <Globe points={points} selected={dream?.id ?? null} matches={matches} look={look} arcTo={null} mode="hero" zoomable onPick={(id) => { const u = list?.find((x) => x.id === id); if (u) choose(u); }} />
         </Suspense>
       </div>
       <header className="relative z-10 flex items-center justify-between px-4 py-4 md:px-8">

@@ -143,7 +143,9 @@ export class GlobeScene {
   private clock = new THREE.Clock();
   // Orientation: yaw (around the poles) and pitch (tilt), with targets the animation eases to.
   private yaw = -HOME.lng * DEG;
-  private pitch = FOCUS_ELEVATION - HOME.lat * DEG;
+  // three's rotation about x lowers a point's elevation by its angle, so a point at latitude
+  // lat sits at `elevation` once the globe is tilted by lat - elevation.
+  private pitch = HOME.lat * DEG - FOCUS_ELEVATION;
   private targetYaw = this.yaw;
   private targetPitch = this.pitch;
   private idle = true;
@@ -151,6 +153,12 @@ export class GlobeScene {
   private layout = { radius: 1, y: -1 };
   private targetLayout = { radius: 1, y: -1 };
   private drag: { x: number; y: number; yaw: number; pitch: number; moved: boolean; t: number } | null = null;
+  // Zoom (choosing only): 0 is the globe rising from the bottom, 1 close over its surface,
+  // the focused point moving to the middle of the screen as it grows.
+  private zoom = 0;
+  private targetZoom = 0;
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinch: { dist: number; zoom: number } | null = null;
   private velocity = 0;
   private selected: string | null = null;
   private stopped = false;
@@ -372,12 +380,13 @@ export class GlobeScene {
     size.needsUpdate = color.needsUpdate = alpha.needsUpdate = true;
   }
 
-  /** Turns the globe so lat/lng faces the viewer, up near the globe's top. */
-  focus(lat: number, lng: number) {
+  /** Turns the globe so lat/lng faces the viewer (and, when choosing, zooms to `zoom` if given). */
+  focus(lat: number, lng: number, zoom?: number) {
     this.idle = false;
+    if (zoom != null) this.zoomTo(zoom);
     const yaw = -lng * DEG;
     this.targetYaw = this.yaw + wrap(yaw - this.yaw);
-    this.targetPitch = FOCUS_ELEVATION - lat * DEG;
+    this.targetPitch = lat * DEG - FOCUS_ELEVATION;
     if (this.opts.reducedMotion) {
       this.yaw = this.targetYaw;
       this.pitch = this.targetPitch;
@@ -392,7 +401,7 @@ export class GlobeScene {
     this.beam.visible = !!p;
     if (p) {
       this.placeOnSurface(this.beam, p.lat, p.lng, 1.004);
-      this.focus(p.lat, p.lng);
+      this.focus(p.lat, p.lng); // turned to the centre of the view; the zoom stays as the student set it
     }
     this.paintUniversities(new Set());
   }
@@ -428,13 +437,25 @@ export class GlobeScene {
     this.arcProgress = this.opts.reducedMotion ? 1 : 0;
     geometry.setDrawRange(0, this.opts.reducedMotion ? Infinity : 0);
     this.globe.add(this.arc);
-    // Frame both ends: turn to the middle of the way.
+    // Frame both ends: the whole globe, turned to the middle of the way.
     const mid = a.clone().add(b).normalize();
-    this.focus(Math.asin(mid.y) / DEG, Math.atan2(mid.x, mid.z) / DEG);
+    this.focus(Math.asin(mid.y) / DEG, Math.atan2(mid.x, mid.z) / DEG, 0);
+  }
+
+  /** Zooms to z (0 to 1); only while choosing (hero), else the whole globe. */
+  zoomTo(z: number) {
+    this.targetZoom = this.mode === 'hero' ? Math.max(0, Math.min(1, z)) : 0;
+    if (this.opts.reducedMotion) this.zoom = this.targetZoom;
+  }
+
+  zoomBy(dz: number) {
+    this.idle = false;
+    this.zoomTo(this.targetZoom + dz);
   }
 
   setMode(mode: GlobeMode) {
     this.mode = mode;
+    if (mode !== 'hero') this.zoomTo(0);
     this.targetLayout = this.layoutFor(mode);
     if (this.opts.reducedMotion) this.layout = { ...this.targetLayout };
   }
@@ -451,6 +472,27 @@ export class GlobeScene {
     return { radius, y: halfH * (1 - 2 * top) - radius };
   }
 
+  private shown = { radius: 1, y: -1, elevation: FOCUS_ELEVATION };
+
+  /**
+   * The globe as drawn at zoom z: its radius and centre height grow from the
+   * layout's towards a close view, and the focused point (which sits at
+   * `elevation` above the globe's centre, facing the viewer) moves from near
+   * the globe's top to the middle of the screen (a little lower on phones,
+   * below the card).
+   */
+  private zoomed(z: number) {
+    const base = this.layout;
+    if (z <= 0.0005) return { ...base, elevation: FOCUS_ELEVATION };
+    const halfH = 6 * Math.tan((this.camera.fov / 2) * DEG);
+    const narrow = this.width / this.height < 0.8;
+    const lerp = (a: number, b: number) => a + (b - a) * z;
+    const radius = lerp(base.radius, Math.max(base.radius, halfH * 2.3));
+    const elevation = lerp(FOCUS_ELEVATION, 6 * DEG);
+    const pointY = lerp(base.y + base.radius * Math.sin(FOCUS_ELEVATION), halfH * (narrow ? -0.3 : -0.06));
+    return { radius, y: pointY - radius * Math.sin(elevation), elevation };
+  }
+
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     this.width = Math.max(1, rect.width);
@@ -464,17 +506,42 @@ export class GlobeScene {
 
   private bindPointer() {
     const c = this.canvas;
+    c.addEventListener('wheel', this.onWheel, { passive: false });
     c.addEventListener('pointerdown', this.onDown);
     window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
   }
 
+  private onWheel = (e: WheelEvent) => {
+    if (this.mode !== 'hero') return;
+    e.preventDefault();
+    this.zoomBy(-e.deltaY * (e.deltaMode === 1 ? 0.04 : 0.0016));
+  };
+
+  private spread() {
+    const [a, b] = [...this.pointers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  }
+
   private onDown = (e: PointerEvent) => {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2) {
+      // Two fingers: a pinch zooms, and no drag turns the globe meanwhile.
+      this.drag = null;
+      this.pinch = { dist: this.spread(), zoom: this.targetZoom };
+      return;
+    }
     this.drag = { x: e.clientX, y: e.clientY, yaw: this.yaw, pitch: this.pitch, moved: false, t: performance.now() };
     this.velocity = 0;
   };
 
   private onMove = (e: PointerEvent) => {
+    if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pinch && this.pointers.size === 2) {
+      const dist = this.spread();
+      if (this.pinch.dist > 0 && dist > 0) this.zoomTo(this.pinch.zoom + Math.log2(dist / this.pinch.dist) * 0.7);
+      return;
+    }
     const d = this.drag;
     if (!d) return;
     const dx = e.clientX - d.x;
@@ -482,16 +549,18 @@ export class GlobeScene {
     if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
     if (!d.moved) return;
     this.idle = false;
-    const k = (1.6 / Math.max(240, this.width)) * (2 / this.layout.radius);
+    const k = (1.6 / Math.max(240, this.width)) * (2 / this.shown.radius);
     const yaw = d.yaw + dx * k;
     const now = performance.now();
     this.velocity = (yaw - this.yaw) / Math.max(8, now - d.t);
     d.t = now;
     this.yaw = this.targetYaw = yaw;
-    this.pitch = this.targetPitch = Math.max(-50 * DEG, Math.min(95 * DEG, d.pitch + dy * k));
+    this.pitch = this.targetPitch = Math.max(-120 * DEG, Math.min(55 * DEG, d.pitch + dy * k));
   };
 
   private onUp = (e: PointerEvent) => {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.pinch = null;
     const d = this.drag;
     this.drag = null;
     if (!d) return;
@@ -545,13 +614,21 @@ export class GlobeScene {
     }
     this.layout.radius += (this.targetLayout.radius - this.layout.radius) * ease;
     this.layout.y += (this.targetLayout.y - this.layout.y) * ease;
+    this.zoom += (this.targetZoom - this.zoom) * ease;
+    this.shown = this.zoomed(this.zoom);
 
-    this.globe.position.set(0, this.layout.y, 0);
-    this.globe.scale.setScalar(this.layout.radius);
-    this.globe.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
+    this.globe.position.set(0, this.shown.y, 0);
+    this.globe.scale.setScalar(this.shown.radius);
+    this.globe.rotation.set(this.pitch + (FOCUS_ELEVATION - this.shown.elevation), this.yaw, 0, 'XYZ');
     this.atmosphere.position.copy(this.globe.position);
-    this.atmosphere.scale.setScalar(this.layout.radius);
-    const scale = this.layout.radius / 1.6;
+    this.atmosphere.scale.setScalar(this.shown.radius);
+    // Zoomed in, the globe is bigger and nearer: `shrink` keeps the beam, the
+    // rings and home about their size on screen, and lets the dots grow only a little.
+    const depth = (r: number, e: number) => 6 - r * Math.cos(e);
+    const shrink = this.layout.radius / depth(this.layout.radius, FOCUS_ELEVATION) / (this.shown.radius / depth(this.shown.radius, this.shown.elevation));
+    this.beam.scale.setScalar(shrink);
+    this.home.scale.setScalar(shrink);
+    const scale = (this.layout.radius / 1.6) * Math.pow(shrink, 0.65);
     for (const o of [this.universities, this.land]) if (o) (o.material as THREE.ShaderMaterial).uniforms.scale!.value = scale;
 
     if (!this.opts.reducedMotion) {
@@ -581,6 +658,7 @@ export class GlobeScene {
   dispose() {
     this.stopped = true;
     cancelAnimationFrame(this.frame);
+    this.canvas.removeEventListener('wheel', this.onWheel);
     this.canvas.removeEventListener('pointerdown', this.onDown);
     window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerup', this.onUp);
