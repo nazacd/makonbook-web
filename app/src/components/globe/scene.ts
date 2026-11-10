@@ -364,7 +364,7 @@ export class GlobeScene {
     this.uniData.forEach((p, i) => {
       const on = matches.has(p.id);
       const chosen = p.id === this.selected;
-      size.setX(i, chosen ? 9 : on ? 6.5 : any ? 3 : 4.2);
+      size.setX(i, chosen ? 9 : on ? 5 : any ? 3 : 4.2);
       const c = chosen || on ? COLORS.match : COLORS.university;
       color.setXYZ(i, c.r, c.g, c.b);
       alpha.setX(i, chosen || on || !any ? 0.95 : 0.4);

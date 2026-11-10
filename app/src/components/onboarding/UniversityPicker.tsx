@@ -11,7 +11,13 @@ import { qsLabel } from './UniversityCard';
 // country chips, and the results. Moving through the results turns the globe
 // to each one (onLook); choosing one is onSelect.
 
-const fold = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = (s: string) => s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const words = (s: string) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
+const bare = (name: string) => fold(name).replace(/^the\s+/, '');
+const SMALL = new Set(['of', 'the', 'and', 'for', 'at', 'in', 'de', 'la', 'le', 'du', 'des', 'der', 'und', 'zu']);
+/** A name's initials, without the small words: "Massachusetts Institute of Technology" is "mit". */
+const acronym = (name: string) => words(name.replace(/\(.*?\)/g, '')).filter((w) => !SMALL.has(w)).map((w) => w[0]).join('');
+const rank = (u: University) => u.qs?.rank ?? 100000;
 
 type Props = {
   universities: University[];
@@ -38,19 +44,22 @@ export function UniversityPicker({ universities, onSelect, onLook, onMatches }: 
     const q = fold(query.trim());
     const pool = country ? universities.filter((u) => u.country === country) : universities;
     if (!q) return pool.slice(0, country ? 30 : 8);
+    // An exact name, short name or initials first ("MIT", "UCL"); then every
+    // word typed starting a word of the name, city or country, best QS place
+    // first; then the text anywhere in the name.
+    const typed = words(q);
     const scored: Array<[number, University]> = [];
     for (const u of pool) {
-      const name = fold(u.name);
+      const name = bare(u.name);
       const short = fold(u.short_name ?? '');
-      const place = fold(`${u.city ?? ''} ${countryName(u.country)}`);
+      const own = [...words(u.name), ...words(u.short_name ?? ''), ...words(u.city ?? ''), ...words(countryName(u.country))];
       let s = -1;
-      if (name.startsWith(q) || short === q) s = 0;
-      else if (name.includes(` ${q}`) || short.startsWith(q)) s = 1;
+      if (short === q || name === q.replace(/^the\s+/, '') || (q.length >= 2 && !q.includes(' ') && acronym(u.name) === q)) s = 0;
+      else if (typed.every((t) => own.some((w) => w.startsWith(t)))) s = 1;
       else if (name.includes(q)) s = 2;
-      else if (place.includes(q)) s = 3;
       if (s >= 0) scored.push([s, u]);
     }
-    return scored.sort((a, b) => a[0] - b[0]).slice(0, 30).map(([, u]) => u);
+    return scored.sort((a, b) => a[0] - b[0] || rank(a[1]) - rank(b[1])).slice(0, 30).map(([, u]) => u);
   }, [universities, query, country]);
 
   function look(u: University | undefined) {
@@ -88,7 +97,7 @@ export function UniversityPicker({ universities, onSelect, onLook, onMatches }: 
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <div className="relative">
+      <div className="relative shrink-0">
         <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--onb-ink-3)]" aria-hidden="true" />
         <input
           value={query}
@@ -97,7 +106,7 @@ export function UniversityPicker({ universities, onSelect, onLook, onMatches }: 
             onMatches([]);
           }}
           onKeyDown={key}
-          placeholder="Search 1,500 universities, cities or countries"
+          placeholder="Search universities, cities or countries"
           aria-label="Search universities"
           role="combobox"
           aria-expanded={results.length > 0}
@@ -113,7 +122,7 @@ export function UniversityPicker({ universities, onSelect, onLook, onMatches }: 
         )}
       </div>
 
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" role="group" aria-label="Countries">
+      <div className="-mx-1 flex shrink-0 gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" role="group" aria-label="Countries">
         {countries.map((c) => (
           <button key={c} type="button" aria-pressed={country === c} onClick={() => pickCountry(country === c ? null : c)} className="choice flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-3 text-[13px] font-semibold">
             <Flag code={c} size={22} className="ring-0" />

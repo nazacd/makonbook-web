@@ -31,7 +31,7 @@ const UZ = [['Tashkent', 41.31, 69.28], ['Samarkand', 39.65, 66.96], ['Bukhara',
 const FIRST = ['Northbridge', 'Meridian', 'Halcyon', 'Silverlake', 'Starling', 'Juniper', 'Cobalt', 'Lumen', 'Aurora', 'Westmere', 'Kestrel', 'Larkspur', 'Harrow Vale', 'Brightwater', 'Ashgrove', 'Corvina'];
 const KIND = ['University', 'Institute of Technology', 'University of Science', 'College', 'Polytechnic'];
 
-const slug = (s) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const slug = (s) => s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 function fictional() {
   const out = [];

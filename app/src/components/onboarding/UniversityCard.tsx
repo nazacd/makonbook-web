@@ -27,7 +27,8 @@ export function satLine(u: University): string {
 }
 
 export function qsLabel(u: University) {
-  return u.qs ? `QS #${u.qs.display}` : null;
+  // A tie ("=45") reads as its place.
+  return u.qs ? `QS #${u.qs.display.replace(/^=/, '')}` : null;
 }
 
 export function UniversityCard({ u }: { u: University }) {

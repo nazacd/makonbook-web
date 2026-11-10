@@ -452,7 +452,7 @@ function Dream({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row md:items-start md:justify-between">
-      <section className="rise glass pointer-events-auto flex max-h-[44dvh] min-h-0 w-full flex-col rounded-[22px] p-4 md:max-h-[calc(100dvh-190px)] md:w-[400px] md:p-5">
+      <section className="rise glass pointer-events-auto flex max-h-[54dvh] min-h-0 w-full flex-col rounded-[22px] p-4 md:max-h-[calc(100dvh-190px)] md:w-[400px] md:p-5">
         <h1 className="text-[22px] font-bold leading-7 tracking-[-0.02em] md:text-[26px] md:leading-8">Your dream university</h1>
         <p className="mb-3 mt-1 text-[14px] text-[var(--onb-ink-2)]">Search, pick a country, or tap a gold light on the globe.</p>
         {failed ? (
