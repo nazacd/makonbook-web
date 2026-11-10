@@ -224,6 +224,7 @@ const assessmentOut = (a) => ({ id: a.id, kind: a.kind, roadmap_id: a.roadmap_id
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
 // Assignments and notifications (mock/assignments.cjs).
+const universitiesApi = require('./universities.cjs');
 const assignmentsApi = require('./assignments.cjs')({ people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err });
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -319,6 +320,7 @@ http.createServer(async (req, res) => {
     tickets.delete(body.ticket); passwords.set(p.login, body.password); p.has_password = true; p.must_change_password = false;
     return signIn(res, p);
   }
+  if (universitiesApi.logo(url, res)) return;
   if (url.startsWith('/v1/logos/')) { const lg = logos.get(url.slice('/v1/logos/'.length)); if (!lg) return err(res, 404, 'not_found', 'no logo'); res.writeHead(200, { 'content-type': lg.type, 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox" }); return res.end(lg.data); }
   if (url.startsWith('/v1/photos/') && photos.has(url.slice('/v1/photos/'.length))) {
     const ph = photos.get(url.slice('/v1/photos/'.length)); res.writeHead(200, { 'content-type': ph.type, 'cache-control': 'public, max-age=31536000, immutable' }); return res.end(ph.data);
@@ -338,13 +340,15 @@ http.createServer(async (req, res) => {
   if (!me) return err(res, 401, 'unauthorized', 'session ended');
   if (url === '/v1/auth/logout') { tokens.delete(auth); return json(res, 204); }
   if (url === '/v1/me') return json(res, 200, me);
+  if (universitiesApi.route(url, res, json, err)) return;
   // Onboarding and roadmaps.
   if (url === '/v1/me/onboarding' && req.method === 'GET') { const o = onboardings.get(me.login); return o ? json(res, 200, o) : err(res, 404, 'not_found', 'no onboarding yet'); }
   if (url === '/v1/me/onboarding' && req.method === 'POST') {
     if (me.status !== 'registered' || me.kind !== 'student') return err(res, 409, 'not_needed', 'enrolled people get their roadmaps from their groups');
     if (!['math', 'english', 'both'].includes(body.focus) || !body.target || !body.schedule?.days?.length) return err(res, 422, 'invalid_onboarding', 'focus, target and schedule are needed');
+    if (body.university_id && !universitiesApi.byId.has(body.university_id)) return err(res, 422, 'invalid_onboarding', "university_id isn't a university we list");
     onboardings.set(me.login, body); me.onboarded = true;
-    goals.set(me.login, { target_math: body.target.math, target_rw: body.target.rw, exam_date: [...(body.sat_dates || [])].sort()[0] || null, updated_at: new Date().toISOString() });
+    goals.set(me.login, { target_math: body.target.math, target_rw: body.target.rw, exam_date: [...(body.sat_dates || [])].sort()[0] || null, university_id: body.university_id ?? goals.get(me.login)?.university_id ?? null, updated_at: new Date().toISOString() });
     return json(res, 200, { profile: me, roadmaps: roadmapIds(me).map((id) => { const r = buildRoadmap(me, id); delete r.countries; delete r.units; return r; }) });
   }
   if (url === '/v1/me/roadmaps') return json(res, 200, { roadmaps: roadmapIds(me).map((id) => { const r = buildRoadmap(me, id); delete r.countries; delete r.units; return r; }) });
@@ -491,11 +495,14 @@ http.createServer(async (req, res) => {
       const ok = (v) => v == null || (Number.isInteger(v) && v >= 200 && v <= 800 && v % 10 === 0);
       if (!ok(body.target_math) || !ok(body.target_rw)) return err(res, 422, 'invalid_goals', 'scores are 200–800, in tens');
       if (body.exam_date && body.exam_date < new Date().toISOString().slice(0, 10)) return err(res, 422, 'invalid_goals', 'the exam date is in the past');
-      const g = { target_math: body.target_math ?? null, target_rw: body.target_rw ?? null, exam_date: body.exam_date ?? null, updated_at: new Date().toISOString() };
+      if (body.university_id && !universitiesApi.byId.has(body.university_id)) return err(res, 422, 'invalid_goals', "university_id isn't a university we list");
+      // university_id left out keeps the stored one (the phone doesn't send it); null clears it.
+      const university_id = 'university_id' in body ? body.university_id : goals.get(login)?.university_id ?? null;
+      const g = { target_math: body.target_math ?? null, target_rw: body.target_rw ?? null, exam_date: body.exam_date ?? null, university_id, updated_at: new Date().toISOString() };
       goals.set(login, g);
     }
-    const g = goals.get(login) ?? { target_math: null, target_rw: null, exam_date: null, updated_at: null };
-    return json(res, 200, { ...g, target_total: g.target_math != null && g.target_rw != null ? g.target_math + g.target_rw : null });
+    const g = goals.get(login) ?? { target_math: null, target_rw: null, exam_date: null, university_id: null, updated_at: null };
+    return json(res, 200, { ...g, university_id: g.university_id ?? null, university: (g.university_id && universitiesApi.byId.get(g.university_id)) || null, target_total: g.target_math != null && g.target_rw != null ? g.target_math + g.target_rw : null });
   }
   if (url === '/v1/practice/attempts' && req.method === 'POST') {
     if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');

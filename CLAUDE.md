@@ -105,9 +105,21 @@ Roadmaps (spec §22; `api/roadmaps.ts`, with types derived from `paths[…]`;
 null-only fields): a student's courses as journeys, countries → units (a
 university each) → lessons. `screens/roadmap/`: `Roadmaps` (a card per
 course; a free account that hasn't done onboarding is offered it first),
-`Onboarding` (full screen under `RequirePhone`, seven steps; `POST
-/v1/me/onboarding` sets the goals and builds the roadmaps; the SAT dates it
-offers are `lib/satDates.ts`, to update each year), `RoadmapMap`
+`Onboarding` (full screen under `RequirePhone`, a night scene in every theme
+(`.onb` in `styles.css`): a three.js globe (`components/globe/`, lazily
+loaded; land dots from `public/globe/land.png`, Natural Earth) rises from the
+bottom; the student chooses a **dream university** on it
+(`components/onboarding/`: `UniversityPicker`, the tilting `UniversityCard`,
+`Crest` for universities without a logo, `Mascot` slots, see
+`docs/mascot-brief.md`), then the SAT questions float over it, the target
+starting from the university's admitted range; the finale draws an arc from
+Tashkent. `POST /v1/me/onboarding` sets the goals (with `university_id`) and
+builds the roadmaps; the SAT dates it offers are `lib/satDates.ts`, to update
+each year. Universities: `api/universities.ts`, spec §24; the globe is
+`components/globe/lazy.ts`. `/dream` (`screens/DreamUniversity`) is the same
+choice on its own, for changing it later and for enrolled students; it saves
+the goals as they are with the new `university_id`. The dashboard's Your SAT
+card and the top of every roadmap map show the dream university), `RoadmapMap`
 (`/roadmaps/:id`: a night map scrolled bottom to top, laid out by
 `journey.ts`; `Medallion` draws a stop from `stop.logo_url`, else the
 university's initials; `flags.tsx` wraps flag-icons), `RoadmapUnit` (a stop's

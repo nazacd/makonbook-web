@@ -118,9 +118,8 @@ export function DrillQuestion({ item, number, remaining, last, keys, onCleared, 
             {SUBJECT_LABEL[item.subject]}, {item.skill}: question {number}
           </h1>
 
-          <p className="tabular mb-4 mt-10 text-[14px] font-bold text-ink" aria-hidden="true">
-            {q.position}
-          </p>
+          {/* No question number here: its place in the test it came from means nothing in a drill. */}
+          <div className="mt-10" aria-hidden="true" />
           {q.passage && (
             <div className="mb-5">
               <RichContent text={q.passage} images={p.images} links={links} className="rich rich-sm" />
