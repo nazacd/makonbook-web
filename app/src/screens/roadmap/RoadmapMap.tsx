@@ -252,9 +252,7 @@ function Goal({ top, target, dream, title, done }: { top: number; target: number
     return (
       <div className="absolute inset-x-0 flex flex-col items-center justify-end bg-gradient-to-b from-[#3a2a07] to-transparent" style={{ top, height: GOAL }}>
         <Link to="/dream" className="mb-6 flex flex-col items-center" aria-label={`Your dream university: ${dream.name}`}>
-          <span className="rounded-full shadow-[0_0_0_4px_#ffe08a,0_0_44px_rgba(246,195,67,0.65)]">
-            <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={86} />
-          </span>
+          <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={86} ring="medal" />
           <p className="mt-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#f6c343]">{done ? 'Journey complete' : 'Your dream'}</p>
           <p className="max-w-[280px] text-center text-[15px] font-bold leading-5 text-white">{dream.name}</p>
           {target && <p className="mt-0.5 text-[12.5px] font-semibold text-white/70">{target} on the SAT</p>}

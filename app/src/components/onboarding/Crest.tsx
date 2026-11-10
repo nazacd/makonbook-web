@@ -37,12 +37,21 @@ export function Crest({ id, name, size }: { id: string; name: string; size: numb
   );
 }
 
-/** A university's badge: its logo cut in a circle, else its crest. */
-export function UniversityBadge({ id, name, logo, size }: { id: string; name: string; logo: string | null; size: number }) {
-  if (!logo) return <Crest id={id} name={name} size={size} />;
+const RINGS = {
+  gold: '0 0 0 3px rgba(246,195,67,0.9), 0 0 28px rgba(246,195,67,0.45)',
+  white: '0 0 0 3px rgba(255,255,255,0.85), 0 0 24px rgba(246,195,67,0.4)',
+  medal: '0 0 0 4px #ffe08a, 0 0 44px rgba(246,195,67,0.65)',
+};
+
+/**
+ * A university's badge: its logo cut in a circle, else its crest. `ring`
+ * draws a glowing ring on the badge itself (a box exactly its size, so the
+ * ring is even all round).
+ */
+export function UniversityBadge({ id, name, logo, size, ring }: { id: string; name: string; logo: string | null; size: number; ring?: keyof typeof RINGS }) {
   return (
-    <span className="inline-flex shrink-0 overflow-hidden rounded-full bg-white" style={{ width: size, height: size }}>
-      <img src={logo} alt="" width={size} height={size} draggable={false} className="size-full object-cover" />
+    <span className={`flex shrink-0 overflow-hidden rounded-full ${logo ? 'bg-white' : ''}`} style={{ width: size, height: size, boxShadow: ring ? RINGS[ring] : undefined }}>
+      {logo ? <img src={logo} alt="" width={size} height={size} draggable={false} className="block size-full object-cover" /> : <Crest id={id} name={name} size={size} />}
     </span>
   );
 }

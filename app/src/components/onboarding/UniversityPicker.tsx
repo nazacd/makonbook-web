@@ -22,7 +22,7 @@ const rank = (u: University) => u.qs?.rank ?? 100000;
 type Props = {
   universities: University[];
   onSelect: (u: University) => void;
-  onLook: (place: { lat: number; lng: number }) => void;
+  onLook: (place: { lat: number; lng: number; zoom?: number }) => void;
   onMatches: (ids: string[]) => void;
 };
 

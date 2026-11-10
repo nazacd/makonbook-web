@@ -62,7 +62,7 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [dream, setDream] = useState<University | null>(null);
   const [browsing, setBrowsing] = useState(true); // the picker is open (else the chosen card shows)
-  const [look, setLook] = useState<{ lat: number; lng: number } | null>(null);
+  const [look, setLook] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
   const [matches, setMatches] = useState<string[]>([]);
   const [graduation, setGraduation] = useState<Answers['graduation'] | null>(null);
   const [dates, setDates] = useState<string[] | null>(null); // [] = not decided
@@ -143,6 +143,7 @@ export function Onboarding() {
             look={look}
             arcTo={name === 'finale' ? (dream?.id ?? null) : null}
             mode={mode}
+            zoomable={name === 'dream'}
             onPick={(id) => {
               const u = list?.find((x) => x.id === id);
               if (u && name === 'dream') choose(u);

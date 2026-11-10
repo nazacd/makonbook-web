@@ -54,9 +54,7 @@ export function UniversityCard({ u }: { u: University }) {
     <div ref={card} onPointerMove={move} onPointerLeave={leave} className="tilt glass pop relative overflow-hidden rounded-[22px] p-5">
       <div className="sheen pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="relative flex items-start gap-4" style={{ transform: 'translateZ(30px)' }}>
-        <span className="rounded-full shadow-[0_0_0_3px_rgba(246,195,67,0.85),0_0_30px_rgba(246,195,67,0.45)]">
-          <UniversityBadge id={u.id} name={u.name} logo={u.logo_url} size={64} />
-        </span>
+        <UniversityBadge id={u.id} name={u.name} logo={u.logo_url} size={64} ring="gold" />
         <div className="min-w-0 flex-1">
           {qs && (
             <span className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-[rgba(246,195,67,0.16)] px-2 py-0.5 text-[11.5px] font-bold tracking-wide text-[var(--onb-gold)]">
