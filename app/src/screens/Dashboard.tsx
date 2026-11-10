@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   BookOpenCheck,
+  ChevronRight,
   ClipboardCheck,
   ClipboardList,
   CalendarClock,
@@ -27,7 +28,10 @@ import { useGoals, type Goals } from '@/api/learning';
 import { useRoadmaps } from '@/api/roadmaps';
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Profile } from '@/api/types';
+import { satRange } from '@/api/universities';
 import { examPath } from '@/components/assignments/AssignmentCard';
+import { UniversityBadge } from '@/components/onboarding/Crest';
+import { Flag } from '@/screens/roadmap/flags';
 import { dueRelative, dueShort } from '@/components/assignments/format';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
 import { Skeleton } from '@/components/States';
@@ -263,6 +267,8 @@ function daysUntil(date: string, now: number): number {
 function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number | null; now: number; onEdit: () => void }) {
   const days = goals?.exam_date ? daysUntil(goals.exam_date, now) : null;
   const target = goals?.target_total ?? null;
+  const dream = goals?.university ?? null;
+  const range = satRange(dream?.sat);
   return (
     <section className="relative flex h-full flex-col overflow-hidden rounded-card p-[18px] text-white" style={{ background: 'linear-gradient(160deg, #5a12bf, #3e008e 52%, #2a0063)' }}>
       <div className="mb-3 flex items-center justify-between">
@@ -277,9 +283,15 @@ function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number
         </button>
       </div>
       <div className="flex items-center gap-4">
-        <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white text-primary">
-          <GraduationCap size={28} aria-hidden="true" />
-        </span>
+        {dream ? (
+          <Link to="/dream" aria-label={`Your dream university: ${dream.name}. Change it`} className="shrink-0 rounded-full shadow-[0_0_0_3px_rgba(255,255,255,0.85),0_0_24px_rgba(246,195,67,0.45)]">
+            <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={64} />
+          </Link>
+        ) : (
+          <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white text-primary">
+            <GraduationCap size={28} aria-hidden="true" />
+          </span>
+        )}
         <div className="min-w-0">
           <p className="t-micro text-white/75">Aiming at</p>
           {target ? (
@@ -300,8 +312,23 @@ function YourSat({ goals, latest, now, onEdit }: { goals?: Goals; latest: number
           )}
         </div>
       </div>
+      {dream ? (
+        <Link to="/dream" className="mt-3 flex min-w-0 items-center gap-2 rounded-[10px] bg-black/20 px-2.5 py-2 text-[13px] font-semibold hover:bg-black/30">
+          <Flag code={dream.country} size={18} className="ring-0" />
+          <span className="truncate">{dream.name}</span>
+          <span className="ml-auto shrink-0 text-[12px] font-bold text-white/70">Change</span>
+        </Link>
+      ) : (
+        <Link to="/dream" className="mt-3 flex items-center justify-between rounded-[10px] bg-black/20 px-2.5 py-2 text-[13px] font-semibold hover:bg-black/30">
+          Choose your dream university <ChevronRight size={15} aria-hidden="true" />
+        </Link>
+      )}
       <p className="mt-auto border-t border-white/20 pt-3 text-[13px] text-white/85">
-        {latest == null
+        {latest != null && range
+          ? latest >= range.p25
+            ? `Your last mock, ${latest}, is in ${dream?.short_name ?? 'your dream'}’s admitted range.`
+            : `Last mock ${latest} · ${range.p25 - latest} points to ${dream?.short_name ?? 'your dream'}’s range.`
+          : latest == null
           ? target
             ? `Take your first mock to start the climb to ${target}.`
             : 'Set a score target →'

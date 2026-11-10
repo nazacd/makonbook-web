@@ -5,7 +5,9 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { describeError } from '@/api/errors';
 import { useGoals } from '@/api/learning';
 import { useRoadmap, type Roadmap, type RoadmapUnit } from '@/api/roadmaps';
+import type { University } from '@/api/universities';
 import { Notice } from '@/components/Notice';
+import { UniversityBadge } from '@/components/onboarding/Crest';
 import { LockedModal } from '@/components/shell/LockedModal';
 import { Skeleton } from '@/components/States';
 import { useTitle } from '@/lib/title';
@@ -115,7 +117,7 @@ function Journey({ r }: { r: Roadmap }) {
             {regions.map((g) => (
               <RegionBand key={g.country} g={g} first={g.country === 0} />
             ))}
-            <Goal top={0} target={target} title={r.title} done={!r.current && r.lessons_done === r.lessons_total} />
+            <Goal top={0} target={target} dream={goals.data?.university ?? null} title={r.title} done={!r.current && r.lessons_done === r.lessons_total} />
             <Ground top={height - GROUND} name={regions[0]?.name ?? ''} code={regions[0]?.code ?? null} />
 
             {/* The path */}
@@ -244,7 +246,21 @@ function Ground({ top, name, code }: { top: number; name: string; code: string |
   );
 }
 
-function Goal({ top, target, title, done }: { top: number; target: number | null; title: string; done: boolean }) {
+/** The top of the journey: the dream university when there is one (its logo in the gold medallion), else the score goal. */
+function Goal({ top, target, dream, title, done }: { top: number; target: number | null; dream: University | null; title: string; done: boolean }) {
+  if (dream)
+    return (
+      <div className="absolute inset-x-0 flex flex-col items-center justify-end bg-gradient-to-b from-[#3a2a07] to-transparent" style={{ top, height: GOAL }}>
+        <Link to="/dream" className="mb-6 flex flex-col items-center" aria-label={`Your dream university: ${dream.name}`}>
+          <span className="rounded-full shadow-[0_0_0_4px_#ffe08a,0_0_44px_rgba(246,195,67,0.65)]">
+            <UniversityBadge id={dream.id} name={dream.name} logo={dream.logo_url} size={86} />
+          </span>
+          <p className="mt-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#f6c343]">{done ? 'Journey complete' : 'Your dream'}</p>
+          <p className="max-w-[280px] text-center text-[15px] font-bold leading-5 text-white">{dream.name}</p>
+          {target && <p className="mt-0.5 text-[12.5px] font-semibold text-white/70">{target} on the SAT</p>}
+        </Link>
+      </div>
+    );
   return (
     <div className="absolute inset-x-0 flex flex-col items-center justify-end bg-gradient-to-b from-[#3a2a07] to-transparent" style={{ top, height: GOAL }}>
       <div className="mb-6 flex flex-col items-center">

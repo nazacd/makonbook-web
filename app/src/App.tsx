@@ -44,6 +44,7 @@ const SignUp = page(() => import('@/screens/SignUp'), 'SignUp');
 const ResetPassword = page(() => import('@/screens/ResetPassword'), 'ResetPassword');
 const Roadmaps = page(() => import('@/screens/roadmap/Roadmaps'), 'Roadmaps');
 const Onboarding = page(() => import('@/screens/roadmap/Onboarding'), 'Onboarding');
+const DreamUniversity = page(() => import('@/screens/DreamUniversity'), 'DreamUniversity');
 const RoadmapMap = page(() => import('@/screens/roadmap/RoadmapMap'), 'RoadmapMap');
 const RoadmapUnit = page(() => import('@/screens/roadmap/RoadmapUnit'), 'RoadmapUnit');
 const RoadmapLesson = page(() => import('@/screens/roadmap/RoadmapLesson'), 'RoadmapLesson');
@@ -92,6 +93,7 @@ export function App() {
                 {/* A test fills the screen, outside the frame; leaving goes through its Home button. */}
                 <Route element={<RequirePhone />}>
                   <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/dream" element={<DreamUniversity />} />
                   <Route path="/assessments/:id" element={<AssessmentRun />} />
                   <Route path="/practice/run/:code" element={<PracticeRun />} />
                   <Route path="/words/study" element={<Study />} />

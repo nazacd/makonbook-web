@@ -110,7 +110,7 @@ export function useSaveGoals() {
   const person = usePerson();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { target_math: number | null; target_rw: number | null; exam_date: string | null }) => call(api.PUT('/v1/me/goals', { body })),
+    mutationFn: (body: { target_math: number | null; target_rw: number | null; exam_date: string | null; university_id?: string | null }) => call(api.PUT('/v1/me/goals', { body })),
     onSuccess: (g) => queryClient.setQueryData(goalsKey(person), g),
   });
 }
