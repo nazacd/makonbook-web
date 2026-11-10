@@ -1,18 +1,20 @@
-import { ArrowLeft, ArrowRight, BookOpenText, CalendarDays, Calculator, Check, Compass, GraduationCap, Layers, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpenText, CalendarDays, Calculator, Check, Compass, GraduationCap, Layers, Minus, Moon, Plus, Sprout, Telescope } from 'lucide-react';
 import { Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import { LEVEL_LABEL, useSaveOnboarding, type Level, type Onboarding as Answers } from '@/api/roadmaps';
-import { satRange, suggestedTarget, useUniversities, type University } from '@/api/universities';
+import { satMinimum, satRange, suggestedTarget, useUniversities, type University } from '@/api/universities';
 import { BRAND, ShieldMark } from '@/components/brand/Logo';
 import { Spinner } from '@/components/Button';
 import { Globe } from '@/components/globe/lazy';
 import type { GlobeMode } from '@/components/globe/scene';
 import { UniversityBadge } from '@/components/onboarding/Crest';
 import { Mascot } from '@/components/onboarding/Mascot';
+import { ScoreArc } from '@/components/onboarding/ScoreArc';
 import { DreamStep as Dream } from '@/components/onboarding/DreamStep';
+import { useNow } from '@/lib/clock';
 import { SAT_DATES } from '@/lib/satDates';
 import { useTitle } from '@/lib/title';
 
@@ -29,20 +31,30 @@ type Step = (typeof STEPS)[number];
 const QUESTIONS = STEPS.length - 2; // what the progress counts: everything but the welcome and the finale
 
 const DAYS = [
-  ['mon', 'Mo'],
-  ['tue', 'Tu'],
-  ['wed', 'We'],
-  ['thu', 'Th'],
-  ['fri', 'Fr'],
-  ['sat', 'Sa'],
-  ['sun', 'Su'],
+  ['mon', 'Mo', 'Monday'],
+  ['tue', 'Tu', 'Tuesday'],
+  ['wed', 'We', 'Wednesday'],
+  ['thu', 'Th', 'Thursday'],
+  ['fri', 'Fr', 'Friday'],
+  ['sat', 'Sa', 'Saturday'],
+  ['sun', 'Su', 'Sunday'],
 ] as const;
 const MINUTES = [
-  [15, 'Casual'],
-  [30, 'Regular'],
-  [45, 'Serious'],
-  [60, 'Intense'],
+  [15, 'light'],
+  [30, 'steady'],
+  [45, 'strong'],
+  [60, 'all in'],
 ] as const;
+
+/** "1 h 30 min". */
+const duration = (min: number) => (min < 60 ? `${min} min` : min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`);
+/** The grade (of Uzbekistan's 11) someone finishing school in `year` is in now; null outside 1–11. */
+function gradeNow(year: number, now: number): number | null {
+  const d = new Date(now);
+  const schoolYearEnds = d.getUTCMonth() >= 8 ? d.getUTCFullYear() + 1 : d.getUTCFullYear();
+  const grade = 11 - (year - schoolYearEnds);
+  return grade >= 1 && grade <= 11 ? grade : null;
+}
 
 /** "Sat, 5 Dec 2026". */
 const formatDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -56,6 +68,7 @@ type Current = { kind: 'none' } | { kind: 'total'; total: number } | { kind: 'se
 export function Onboarding() {
   useTitle('Your dream university');
   const me = useMe().data;
+  const now = useNow();
   const navigate = useNavigate();
   const save = useSaveOnboarding();
   const universities = useUniversities();
@@ -79,7 +92,7 @@ export function Onboarding() {
   if (me && (me.kind !== 'student' || me.status !== 'registered')) return <Navigate to="/roadmaps" replace />;
 
   const name: Step = STEPS[step]!;
-  const sections = current.kind === 'sections' ? { math: current.math, rw: current.rw } : current.kind === 'total' ? { math: round10(current.total / 2), rw: round10(current.total / 2) } : null;
+  const sections = current.kind === 'sections' ? { math: current.math, rw: current.rw } : current.kind === 'total' ? { math: round10(current.total / 2), rw: current.total - round10(current.total / 2) } : null;
   const currentTotal = sections ? sections.math + sections.rw : null;
   // The target starts at the dream university's (the middle of its admitted
   // range, or its minimum); else 150 above today (or 1100). Split evenly.
@@ -89,6 +102,30 @@ export function Onboarding() {
     return { math: round10(t / 2), rw: t - round10(t / 2) };
   };
   const tgt = target ?? defaultTarget();
+  const goal = tgt.math + tgt.rw;
+  // Dragging the goal keeps the lean between the sections (to within 10: the two must add up).
+  const setGoal = (total: number) => {
+    let lean = tgt.math - tgt.rw;
+    if ((total + lean) % 20 !== 0) lean += lean > 0 ? -10 : 10;
+    const math = clamp((total + lean) / 2, Math.max(200, total - 800), Math.min(800, total - 200));
+    setTarget({ math, rw: total - math });
+  };
+  const range = satRange(dream?.sat);
+  const minimum = satMinimum(dream?.sat);
+  const dreamName = dream?.short_name ?? dream?.name ?? '';
+  const dreamNote = !dream
+    ? null
+    : range
+      ? goal < range.p25
+        ? `${range.p25 - goal} points below ${dreamName}’s admitted range`
+        : goal <= range.p75
+          ? `Inside ${dreamName}’s admitted range`
+          : `Above ${dreamName}’s admitted range`
+      : minimum != null
+        ? goal >= minimum
+          ? `Meets the ${minimum} ${dreamName} asks for`
+          : `${minimum - goal} points below the ${minimum} ${dreamName} asks for`
+        : null;
 
   const canContinue: Record<Step, boolean> = {
     welcome: true,
@@ -186,19 +223,23 @@ export function Onboarding() {
         ) : (
           <Panel side={name === 'finale'}>
             {name === 'graduation' && (
-              <Question title="When do you graduate from school?" icon={GraduationCap}>
+              <Question title="When do you finish school?" icon={GraduationCap}>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {(['2027', '2028', '2029', '2030', '2031', '2032'] as const).map((y) => (
-                    <Tile
-                      key={y}
-                      on={graduation === y}
-                      onClick={() => {
-                        setGraduation(y);
-                        next();
-                      }}>
-                      Class of {y}
-                    </Tile>
-                  ))}
+                  {(['2027', '2028', '2029', '2030', '2031', '2032'] as const).map((y) => {
+                    const grade = gradeNow(Number(y), now);
+                    return (
+                      <Tile
+                        key={y}
+                        on={graduation === y}
+                        onClick={() => {
+                          setGraduation(y);
+                          next();
+                        }}>
+                        <span className="block text-[17px] font-bold">Class of {y}</span>
+                        {grade && <span className="block text-[12.5px] font-medium text-[var(--onb-ink-2)]">Grade {grade} now</span>}
+                      </Tile>
+                    );
+                  })}
                   <Tile
                     on={graduation === 'graduated'}
                     onClick={() => {
@@ -206,34 +247,29 @@ export function Onboarding() {
                       next();
                     }}
                     className="col-span-2">
-                    Already graduated
+                    I’ve already finished
                   </Tile>
                 </div>
               </Question>
             )}
 
             {name === 'dates' && (
-              <Question title="When are you taking the SAT?" hint="Pick every date you might sit it." icon={CalendarDays}>
-                <div className="flex flex-col gap-2">
-                  {SAT_DATES.map(({ date, expected }) => {
+              <Question title="When will you sit the SAT?" hint="Pick every date you might sit it." icon={CalendarDays}>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {SAT_DATES.filter(({ date }) => Date.parse(`${date}T23:59:59Z`) >= now).map(({ date, expected }) => {
                     const on = !!dates?.includes(date);
-                    return (
-                      <Row key={date} on={on} onClick={() => setDates((d) => (on ? (d ?? []).filter((x) => x !== date) : [...(d ?? []), date].sort()))} icon={<CalendarDays size={18} aria-hidden="true" />}>
-                        {formatDate(date)}
-                        {expected && <span className="ml-2 text-[12px] font-medium text-[var(--onb-ink-3)]">expected</span>}
-                      </Row>
-                    );
+                    return <DateLeaf key={date} date={date} expected={!!expected} now={now} on={on} onClick={() => setDates((d) => (on ? (d ?? []).filter((x) => x !== date) : [...(d ?? []), date].sort()))} />;
                   })}
-                  <Row on={dates?.length === 0} onClick={() => setDates([])} icon={<Layers size={18} aria-hidden="true" />}>
-                    I haven’t decided yet
-                  </Row>
+                  <button type="button" aria-pressed={dates?.length === 0} onClick={() => setDates([])} className="choice flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] px-4 text-[15px] font-semibold sm:col-span-2">
+                    <Telescope size={17} aria-hidden="true" /> I haven’t decided yet
+                  </button>
                 </div>
               </Question>
             )}
 
             {name === 'current' && (
-              <Question title="What is your score right now?" hint="From a real SAT or a full practice test. A guess is fine.">
-                <div role="radiogroup" aria-label="Score" className="mb-5 flex rounded-full border border-[var(--onb-line)] bg-[var(--onb-glass-2)] p-[3px]">
+              <Question title="Where are you today?" hint="Your latest SAT or full practice test. A rough guess is fine: drag the light along the arc.">
+                <div role="radiogroup" aria-label="Score" className="mb-4 flex rounded-full border border-[var(--onb-line)] bg-[var(--onb-glass-2)] p-[3px]">
                   {(
                     [
                       ['total', 'Total'],
@@ -251,15 +287,38 @@ export function Onboarding() {
                     </button>
                   ))}
                 </div>
-                {current.kind === 'total' && <ScorePicker label="Total" value={current.total} min={400} max={1600} onChange={(total) => setCurrent({ kind: 'total', total })} />}
+                {current.kind !== 'sections' && (
+                  <ScoreArc label="Your score today" min={400} max={1600} value={current.kind === 'total' ? current.total : 1000} tone="today" onChange={(total) => setCurrent({ kind: 'total', total })}>
+                    <div className="flex items-center gap-3">
+                      <Stepper small label="Lower your score" onClick={() => setCurrent({ kind: 'total', total: clamp((currentTotal ?? 1000) - 10, 400, 1600) })} icon={Minus} />
+                      <p className="w-[124px] text-[46px] font-bold leading-none tabular">{current.kind === 'total' ? current.total : '—'}</p>
+                      <Stepper small label="Raise your score" onClick={() => setCurrent({ kind: 'total', total: clamp((currentTotal ?? 1000) + 10, 400, 1600) })} icon={Plus} />
+                    </div>
+                    <p className="mt-1.5 text-[12.5px] font-semibold text-[#7fe3d4]">{current.kind === 'total' ? `Your road starts at ${LEVEL_LABEL[levelFor(current.total / 2)]}` : 'No score yet'}</p>
+                  </ScoreArc>
+                )}
                 {current.kind === 'sections' && (
-                  <div className="flex flex-col gap-5">
-                    <ScorePicker label="Math" value={current.math} min={200} max={800} onChange={(math) => setCurrent({ ...current, math })} />
-                    <ScorePicker label="Reading and Writing" value={current.rw} min={200} max={800} onChange={(rw) => setCurrent({ ...current, rw })} />
-                    <p className="text-center text-[15px] text-[var(--onb-ink-2)]">
-                      Total <b className="text-[var(--onb-ink)]">{current.math + current.rw}</b>
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(
+                        [
+                          ['math', 'Math'],
+                          ['rw', 'Reading & Writing'],
+                        ] as const
+                      ).map(([k, label]) => (
+                        <div key={k}>
+                          <ScoreArc label={`${label} today`} min={200} max={800} value={current[k]} tone="today" onChange={(v) => setCurrent({ ...current, [k]: v })}>
+                            <p className="text-[26px] font-bold leading-none tabular">{current[k]}</p>
+                          </ScoreArc>
+                          <p className="mt-1.5 text-center text-[13px] font-semibold">{label}</p>
+                          <p className="text-center text-[12px] font-semibold text-[#7fe3d4]">{LEVEL_LABEL[levelFor(current[k])]}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 rounded-[14px] bg-[var(--onb-glass-2)] py-2.5 text-center text-[14px] text-[var(--onb-ink-2)]">
+                      Together <b className="text-[18px] text-[var(--onb-ink)] tabular">{current.math + current.rw}</b>
                     </p>
-                  </div>
+                  </>
                 )}
                 <button
                   type="button"
@@ -268,71 +327,97 @@ export function Onboarding() {
                     setCurrent({ kind: 'none' });
                     next();
                   }}
-                  className="choice mt-5 w-full rounded-[16px] p-4 text-left">
-                  <p className="text-[15px] font-semibold">I don’t have a score yet</p>
-                  <p className="text-[13px] text-[var(--onb-ink-2)]">You’ll start at Foundation. You can change it later.</p>
+                  className="choice mt-4 flex w-full items-center gap-3 rounded-[16px] p-3.5 text-left">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-[var(--onb-ink-2)]">
+                    <Sprout size={18} aria-hidden="true" />
+                  </span>
+                  <span>
+                    <span className="block text-[15px] font-semibold">I haven’t taken a test yet</span>
+                    <span className="block text-[13px] text-[var(--onb-ink-2)]">No problem: your road starts at Foundation.</span>
+                  </span>
                 </button>
               </Question>
             )}
 
             {name === 'target' && (
-              <Question
-                title="What score are you aiming for?"
-                hint={dream && suggestedTarget(dream.sat) != null && target == null ? `We started from ${dream.short_name ?? dream.name}’s admitted students.` : currentTotal != null ? `Today: ${currentTotal}. Students who practise with a plan often gain 100–200 points.` : 'Pick a goal; you can change it any time.'}>
-                <div className="flex items-center justify-center gap-4">
-                  <Stepper label="Lower the target" onClick={() => setTarget({ math: clamp(tgt.math - 10, 200, 800), rw: tgt.rw })} icon={Minus} />
-                  <p className="w-[150px] text-center text-[56px] font-bold leading-none tabular text-[var(--onb-ink)]">{tgt.math + tgt.rw}</p>
-                  <Stepper label="Raise the target" onClick={() => setTarget({ math: clamp(tgt.math + 10, 200, 800), rw: tgt.rw })} icon={Plus} />
-                </div>
-                <ScoreScale dream={dream} current={currentTotal} target={tgt.math + tgt.rw} />
-                <div className="mt-5 grid grid-cols-2 gap-3">
+              <Question title="What score are you going for?" hint={dream && suggestedTarget(dream.sat) != null && target == null ? `We started from ${dream.short_name ?? dream.name}’s admitted students. Drag the gold light to change it.` : 'Drag the gold light along the arc. You can change it any time.'}>
+                <ScoreArc label="Your goal" min={400} max={1600} value={goal} today={currentTotal} band={range ? { from: range.p25, to: range.p75 } : null} onChange={setGoal}>
+                  <p className="text-[46px] font-bold leading-none tabular">{goal}</p>
+                  <p className="mt-1.5 text-[12.5px] font-semibold text-[var(--onb-gold)]">{currentTotal != null && goal > currentTotal ? `+${goal - currentTotal} from today` : 'Your goal'}</p>
+                </ScoreArc>
+                <p className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12px] text-[var(--onb-ink-2)]">
+                  {currentTotal != null && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full bg-[#7fe3d4]" /> Today {currentTotal}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[var(--onb-gold)]" /> Your goal
+                  </span>
+                  {range && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-3 rounded-[2px] bg-[rgba(246,195,67,0.55)]" /> {dream?.short_name ?? 'Your dream'} admits {range.p25}–{range.p75}
+                    </span>
+                  )}
+                </p>
+                {dreamNote && <p className="mt-3 rounded-[14px] bg-[var(--onb-glass-2)] px-3 py-2.5 text-center text-[13.5px] font-semibold">{dreamNote}</p>}
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <SectionTarget label="Math" value={tgt.math} onChange={(math) => setTarget({ ...tgt, math })} />
-                  <SectionTarget label="Reading and Writing" value={tgt.rw} onChange={(rw) => setTarget({ ...tgt, rw })} />
+                  <SectionTarget label="Reading & Writing" value={tgt.rw} onChange={(rw) => setTarget({ ...tgt, rw })} />
                 </div>
               </Question>
             )}
 
             {name === 'focus' && (
-              <Question title="What do you want to focus on?" hint="Each subject gets its own roadmap.">
-                <div className="flex flex-col gap-2.5">
-                  <Row on={focus === 'math'} onClick={() => setFocus('math')} icon={<Calculator size={18} aria-hidden="true" />} sub={`Starts at ${LEVEL_LABEL[levelFor(sections?.math ?? null)]}`}>
-                    Math
-                  </Row>
-                  <Row on={focus === 'english'} onClick={() => setFocus('english')} icon={<BookOpenText size={18} aria-hidden="true" />} sub={`Starts at ${LEVEL_LABEL[levelFor(sections?.rw ?? null)]}`}>
-                    Reading and Writing
-                  </Row>
-                  <Row on={focus === 'both'} onClick={() => setFocus('both')} icon={<Layers size={18} aria-hidden="true" />} sub="Two roadmaps, side by side">
-                    Both
-                  </Row>
+              <Question title="What will you work on?" hint="Each subject becomes its own road.">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <FocusCard on={focus === 'math'} onClick={() => setFocus('math')} icon={Calculator} title="Math" sub={`Starts at ${LEVEL_LABEL[levelFor(sections?.math ?? null)]}`} />
+                  <FocusCard on={focus === 'english'} onClick={() => setFocus('english')} icon={BookOpenText} title="Reading & Writing" sub={`Starts at ${LEVEL_LABEL[levelFor(sections?.rw ?? null)]}`} />
+                  <FocusCard wide on={focus === 'both'} onClick={() => setFocus('both')} icon={Layers} title="Both" sub="Two roads, side by side" />
                 </div>
               </Question>
             )}
 
             {name === 'schedule' && (
-              <Question title="How often can you study?">
-                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--onb-ink-3)]">Days</p>
-                <div className="flex justify-between gap-1.5">
-                  {DAYS.map(([d, short]) => {
+              <Question title="When can you study?" hint="Tap the days. The rest are for resting.">
+                <div className="grid grid-cols-7 gap-1.5">
+                  {DAYS.map(([d, short, long]) => {
                     const on = days.includes(d);
+                    const nth = DAYS.filter(([x]) => days.includes(x)).findIndex(([x]) => x === d);
+                    const math = focus === 'math' || (focus !== 'english' && nth % 2 === 0);
+                    const I = on ? (math ? Calculator : BookOpenText) : Moon;
                     return (
-                      <button key={d} type="button" aria-pressed={on} aria-label={d} onClick={() => setDays((x) => (on ? x.filter((y) => y !== d) : [...x, d]))} className="choice flex size-11 items-center justify-center rounded-full text-[13px] font-bold sm:size-12">
-                        {short}
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={on}
+                        aria-label={`${long}: ${on ? `${minutes} minutes of ${math ? 'Math' : 'Reading and Writing'}` : 'rest'}`}
+                        onClick={() => setDays((x) => (on ? x.filter((y) => y !== d) : [...x, d]))}
+                        className="choice flex h-[96px] flex-col items-center justify-between rounded-[14px] py-2.5">
+                        <I size={16} className={on ? 'text-[var(--onb-gold)]' : 'text-[var(--onb-ink-3)]'} aria-hidden="true" />
+                        <span className={`text-[13px] font-bold tabular ${on ? '' : 'invisible'}`}>{minutes}′</span>
+                        <span className={`text-[12px] font-bold ${on ? '' : 'text-[var(--onb-ink-3)]'}`}>{short}</span>
                       </button>
                     );
                   })}
                 </div>
-                <p className="mb-2.5 mt-6 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--onb-ink-3)]">Each session</p>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--onb-ink-3)]">Each sitting</p>
+                <div className="grid grid-cols-4 gap-2">
                   {MINUTES.map(([m, label]) => (
                     <Tile key={m} on={minutes === m} onClick={() => setMinutes(m)}>
-                      <span className="block text-[20px] font-bold">{m}</span>
-                      <span className="block text-[12px] font-medium opacity-80">min · {label}</span>
+                      <span className="block whitespace-nowrap text-[16px] font-bold leading-6">
+                        {m}
+                        <span className="text-[12px] font-semibold opacity-80"> min</span>
+                      </span>
+                      <span className="block text-[11.5px] font-medium opacity-80">{label}</span>
                     </Tile>
                   ))}
                 </div>
-                <p className="mt-5 rounded-[14px] bg-[var(--onb-glass-2)] p-3.5 text-[14px] text-[var(--onb-ink-2)]">
-                  {days.length} {days.length === 1 ? 'day' : 'days'} a week · <b className="text-[var(--onb-ink)]">{Math.round((days.length * minutes) / 6) / 10} hours</b> a week · {7 - days.length} rest {7 - days.length === 1 ? 'day' : 'days'}
-                </p>
+                <dl className="mt-4 grid grid-cols-3 divide-x divide-[var(--onb-line)] rounded-[14px] bg-[var(--onb-glass-2)] py-3 text-center">
+                  <Stat value={String(days.length)} label={days.length === 1 ? 'study day' : 'study days'} />
+                  <Stat value={duration(days.length * minutes)} label="a week" />
+                  <Stat value={String(7 - days.length)} label={7 - days.length === 1 ? 'day to rest' : 'days to rest'} />
+                </dl>
               </Question>
             )}
 
@@ -429,36 +514,6 @@ function Welcome({ count, countries, onStart }: { count: number; countries: numb
   );
 }
 
-/** The 400–1600 scale: the dream's admitted range, where the student is, where they aim. */
-function ScoreScale({ dream, current, target }: { dream: University | null; current: number | null; target: number }) {
-  const range = satRange(dream?.sat);
-  const at = (v: number) => `${((clamp(v, 400, 1600) - 400) / 1200) * 100}%`;
-  return (
-    <div className="mt-6" aria-hidden="true">
-      <div className="relative h-2.5 rounded-full bg-white/10">
-        {range && <span className="absolute inset-y-0 rounded-full bg-[rgba(246,195,67,0.45)]" style={{ left: at(range.p25), width: `calc(${at(range.p75)} - ${at(range.p25)})` }} />}
-        {current != null && <span className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--onb-sky)] bg-[#7fe3d4]" style={{ left: at(current) }} />}
-        <span className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--onb-sky)] bg-[var(--onb-gold)] shadow-[0_0_14px_rgba(246,195,67,0.8)]" style={{ left: at(target) }} />
-      </div>
-      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-[var(--onb-ink-2)]">
-        {current != null && (
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#7fe3d4]" /> You today
-          </span>
-        )}
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-[var(--onb-gold)]" /> Your goal
-        </span>
-        {range && dream && (
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-3 rounded-full bg-[rgba(246,195,67,0.45)]" /> {dream.short_name ?? 'Your dream'} admits {range.p25}–{range.p75}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /** The glass the questions float on; `side` keeps it to the left on laptops, so the globe shows. */
 function Panel({ children, side = false }: { children: ReactNode; side?: boolean }) {
   return (
@@ -491,36 +546,60 @@ function Tile({ on, onClick, children, className = '' }: { on: boolean; onClick:
   );
 }
 
-function Row({ on, onClick, icon, sub, children }: { on: boolean; onClick: () => void; icon: ReactNode; sub?: string; children: ReactNode }) {
+/** An SAT date as a calendar leaf, with how far away it is. */
+function DateLeaf({ date, expected, now, on, onClick }: { date: string; expected: boolean; now: number; on: boolean; onClick: () => void }) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const days = Math.max(0, Math.ceil((d.getTime() - now) / 86_400_000));
+  const away = days === 0 ? 'today' : days < 21 ? `${days} ${days === 1 ? 'day' : 'days'} away` : `${Math.round(days / 7)} weeks away`;
+  const part = (o: Intl.DateTimeFormatOptions) => d.toLocaleDateString('en-GB', { timeZone: 'UTC', ...o });
   return (
-    <button type="button" aria-pressed={on} onClick={onClick} className="choice flex min-h-[56px] w-full items-center gap-3 rounded-[16px] px-4 py-3 text-left">
-      <span className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${on ? 'bg-[var(--onb-gold)] text-[var(--onb-gold-ink)]' : 'bg-white/10 text-[var(--onb-ink-2)]'}`}>{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold">{children}</span>
-        {sub && <span className="block text-[13px] text-[var(--onb-ink-2)]">{sub}</span>}
+    <button type="button" aria-pressed={on} aria-label={`${part({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${away}${expected ? ', expected' : ''}`} onClick={onClick} className="choice relative flex items-center gap-3 rounded-[16px] p-3 text-left">
+      <span className="flex w-[52px] shrink-0 flex-col overflow-hidden rounded-[11px] border border-[var(--onb-line)] text-center">
+        <span className={`py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] ${on ? 'bg-[var(--onb-gold)] text-[var(--onb-gold-ink)]' : 'bg-white/10 text-[var(--onb-gold)]'}`}>{part({ month: 'short' })}</span>
+        <span className="py-0.5 text-[22px] font-bold leading-7 tabular">{d.getUTCDate()}</span>
       </span>
-      <span className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? 'border-[var(--onb-gold)] bg-[var(--onb-gold)] text-[var(--onb-gold-ink)]' : 'border-white/30'}`}>{on && <Check size={12} strokeWidth={3} aria-hidden="true" />}</span>
+      <span className="min-w-0">
+        <span className="block text-[14px] font-semibold">
+          {part({ weekday: 'long' })} <span className="text-[var(--onb-ink-3)]">{d.getUTCFullYear()}</span>
+        </span>
+        <span className="block text-[12.5px] text-[var(--onb-ink-2)]">
+          {away}
+          {expected && ' · expected'}
+        </span>
+      </span>
+      {on && (
+        <span className="absolute right-2 top-2 flex size-[18px] items-center justify-center rounded-full bg-[var(--onb-gold)] text-[var(--onb-gold-ink)]">
+          <Check size={11} strokeWidth={3.5} aria-hidden="true" />
+        </span>
+      )}
     </button>
   );
 }
 
-function ScorePicker({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
+function FocusCard({ on, onClick, icon: I, title, sub, wide = false }: { on: boolean; onClick: () => void; icon: typeof Plus; title: string; sub: string; wide?: boolean }) {
   return (
-    <div>
-      <div className="flex items-center justify-center gap-4">
-        <Stepper label={`Lower ${label}`} onClick={() => onChange(clamp(value - 10, min, max))} icon={Minus} />
-        <div className="w-[140px] text-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--onb-ink-3)]">{label}</p>
-          <p className="text-[44px] font-bold leading-[1.1] tabular">{value}</p>
-        </div>
-        <Stepper label={`Raise ${label}`} onClick={() => onChange(clamp(value + 10, min, max))} icon={Plus} />
-      </div>
-      <input type="range" min={min} max={max} step={10} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} className="mt-3 w-full accent-[var(--onb-gold)]" />
-      <div className="flex justify-between text-[11px] font-semibold text-[var(--onb-ink-3)]">
-        <span>{min}</span>
-        <span>{(min + max) / 2}</span>
-        <span>{max}</span>
-      </div>
+    <button type="button" aria-pressed={on} onClick={onClick} className={`choice relative flex rounded-[18px] p-4 text-left ${wide ? 'col-span-2 items-center gap-3.5' : 'min-h-[132px] flex-col justify-between'}`}>
+      <span className={`flex size-11 shrink-0 items-center justify-center rounded-[13px] ${on ? 'bg-[var(--onb-gold)] text-[var(--onb-gold-ink)] shadow-[0_0_24px_rgba(246,195,67,0.5)]' : 'bg-white/10 text-[var(--onb-ink-2)]'}`}>
+        <I size={21} aria-hidden="true" />
+      </span>
+      <span>
+        <span className="block text-[16px] font-bold leading-5">{title}</span>
+        <span className="mt-0.5 block text-[12.5px] text-[var(--onb-ink-2)]">{sub}</span>
+      </span>
+      {on && (
+        <span className="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-[var(--onb-gold)] text-[var(--onb-gold-ink)]">
+          <Check size={12} strokeWidth={3.5} aria-hidden="true" />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="px-1">
+      <dd className="text-[17px] font-bold leading-6 tabular">{value}</dd>
+      <dt className="text-[11.5px] text-[var(--onb-ink-2)]">{label}</dt>
     </div>
   );
 }
@@ -528,7 +607,7 @@ function ScorePicker({ label, value, min, max, onChange }: { label: string; valu
 function SectionTarget({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="rounded-[16px] border border-[var(--onb-line)] bg-[var(--onb-glass-2)] p-3 text-center">
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--onb-ink-3)]">{label}</p>
+      <p className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.03em] text-[var(--onb-ink-3)]">{label}</p>
       <div className="mt-1 flex items-center justify-between">
         <Stepper small label={`Lower ${label}`} onClick={() => onChange(clamp(value - 10, 200, 800))} icon={Minus} />
         <span className="text-[24px] font-bold tabular">{value}</span>
