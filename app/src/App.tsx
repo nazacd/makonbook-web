@@ -36,6 +36,8 @@ const Study = page(() => import('@/screens/Study'), 'Study');
 const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
 const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
 const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
+const Universities = page(() => import('@/screens/universities/Universities'), 'Universities');
+const UniversityPage = page(() => import('@/screens/universities/UniversityPage'), 'UniversityPage');
 const Leaderboard = page(() => import('@/screens/vocab/Leaderboard'), 'Leaderboard');
 const Decks = page(() => import('@/screens/vocab/Decks'), 'Decks');
 const DeckDetail = page(() => import('@/screens/vocab/DeckDetail'), 'DeckDetail');
@@ -129,6 +131,8 @@ export function App() {
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<Words />} />
                   <Route path="/library" element={<Library />} />
+                  <Route path="/universities" element={<Universities />} />
+                  <Route path="/universities/:id" element={<UniversityPage />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
                   <Route path="/words/leaderboard" element={<Leaderboard />} />
                   <Route path="/words/decks" element={<Decks />} />

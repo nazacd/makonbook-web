@@ -386,3 +386,6 @@
 }
 /* The Vocabulary hero: SATMAKON purple in every theme, lit from the top right. */
 .vocab-hero { background: radial-gradient(90% 130% at 100% 0%, #7c3aed 0%, transparent 62%), linear-gradient(135deg, #2c0066, #4b12a6); }
+
+/* Universities: the dream card and a university's hero, night blue to SATMAKON purple in every theme. */
+.uni-dream { background: radial-gradient(80% 140% at 100% 0%, rgba(124, 58, 237, 0.85) 0%, transparent 60%), linear-gradient(135deg, #0b1b3a, #2c0066); }

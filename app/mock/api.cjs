@@ -369,7 +369,7 @@ http.createServer(async (req, res) => {
   if (!me) return err(res, 401, 'unauthorized', 'session ended');
   if (url === '/v1/auth/logout') { tokens.delete(auth); return json(res, 204); }
   if (url === '/v1/me') return json(res, 200, me);
-  if (universitiesApi.route(url, res, json, err)) return;
+  if (universitiesApi.route(url, req, res, json, err, me)) return;
   // Onboarding and roadmaps.
   if (url === '/v1/me/onboarding' && req.method === 'GET') { const o = onboardings.get(me.login); return o ? json(res, 200, o) : err(res, 404, 'not_found', 'no onboarding yet'); }
   if (url === '/v1/me/onboarding' && req.method === 'POST') {
