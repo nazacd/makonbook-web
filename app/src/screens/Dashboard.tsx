@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BookOpen,
   BookOpenCheck,
   ChevronRight,
   ClipboardCheck,
@@ -25,6 +26,7 @@ import { Link } from 'react-router';
 
 import { isDue, KIND, useMyAssignments, type StudentAssignment } from '@/api/assignments';
 import { useGoals, type Goals } from '@/api/learning';
+import { useLibrary, type Book } from '@/api/library';
 import { useRoadmaps } from '@/api/roadmaps';
 import { useMe, useMyAttendance } from '@/api/queries';
 import type { Profile } from '@/api/types';
@@ -73,11 +75,14 @@ export function Dashboard() {
   const vocab = useVocabToday(now);
   const runs = useRuns();
   const catalog = useCatalog();
+  const library = useLibrary();
   const [editGoals, setEditGoals] = useState(false);
   const assignments = useMyAssignments(profile.status !== 'registered');
   const soon = (assignments.data ?? []).filter((a) => isDue(a) && Date.parse(a.due_at) - now < 2 * 86_400_000).sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
 
   const inProgress = Object.values(runs.data ?? {});
+  // The book they were last reading (and haven't finished).
+  const reading = (library.data ?? []).filter((b) => b.progress && b.progress.page < b.pages).sort((a, b) => b.progress!.updated_at.localeCompare(a.progress!.updated_at))[0];
   const finishedCodes = new Set(attempts.map((a) => a.code));
   const nextTest = catalog.data?.find((t) => t.version != null && !finishedCodes.has(t.code) && !runs.data?.[t.code]);
   const totals = [...attempts].filter((a) => a.total != null).sort((a, b) => a.finished_at.localeCompare(b.finished_at));
@@ -106,7 +111,7 @@ export function Dashboard() {
 
       <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
         <DueWork list={assignments.data} loading={assignments.isPending && profile.status !== 'registered'} registered={profile.status === 'registered' || profile.groups.length === 0} now={now} />
-        <Continue runs={inProgress} />
+        <Continue runs={inProgress} book={reading} />
         <RoadmapWidget />
       </div>
 
@@ -586,14 +591,28 @@ function ChevronRightIcon() {
   return <ArrowRight size={15} className="shrink-0 text-ink-2" aria-hidden="true" />;
 }
 
-function Continue({ runs }: { runs: { code: string; title: string; stage: number; sections: string[]; startedAt: string }[] }) {
+function Continue({ runs, book }: { runs: { code: string; title: string; stage: number; sections: string[]; startedAt: string }[]; book?: Book }) {
   return (
     <Widget accent={A.continue}>
       <WidgetLabel icon={PlayCircle} label="Continue" accent={A.continue} />
-      {runs.length === 0 ? (
+      {runs.length === 0 && !book ? (
         <p className="t-subhead py-6 text-center text-ink-2">Nothing half-finished. Clean slate.</p>
       ) : (
         <ul className="flex flex-col gap-2">
+          {book && (
+            <li>
+              <Link to={`/library/${book.id}`} className="flex items-center gap-3 rounded-control bg-surface-2 px-3 py-2.5 hover:bg-line">
+                <BookOpen size={18} className="shrink-0 text-pink" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="t-headline block truncate text-ink">{book.title}</span>
+                  <span className="t-caption text-ink-2 tabular">
+                    Page {book.progress!.page} of {book.pages}
+                  </span>
+                </span>
+                <ArrowRight size={16} className="text-ink-2" aria-hidden="true" />
+              </Link>
+            </li>
+          )}
           {runs.map((r) => (
             <li key={r.code}>
               <Link to={`/practice/run/${encodeURIComponent(r.code)}`} className="flex items-center gap-3 rounded-control bg-surface-2 px-3 py-2.5 hover:bg-line">

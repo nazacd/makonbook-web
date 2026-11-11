@@ -13,7 +13,8 @@ design is `docs/design.md` (the SATMAKON design system; the phone app keeps
 its own), not the phone's. The API contract is `app/api/openapi.yaml` (a copy
 of `nazacd/makonbook-api`'s; see `app/api/README.md`; `app/api/SOURCE` names
 the commit it came from); the product is that repo's `docs/platform-spec.md`
-(§9 practice, §21 accounts, §22 roadmaps, §23 assignments).
+(§9 practice, §21 accounts, §22 roadmaps, §23 assignments, §24 universities,
+§25 the Library).
 
 Ground rules, short:
 - Never commit secrets (the Desmos key, passwords, tokens). `.env` files only.
@@ -160,6 +161,22 @@ student's work; edit, close, delete while untouched) and `Groups` (each group's
 hub: students, assignments, a students × lessons roadmap matrix, mock tests,
 vocabulary, problem questions). New assignments notify the group's students
 (`NotificationsDrawer`, unread badge on the bell).
+
+Library (spec §25; `api/library.ts`): SAT MAKON's own books, for everyone
+signed in (students and teachers; sidebar Library). `screens/Library` is the
+shelf (`components/library/BookCover`: `.book` in `styles.css`; subject
+filter, search, Continue reading, each book's readers, Read and Download);
+`screens/LibraryReader` (`/library/:id`, full screen under `RequirePhone`)
+draws the PDF with pdf.js, loaded only there: two pages like an open book on
+wide screens, one on phones; arrows, keys, swipe, a click at either side,
+zoom, full screen. The page in view is saved to the server a moment after the
+turning stops (`useSaveProgress`; the first save makes the person one of the
+book's `views`). The whole PDF is fetched once with the bearer token
+(`useBookFile`) and handed to pdf.js as a copy, so Download reuses it. pdf.js's
+worker must be built as `.js` (`vite.config.ts`: the container's nginx has no
+MIME type for `.mjs`, and the build fails on any `.mjs` output). The books
+are never committed: the mock draws made-up ones, or reads a checkout of the
+private `makonbook-library` with `MOCK_LIBRARY=<folder>`.
 
 `app/mock/api.cjs` is a fictional API for working without the real one (its
 header comment says how): the password is `demo-pass` unless
