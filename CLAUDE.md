@@ -178,6 +178,18 @@ hub: students, assignments, a students × lessons roadmap matrix, mock tests,
 vocabulary, problem questions). New assignments notify the group's students
 (`NotificationsDrawer`, unread badge on the bell).
 
+Universities (spec §24.5; `api/universitySection.ts`): every listed
+university to browse (`screens/universities/Universities`: search, filters
+and sorts kept in the address, cards, the student's own list, saved with
+`useSaveUniversity`) and a page each (`UniversityPage`: the record's
+admissions, costs, aid, and the country's visa and work facts; "Not
+collected yet" where the data has nothing, never a guess; the collectors'
+visa difficulty suggestion isn't shown until SATMAKON reviews it). The list's
+`facts` are what filters read; most universities are only partly collected,
+so a filter on a fact leaves out those without it. "Fit" compares the
+student's target (goals) with the admitted middle 50 %. The mock reads a
+checkout of the private data with `MOCK_UNIVERSITIES=<folder>`.
+
 Library (spec §25; `api/library.ts`): SAT MAKON's own books, for everyone
 signed in (students and teachers; sidebar Library). `screens/Library` is the
 shelf (`components/library/BookCover`: `.book` in `styles.css`; subject

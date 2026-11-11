@@ -62,6 +62,20 @@ function fictional() {
   return { universities: out, details: new Map(), logos: new Map() };
 }
 
+// The list's facts for browsing, read from a record as the API does (spec 24.5).
+function factsOf(r) {
+  if (!r) return undefined;
+  const usd = (m) => (!m ? null : m.usd != null ? { min: Math.trunc(m.usd), max: Math.trunc(m.usd) } : m.usd_min != null && m.usd_max != null ? { min: Math.trunc(m.usd_min), max: Math.trunc(m.usd_max) } : null);
+  const tuition = usd(r.tuition);
+  return {
+    type: r.type ?? null, website: r.website ?? null, tuition, living: usd(r.living_cost), acceptance_rate: r.admissions?.acceptance_rate?.value ?? null,
+    english_bachelors: r.english_bachelors ?? null,
+    aid: { need_based: r.aid?.need_based_international ?? null, full_need: r.aid?.meets_full_need_international ?? null, merit: r.aid?.merit_scholarships_international ?? null, scholarships: (r.aid?.scholarships ?? []).length },
+    deadlines: (r.admissions?.deadlines ?? []).map((d) => d.date).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort(),
+    region: r.region?.name ?? null, full: !!r.admissions_url && !!tuition,
+  };
+}
+
 function real(dir) {
   const lines = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l)) : []);
   const records = new Map(lines(path.join(dir, 'data', 'universities.jsonl')).map((r) => [r.id, r]));
@@ -77,6 +91,7 @@ function real(dir) {
     return {
       id: r.id, name: r.name, short_name: r.short_name ?? null, country: r.country, city: r.city ?? null, location: r.location ?? null,
       qs: r.qs ? { rank: r.qs.rank, display: r.qs.rank_display } : null, logo_url, sat: r.admissions?.sat ?? null, has_details: records.has(r.id),
+      facts: factsOf(records.get(r.id)),
     };
   });
   const details = new Map([...records].map(([id, r]) => { const { doubts: _d, ...rest } = r; return [id, rest]; }));
@@ -86,6 +101,7 @@ function real(dir) {
 
 const data = process.env.MOCK_UNIVERSITIES ? real(process.env.MOCK_UNIVERSITIES) : fictional();
 const byId = new Map(data.universities.map((u) => [u.id, u]));
+const saved = new Map(); // login -> Map(id -> saved_at)
 
 module.exports = {
   byId,
@@ -100,7 +116,24 @@ module.exports = {
     return true;
   },
   /** The signed-in routes; true when it answered. */
-  route(url, res, json, err) {
+  route(url, req, res, json, err, me) {
+    if (url === '/v1/me/universities') {
+      if (me.kind !== 'student') { err(res, 403, 'forbidden', 'students only'); return true; }
+      json(res, 200, { saved: [...(saved.get(me.login) ?? new Map())].map(([id, at]) => ({ id, saved_at: at })).reverse() });
+      return true;
+    }
+    const sm = url.match(/^\/v1\/me\/universities\/([a-z0-9-]+)$/);
+    if (sm) {
+      if (me.kind !== 'student') { err(res, 403, 'forbidden', 'students only'); return true; }
+      const mine = saved.get(me.login) ?? new Map();
+      if (req.method === 'PUT') {
+        if (!byId.has(sm[1])) { err(res, 404, 'not_found', 'no such university'); return true; }
+        if (!mine.has(sm[1])) mine.set(sm[1], new Date().toISOString());
+      } else mine.delete(sm[1]);
+      saved.set(me.login, mine);
+      json(res, 204);
+      return true;
+    }
     if (url === '/v1/universities') { json(res, 200, { version: String(data.universities.length), universities: data.universities }); return true; }
     const m = url.match(/^\/v1\/universities\/([a-z0-9-]+)$/);
     if (!m) return false;

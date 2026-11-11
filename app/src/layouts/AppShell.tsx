@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Dumbbell,
   FileStack,
+  GraduationCap,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -72,6 +73,7 @@ const STUDENT: Item[] = [
   { to: '/problem-questions', label: 'Problem questions', icon: Bookmark },
   { to: '/words', label: 'Vocabulary', icon: SpellCheck },
   { to: '/library', label: 'Library', icon: LibraryBig },
+  { to: '/universities', label: 'Universities', icon: GraduationCap },
 ];
 // The phone's bottom bar: three of them, an Assessments sheet, and More.
 const STUDENT_TABS = ['/', '/classes', '/roadmaps', ASSESSMENTS_TAB];
@@ -83,6 +85,7 @@ const TEACHER: Item[] = [
   { to: '/practice', label: 'Mock tests', icon: ClipboardList },
   { to: '/words', label: 'Vocabulary', icon: SpellCheck },
   { to: '/library', label: 'Library', icon: LibraryBig },
+  { to: '/universities', label: 'Universities', icon: GraduationCap },
 ];
 const TEACHER_TABS = ['/', '/assignments', '/groups', '/practice'];
 
