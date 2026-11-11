@@ -2,17 +2,19 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, Sparkles, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import type { Grade } from 'ts-fsrs';
+import { State, type Grade } from 'ts-fsrs';
 
+import { useStudyDeck } from '@/api/vocabSocial';
 import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
 import { Skeleton } from '@/components/States';
+import { SpeakButton } from '@/components/vocab/Game';
 import { usePerson } from '@/lib/practice/hooks';
 import { useTitle } from '@/lib/title';
 import { hasImage, imageUri } from '@/lib/vocab/files';
-import { useDeck, useRecordReview, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
+import { useRecordReview, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
 import { activeLists, GRADES, newToday, preview, queue } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
 
@@ -34,14 +36,14 @@ function Example({ text, word }: { text: string; word: string }) {
 // A study session (the phone's vocab/study): cards due, then today's new
 // words, one at a time. The student recalls the meaning, shows the answer
 // and says how well they knew it; FSRS decides when it comes back. Every
-// rating is saved at once, so the session can be left at any point. Keys:
-// space shows the answer, 1–4 rate.
+// rating is saved at once, so the session can be left at any point. The
+// card turns over on a click; keys: space shows the answer, 1–4 rate.
 export function Study() {
   useTitle('Study');
   const navigate = useNavigate();
   const person = usePerson();
   const queryClient = useQueryClient();
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const settings = useSettings();
   const record = useRecordReview();
@@ -99,6 +101,12 @@ export function Study() {
   const card = word ? state.data.cards.get(word.id) : undefined;
   const gaps = preview(card, now);
   const progress = done + left > 0 ? done / (done + left) : 1;
+  const waiting = [...q.due, ...q.soon];
+  const counts = {
+    fresh: q.fresh.length,
+    learning: waiting.filter((w) => state.data.cards.get(w.id)?.state !== State.Review).length,
+    review: waiting.filter((w) => state.data.cards.get(w.id)?.state === State.Review).length,
+  };
 
   const answer = async (rating: Grade, at: number) => {
     if (!word) return;
@@ -133,26 +141,49 @@ export function Study() {
         <Finish done={done} newDone={newDone} onClose={close} />
       ) : (
         <>
-          <div key={word.id} className="min-h-0 flex-1 overflow-y-auto pb-6 pt-7">
-            {!card && (
-              <p className="t-subhead mb-2 flex items-center gap-1.5 font-medium text-accent">
-                <Icon as={Sparkles} size={15} className="text-accent" />
-                New word
-              </p>
-            )}
-            <h1 className="font-title text-[44px] font-bold leading-[50px] text-ink">{word.word}</h1>
-            {word.part_of_speech && <p className="t-callout mt-1 italic text-ink-2">{word.part_of_speech}</p>}
-            {shown ? (
-              <div className="mt-[22px]">
-                <p className="text-[20px] font-medium leading-7 text-ink">{word.definition}</p>
-                <Example text={word.example} word={word.word} />
-                {word.image && hasImage(word.image.file) && (
-                  <img src={imageUri(word.image.file)} alt="" width={word.image.width} height={word.image.height} className="mt-[18px] max-h-80 w-full rounded-control object-contain" />
-                )}
+          <div className="min-h-0 flex-1 overflow-y-auto pb-6 pt-3">
+            <p className="mb-3 flex flex-wrap items-center gap-1.5" aria-label={`${counts.fresh} new, ${counts.learning} learning, ${counts.review} to review`}>
+              <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${!card ? 'bg-math-tint text-math' : 'bg-surface-2 text-ink-3'}`}>{counts.fresh} new</span>
+              <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${card && card.state !== State.Review ? 'bg-watch-tint text-watch' : 'bg-surface-2 text-ink-3'}`}>{counts.learning} learning</span>
+              <span className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${card?.state === State.Review ? 'bg-good-tint text-good' : 'bg-surface-2 text-ink-3'}`}>{counts.review} to review</span>
+            </p>
+            <div key={word.id} className="flip rise" data-shown={shown}>
+              <div className="flip-inner">
+                {/* The front: the word alone. Click it (or press space) to turn it over. */}
+                <button
+                  type="button"
+                  onClick={() => setShown(true)}
+                  disabled={shown}
+                  inert={shown}
+                  aria-label={`${word.word}. Show the answer`}
+                  className="relative flex min-h-[340px] flex-col items-center justify-center rounded-panel border border-line bg-surface p-6 text-center shadow-[0_10px_30px_rgba(20,10,60,0.06)]">
+                  {!card && (
+                    <span className="t-subhead absolute left-5 top-4 flex items-center gap-1.5 font-medium text-accent">
+                      <Icon as={Sparkles} size={15} className="text-accent" />
+                      New word
+                    </span>
+                  )}
+                  <span className="font-title break-words text-[44px] font-bold leading-[50px] text-ink">{word.word}</span>
+                  {word.part_of_speech && <span className="t-callout mt-1.5 italic text-ink-2">{word.part_of_speech}</span>}
+                  <span className="t-subhead absolute inset-x-0 bottom-5 text-ink-3">Say what it means, then turn the card</span>
+                </button>
+                {/* The back: the meaning, the word in a sentence, its picture. */}
+                <div inert={!shown} className="flip-back flex min-h-[340px] flex-col rounded-panel border border-line bg-surface p-6 shadow-[0_10px_30px_rgba(20,10,60,0.06)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h1 className="font-title break-words text-[30px] font-bold leading-9 text-ink">{word.word}</h1>
+                      {word.part_of_speech && <p className="t-footnote italic text-ink-2">{word.part_of_speech}</p>}
+                    </div>
+                    <SpeakButton word={word.word} />
+                  </div>
+                  <p className="mt-4 text-[20px] font-medium leading-7 text-ink">{word.definition}</p>
+                  <Example text={word.example} word={word.word} />
+                  {word.image && hasImage(word.image.file) && (
+                    <img src={imageUri(word.image.file)} alt="" width={word.image.width} height={word.image.height} className="mt-[18px] max-h-72 w-full rounded-control object-contain" />
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="t-subhead mt-5 text-ink-3">Say what it means, then check.</p>
-            )}
+            </div>
           </div>
           <div className="shrink-0 pb-4 pt-2">
             {shown ? (
@@ -174,6 +205,7 @@ export function Study() {
             ) : (
               <Button label="Show answer" onClick={() => setShown(true)} className="w-full" />
             )}
+            {!shown && <p className="t-caption mt-2 hidden text-center text-ink-3 sm:block">Space turns the card · 1 to 4 rate it</p>}
           </div>
         </>
       )}

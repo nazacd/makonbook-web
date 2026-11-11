@@ -33,6 +33,13 @@ const PracticeHistory = page(() => import('@/screens/PracticeHistory'), 'Practic
 const Words = page(() => import('@/screens/Words'), 'Words');
 const WordsList = page(() => import('@/screens/WordsList'), 'WordsList');
 const Study = page(() => import('@/screens/Study'), 'Study');
+const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
+const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
+const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
+const Leaderboard = page(() => import('@/screens/vocab/Leaderboard'), 'Leaderboard');
+const Decks = page(() => import('@/screens/vocab/Decks'), 'Decks');
+const DeckDetail = page(() => import('@/screens/vocab/DeckDetail'), 'DeckDetail');
+const DeckEditor = page(() => import('@/screens/vocab/DeckEditor'), 'DeckEditor');
 const AttendanceSession = page(() => import('@/screens/AttendanceSession'), 'AttendanceSession');
 const NewResults = page(() => import('@/screens/TeacherPractice'), 'NewResults');
 const GroupPractice = page(() => import('@/screens/TeacherPractice'), 'GroupPractice');
@@ -100,6 +107,9 @@ export function App() {
                   <Route path="/assessments/:id" element={<AssessmentRun />} />
                   <Route path="/practice/run/:code" element={<PracticeRun />} />
                   <Route path="/words/study" element={<Study />} />
+                  <Route path="/words/play/pairs" element={<Pairs />} />
+                  <Route path="/words/play/unscramble" element={<Unscramble />} />
+                  <Route path="/words/play/gap" element={<FillGap />} />
                   <Route path="/training-hall/drill" element={<Drill />} />
                 </Route>
                 <Route element={<AppShell />}>
@@ -120,6 +130,11 @@ export function App() {
                   <Route path="/words" element={<Words />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
+                  <Route path="/words/leaderboard" element={<Leaderboard />} />
+                  <Route path="/words/decks" element={<Decks />} />
+                  <Route path="/words/decks/new" element={<DeckEditor />} />
+                  <Route path="/words/decks/:id" element={<DeckDetail />} />
+                  <Route path="/words/decks/:id/edit" element={<DeckEditor />} />
                   <Route path="/homework" element={<StudentAssignments kind="homework" />} />
                   <Route path="/level-checks" element={<StudentAssignments kind="level_check" />} />
                   <Route path="/exams" element={<StudentAssignments kind="exam" />} />

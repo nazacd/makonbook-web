@@ -366,3 +366,23 @@
 .page-next { animation: page-next 260ms var(--ease-soft) both; }
 .page-prev { animation: page-prev 260ms var(--ease-soft) both; }
 @media (prefers-reduced-motion: reduce) { .page-next, .page-prev { animation: fade 150ms ease both; } }
+
+/* Vocabulary: the flashcard turns over, a wrong answer shakes, a right one pulses. */
+.flip { perspective: 1400px; }
+.flip-inner { display: grid; transform-style: preserve-3d; transition: transform 480ms var(--ease-soft); }
+.flip-inner > * { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip-inner > .flip-back { transform: rotateY(180deg); }
+.flip[data-shown="true"] .flip-inner { transform: rotateY(180deg); }
+@keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+.shake { animation: shake 320ms ease both; }
+@keyframes pulse-good { 0% { transform: scale(1); } 45% { transform: scale(1.05); } 100% { transform: scale(1); } }
+.pulse-good { animation: pulse-good 320ms var(--ease-soft) both; }
+@keyframes curve-draw { from { stroke-dashoffset: var(--len, 400); } to { stroke-dashoffset: 0; } }
+.curve-draw { stroke-dasharray: var(--len, 400); animation: curve-draw 1100ms var(--ease-soft) both; }
+@media (prefers-reduced-motion: reduce) {
+  .flip-inner { transition: none; }
+  .shake, .pulse-good { animation: none; }
+  .curve-draw { animation: none; stroke-dasharray: none; }
+}
+/* The Vocabulary hero: SATMAKON purple in every theme, lit from the top right. */
+.vocab-hero { background: radial-gradient(90% 130% at 100% 0%, #7c3aed 0%, transparent 62%), linear-gradient(135deg, #2c0066, #4b12a6); }

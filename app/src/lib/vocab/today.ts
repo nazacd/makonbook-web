@@ -1,6 +1,7 @@
+import { useStudyDeck } from '@/api/vocabSocial';
 import { useMemo } from 'react';
 
-import { useDeck, useSettings, useVocabState } from './hooks';
+import { useSettings, useVocabState } from './hooks';
 import type { Settings } from './local';
 import { listProgress } from './progress';
 import { activeLists, newToday, queue } from './scheduler';
@@ -10,7 +11,7 @@ import { activeLists, newToday, queue } from './scheduler';
  * study now (due + today's new ones), and how far the lists turned on have got.
  */
 export function useVocabToday(now: number) {
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const settings = useSettings();
   return useMemo(() => {
