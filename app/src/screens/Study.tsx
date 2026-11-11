@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { State, type Grade } from 'ts-fsrs';
 
+import { useStudyDeck } from '@/api/vocabSocial';
 import { describeError } from '@/api/errors';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
@@ -13,7 +14,7 @@ import { SpeakButton } from '@/components/vocab/Game';
 import { usePerson } from '@/lib/practice/hooks';
 import { useTitle } from '@/lib/title';
 import { hasImage, imageUri } from '@/lib/vocab/files';
-import { useDeck, useRecordReview, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
+import { useRecordReview, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
 import { activeLists, GRADES, newToday, preview, queue } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
 
@@ -42,7 +43,7 @@ export function Study() {
   const navigate = useNavigate();
   const person = usePerson();
   const queryClient = useQueryClient();
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const settings = useSettings();
   const record = useRecordReview();

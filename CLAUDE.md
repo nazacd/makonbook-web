@@ -71,8 +71,17 @@ words, Ways to practise, their lists, today's count, streak and progress;
 reviews). The games (`screens/vocab/{Pairs,Unscramble,FillGap}`, full screen
 at `/words/play/…`, framed by `components/vocab/Game`, logic in
 `lib/vocab/games.ts`) draw from the lists turned on, shakiest words first,
-and never touch the log: only best results, in localStorage. Words are said
-aloud with the browser's own voices (`lib/speak.ts`). Teachers: `lib/attendance/code.ts` is the phone's
+and never touch the log; each finished round goes to the server
+(`api/vocabSocial.ts`: `useRecordGame`, queued in localStorage until sent),
+which keeps the bests (`useGameStats`) and the month's leaderboard
+(`screens/vocab/Leaderboard`, spec 11.5: enrolled students see their groups
+and everyone, free accounts everyone). Students' own decks (spec 11.6,
+`screens/vocab/{Decks,DeckDetail,DeckEditor}`) are private until shared;
+shared ones are in the community to add; teachers check reported ones
+(Decks → To check). Own and added decks are studied like lists through
+`useStudyDeck` (slug `deck:<id>`; read it, not `useDeck`, wherever words are
+scheduled or played). Words are said aloud with the browser's own voices
+(`lib/speak.ts`). Teachers: `lib/attendance/code.ts` is the phone's
 copy of the QR signing and must match the API's
 `internal/attendance/token.go`; the session screen polls every 3 s while
 open and draws the code itself from the session secret. Type comes from the `t-*`

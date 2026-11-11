@@ -2,6 +2,8 @@ import { Delete, Lightbulb, SkipForward } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { GameFrame, GameGate, GameResult, SpeakButton, type GameWords } from '@/components/vocab/Game';
+import { useRecordGame } from '@/api/vocabSocial';
+import { uuid } from '@/lib/device-id';
 import { usePerson } from '@/lib/practice/hooks';
 import { speak } from '@/lib/speak';
 import { useTitle } from '@/lib/title';
@@ -28,6 +30,8 @@ export function Unscramble() {
 
 function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
   const person = usePerson();
+  const record = useRecordGame();
+  const [startedAt] = useState(() => Date.now());
   const [items] = useState<Item[]>(() => pickRound(from, WORDS, spellable).map((word) => ({ word, tiles: scramble(word.word) })));
   const [at, setAt] = useState(0);
   // The tiles placed, by their position among the mixed letters.
@@ -42,13 +46,14 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
   const item = items[at]!;
   const answer = item.word.word.toLowerCase();
 
-  const next = (cleanNow: number) => {
+  const next = (cleanNow: number, missedNow: VocabWord[], at: number) => {
     if (at + 1 < items.length) {
       setAt(at + 1);
       setPlaced([]);
       setPhase('play');
       setHelped(false);
     } else {
+      record({ id: uuid(), game: 'unscramble', score: cleanNow, total: items.length, mistakes: HINTS - hintsLeft, duration_ms: at - startedAt, missed: [...new Set(missedNow.map((w) => w.id))], played_at: new Date(at).toISOString() });
       setResult({ newBest: saveResult(person, 'unscramble', cleanNow) });
     }
   };
@@ -59,9 +64,10 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
       setPhase('right');
       speak(item.word.word);
       const cleanNow = clean + (withHelp ? 0 : 1);
+      const missedNow = withHelp ? [...missed, item.word] : missed;
       setClean(cleanNow);
-      if (withHelp) setMissed((m) => [...m, item.word]);
-      window.setTimeout(() => next(cleanNow), 1100);
+      setMissed(missedNow);
+      window.setTimeout(() => next(cleanNow, missedNow, Date.now()), 1100);
     } else {
       setPhase('wrong');
       window.setTimeout(() => {
@@ -101,8 +107,9 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
   const skip = () => {
     if (phase !== 'play') return;
     setPhase('shown');
-    setMissed((m) => [...m, item.word]);
-    window.setTimeout(() => next(clean), 1700);
+    const missedNow = [...missed, item.word];
+    setMissed(missedNow);
+    window.setTimeout(() => next(clean, missedNow, Date.now()), 1700);
   };
 
   const latest = useRef({ typeLetter, back, hint });

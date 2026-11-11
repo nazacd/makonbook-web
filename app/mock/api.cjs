@@ -251,6 +251,8 @@ const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'a
 // Assignments and notifications (mock/assignments.cjs).
 const universitiesApi = require('./universities.cjs');
 const libraryApi = require('./library.cjs');
+const vocabSocial = require('./vocab-social.cjs');
+vocabSocial.init((l) => reviews.get(l) || []);
 const assignmentsApi = require('./assignments.cjs')({ people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err });
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -473,6 +475,7 @@ http.createServer(async (req, res) => {
   // No phone yet: everything with content stays shut.
   if (me.status === 'registered' && !me.phone && /^\/v1\/(practice|vocab|learning|library|me\/(practice|vocab|goals|parked|questions|reports|issues|assignments))/.test(url)) return err(res, 403, 'phone_required', 'prove a phone number first');
   if (libraryApi.route(url, req, res, body, login, json, err)) return;
+  if (vocabSocial.route(url, req, res, body, me, json, err)) return;
   if (assignmentsApi(req, res, url, body, me) !== false) return;
   if (url === '/v1/me/attendance') return me.kind === 'student' ? json(res, 200, attendance) : err(res, 403, 'forbidden', 'not a student');
   if (url === '/v1/practice/tests') {

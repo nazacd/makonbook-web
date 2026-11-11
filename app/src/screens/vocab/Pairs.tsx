@@ -3,6 +3,8 @@ import { useState } from 'react';
 
 import { GameFrame, GameGate, GameResult, type GameWords } from '@/components/vocab/Game';
 import { useFastNow } from '@/lib/clock';
+import { useRecordGame } from '@/api/vocabSocial';
+import { uuid } from '@/lib/device-id';
 import { usePerson } from '@/lib/practice/hooks';
 import { useTitle } from '@/lib/title';
 import { clock, GAMES, pickRound, saveResult, shuffle } from '@/lib/vocab/games';
@@ -26,6 +28,7 @@ const PENALTY_MS = 5000;
 
 function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
   const person = usePerson();
+  const record = useRecordGame();
   const [boards] = useState<Board[]>(() => {
     const picked = pickRound(from, PER_BOARD * BOARDS);
     const out: Board[] = [];
@@ -64,6 +67,8 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
             setMatched([]);
           } else {
             const ms = finishedAt - startedAt + mistakes.length * PENALTY_MS;
+            const missed = [...new Set(mistakes.map((w) => w.id))];
+            record({ id: uuid(), game: 'pairs', score: total - missed.length, total, mistakes: mistakes.length, duration_ms: finishedAt - startedAt, missed, played_at: new Date(finishedAt).toISOString() });
             setResult({ ms, newBest: saveResult(person, 'pairs', ms, true) });
           }
         }, 450);

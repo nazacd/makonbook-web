@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/Button';
 import { GameFrame, GameGate, GameResult, SpeakButton, type GameWords } from '@/components/vocab/Game';
+import { useRecordGame } from '@/api/vocabSocial';
+import { uuid } from '@/lib/device-id';
 import { usePerson } from '@/lib/practice/hooks';
 import { useTitle } from '@/lib/title';
 import { distractors, GAMES, gapOf, pickRound, saveResult, shuffle } from '@/lib/vocab/games';
@@ -29,6 +31,8 @@ export function FillGap() {
 
 function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
   const person = usePerson();
+  const record = useRecordGame();
+  const [startedAt] = useState(() => Date.now());
   const [questions] = useState<Question[]>(() =>
     pickRound(from, QUESTIONS, hasGap).map((word) => {
       // Wrong choices come from the person's own lists when there are enough, so they are words worth knowing too.
@@ -59,12 +63,13 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
       setMissed((m) => [...m, q.word]);
     }
   };
-  const next = () => {
+  const next = (at: number) => {
     if (!chosen) return;
     if (at + 1 < questions.length) {
       setAt(at + 1);
       setChosen(null);
     } else {
+      record({ id: uuid(), game: 'gap', score: right, total: questions.length, mistakes: questions.length - right, duration_ms: at - startedAt, missed: missed.map((w) => w.id), played_at: new Date(at).toISOString() });
       setResult({ newBest: saveResult(person, 'gap', right) });
     }
   };
@@ -77,7 +82,7 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const l = latest.current;
-      if (e.key === 'Enter') l.next();
+      if (e.key === 'Enter') l.next(Date.now());
       else if (/^[1-4]$/.test(e.key)) {
         const o = l.options[Number(e.key) - 1];
         if (o) l.choose(o.id);
@@ -164,7 +169,7 @@ function Round({ from, onAgain }: { from: GameWords; onAgain: () => void }) {
         )}
 
         <div className="mt-auto pt-8 sm:mt-0">
-          <Button label={at + 1 < questions.length ? 'Next' : 'See the result'} onClick={next} disabled={!answered} className="w-full" />
+          <Button label={at + 1 < questions.length ? 'Next' : 'See the result'} onClick={() => next(Date.now())} disabled={!answered} className="w-full" />
         </div>
       </div>
     </GameFrame>

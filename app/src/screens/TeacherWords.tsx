@@ -1,8 +1,11 @@
-import { Users } from 'lucide-react';
+import { Gamepad2, Library, ShieldAlert, Users } from 'lucide-react';
+import { Link } from 'react-router';
 import { useParams } from 'react-router';
 
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
+import { useDecksToCheck, useGroupGames } from '@/api/vocabSocial';
+import { GAMES, clock } from '@/lib/vocab/games';
 import type { Profile } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState, ErrorState } from '@/components/States';
@@ -23,8 +26,30 @@ export function TeacherWords() {
   useTitle('Words');
   const profile = useMe().data as Profile;
   const summary = useVocabSummary(profile.groups.map((g) => g.id));
+  const toCheck = useDecksToCheck();
+  const waiting = toCheck.data?.filter((d) => !d.hidden).length ?? 0;
   return (
     <div className="mx-auto w-full max-w-xl">
+      <div className="mb-5 grid gap-2.5 sm:grid-cols-2">
+        <Link to="/words/decks" className="flex items-center gap-3 rounded-card border border-line bg-surface p-3.5 hover:border-primary/40">
+          <span className="flex size-10 items-center justify-center rounded-[12px] bg-accent-tint text-accent">
+            <Library size={19} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="t-headline block text-ink">Students’ decks</span>
+            <span className="t-footnote text-ink-2">What students made and shared</span>
+          </span>
+        </Link>
+        <Link to="/words/decks?tab=moderation" className="flex items-center gap-3 rounded-card border border-line bg-surface p-3.5 hover:border-primary/40">
+          <span className={`flex size-10 items-center justify-center rounded-[12px] ${waiting ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink-3'}`}>
+            <ShieldAlert size={19} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="t-headline block text-ink">To check {waiting > 0 && <span className="tabular text-bad">{waiting}</span>}</span>
+            <span className="t-footnote text-ink-2">{waiting ? 'Reported decks wait for a look' : 'No reported decks'}</span>
+          </span>
+        </Link>
+      </div>
       {profile.groups.length === 0 ? (
         <EmptyState icon={Users} title="No groups yet" message="Your groups appear here once you teach one in HolliHop." />
       ) : (
@@ -95,6 +120,7 @@ export function GroupVocab({ groupId }: { groupId?: string } = {}) {
               <StudentRow key={s.client_id} student={s} now={now} first={i === 0} />
             ))}
           </ul>
+          <RecentGames groupId={id} />
           {notStarted.length > 0 && (
             <div className={started.length ? 'mt-6' : ''}>
               <p className="t-subhead mb-0.5 text-ink-3">Hasn’t started</p>
@@ -119,7 +145,10 @@ export function GroupVocab({ groupId }: { groupId?: string } = {}) {
 function StudentRow({ student: s, now, first }: { student: GroupVocabStudent; now: number; first: boolean }) {
   const name = normalCase(`${s.first_name} ${s.last_name}`);
   const day = relativeDay(Date.parse(s.last_review!), now);
-  const line = `${day[0]!.toUpperCase()}${day.slice(1)} · ${s.reviews_week ? `${s.reviews_week} ${s.reviews_week === 1 ? 'review' : 'reviews'} this week` : 'none this week'}`;
+  const extra = s as GroupVocabStudent & { games_week?: number; points_month?: number };
+  const games = extra.games_week ? ` · ${extra.games_week} ${extra.games_week === 1 ? 'game' : 'games'}` : '';
+  const points = extra.points_month ? ` · ${extra.points_month} pts this month` : '';
+  const line = `${day[0]!.toUpperCase()}${day.slice(1)} · ${s.reviews_week ? `${s.reviews_week} ${s.reviews_week === 1 ? 'review' : 'reviews'} this week` : 'none this week'}${games}${points}`;
   return (
     <li className={`flex min-h-16 items-center gap-3 py-2 ${first ? '' : 'border-t border-line'}`} aria-label={`${name}, last studied ${day}, ${s.reviews_week} reviews this week, ${s.learned} words learned`}>
       <Avatar kind="student" firstName={s.first_name} lastName={s.last_name} id={s.client_id} size={36} />
@@ -132,5 +161,36 @@ function StudentRow({ student: s, now, first }: { student: GroupVocabStudent; no
         <span className="t-caption font-normal text-ink-3">learned</span>
       </span>
     </li>
+  );
+}
+
+// The latest word games the group's students played, each with the words they missed.
+function RecentGames({ groupId }: { groupId: string }) {
+  const games = useGroupGames(groupId);
+  const list = games.data ?? [];
+  if (list.length === 0) return null;
+  return (
+    <section className="mt-6">
+      <h2 className="t-subhead mb-1 flex items-center gap-1.5 text-ink-3">
+        <Gamepad2 size={15} aria-hidden="true" /> Recent games
+      </h2>
+      <ul>
+        {list.slice(0, 15).map((g, i) => {
+          const name = normalCase(`${g.first_name} ${g.last_name}`);
+          const result = g.game === 'pairs' ? `${clock(g.duration_ms + g.mistakes * 5000)}, ${g.mistakes} wrong` : `${g.score}/${g.total}`;
+          return (
+            <li key={g.id} className={`py-2.5 ${i ? 'border-t border-line' : ''}`}>
+              <p className="flex items-baseline justify-between gap-3">
+                <span className="t-body truncate text-ink">
+                  {name} <span className="t-footnote text-ink-3">· {GAMES[g.game].title}</span>
+                </span>
+                <span className="t-subhead tabular shrink-0 font-semibold text-ink">{result}</span>
+              </p>
+              {g.missed.length > 0 && <p className="t-footnote mt-0.5 text-ink-2">Missed: {g.missed.map((w) => w.word).join(', ')}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

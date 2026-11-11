@@ -1,7 +1,10 @@
-import { ArrowRight, BookOpen, Check, CircleHelp, Clock, CloudUpload, Flame, Layers, Play, Plus, Shuffle, SlidersHorizontal, SpellCheck, Target, TextCursorInput, Type, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Globe2, LibraryBig, Trophy, Check, CircleHelp, Clock, CloudUpload, Flame, Layers, Play, Plus, Shuffle, SlidersHorizontal, SpellCheck, Target, TextCursorInput, Type, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
+import { useGameStats, useLeaderboard, useMyDecks, useStudyDeck } from '@/api/vocabSocial';
+import { monthName } from '@/screens/vocab/Leaderboard';
+import { Avatar } from '@/components/Avatar';
 import { describeError } from '@/api/errors';
 import { useMe } from '@/api/queries';
 import { Icon } from '@/components/Icon';
@@ -15,7 +18,7 @@ import { usePerson } from '@/lib/practice/hooks';
 import { addDays, schoolDate } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
 import { clock, GAMES, loadBests, MIN_WORDS, nextMilestone, reviewsToday, streak } from '@/lib/vocab/games';
-import { useDeck, useSaveSettings, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
+import { useSaveSettings, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
 import { introSeen, markIntroSeen, type Settings } from '@/lib/vocab/local';
 import { almostDone, listName, listProgress } from '@/lib/vocab/progress';
 import { activeLists, formatGap, newToday, queue } from '@/lib/vocab/scheduler';
@@ -37,13 +40,21 @@ function StudentWords() {
   const nowMs = useNow();
   const now = new Date(nowMs);
   const person = usePerson();
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const settings = useSettings();
   const save = useSaveSettings();
   const sync = useVocabSync(true);
   const [sheet, setSheet] = useState(false);
-  const [bests] = useState(() => loadBests(person));
+  const [localBests] = useState(() => loadBests(person));
+  const stats = useGameStats();
+  const me = useMe().data;
+  const enrolled = me?.kind === 'student' && me.status !== 'registered';
+  const board = useLeaderboard(enrolled ? 'groups' : 'all');
+  const myDecks = useMyDecks();
+  const ownDecks = (myDecks.data ?? []).filter((d) => d.mine).length;
+  const addedDecks = (myDecks.data ?? []).length - ownDecks;
+  const best = (g: 'pairs' | 'unscramble' | 'gap') => stats.data?.[g]?.best ?? localBests[g].best;
   // The explanation of spacing: offered once, before the first word is studied.
   const [intro, setIntro] = useState<'auto' | 'open' | 'closed'>(() => (introSeen(person) ? 'closed' : 'auto'));
   const closeIntro = () => {
@@ -183,9 +194,9 @@ function StudentWords() {
                   </h2>
                   <ul className="grid gap-3 sm:grid-cols-2">
                     <Mode to="/words/study" icon={Layers} accent="var(--color-violet)" title="Flashcards" blurb="Recall the meaning, then rate yourself. This sets when each word returns" chip={toStudy > 0 ? `${toStudy} today` : 'Done for today'} chipOn={toStudy > 0} />
-                    <Mode to={GAMES.pairs.path} icon={Shuffle} accent="var(--color-teal)" title={GAMES.pairs.title} blurb={GAMES.pairs.blurb} chip={bests.pairs.best != null ? `Best ${clock(bests.pairs.best)}` : 'New'} chipOn={bests.pairs.best == null} locked={wordsToPlay < MIN_WORDS} />
-                    <Mode to={GAMES.unscramble.path} icon={Type} accent="var(--color-orange)" title={GAMES.unscramble.title} blurb={GAMES.unscramble.blurb} chip={bests.unscramble.best != null ? `Best ${bests.unscramble.best}/8` : 'New'} chipOn={bests.unscramble.best == null} locked={wordsToPlay < MIN_WORDS} />
-                    <Mode to={GAMES.gap.path} icon={TextCursorInput} accent="var(--color-pink)" title={GAMES.gap.title} blurb={GAMES.gap.blurb} chip={bests.gap.best != null ? `Best ${bests.gap.best}/10` : 'New'} chipOn={bests.gap.best == null} locked={wordsToPlay < MIN_WORDS} />
+                    <Mode to={GAMES.pairs.path} icon={Shuffle} accent="var(--color-teal)" title={GAMES.pairs.title} blurb={GAMES.pairs.blurb} chip={best('pairs') != null ? `Best ${clock(best('pairs')!)}` : 'New'} chipOn={best('pairs') == null} locked={wordsToPlay < MIN_WORDS} />
+                    <Mode to={GAMES.unscramble.path} icon={Type} accent="var(--color-orange)" title={GAMES.unscramble.title} blurb={GAMES.unscramble.blurb} chip={best('unscramble') != null ? `Best ${best('unscramble')}/8` : 'New'} chipOn={best('unscramble') == null} locked={wordsToPlay < MIN_WORDS} />
+                    <Mode to={GAMES.gap.path} icon={TextCursorInput} accent="var(--color-pink)" title={GAMES.gap.title} blurb={GAMES.gap.blurb} chip={best('gap') != null ? `Best ${best('gap')}/10` : 'New'} chipOn={best('gap') == null} locked={wordsToPlay < MIN_WORDS} />
                   </ul>
                   <p className="t-footnote mt-2 text-ink-3">The games are extra practice: only the flashcards move a word’s next review.</p>
                 </section>
@@ -238,6 +249,40 @@ function StudentWords() {
                 </section>
               </>
             )}
+
+            <section aria-labelledby="decks" className="grid gap-3 sm:grid-cols-2">
+              <h2 id="decks" className="sr-only">
+                Decks
+              </h2>
+              <Link to="/words/decks" className="group relative flex min-h-[132px] flex-col justify-between overflow-hidden rounded-card border border-line bg-surface p-4 transition-colors hover:border-primary/40">
+                <span className="pointer-events-none absolute -right-3 -top-3 h-24 w-20 rotate-12 rounded-[12px] border border-line bg-surface-2" aria-hidden="true" />
+                <span className="pointer-events-none absolute right-5 top-1 h-24 w-20 rotate-[4deg] rounded-[12px] border border-line bg-surface" aria-hidden="true" />
+                <span className="relative flex size-[42px] items-center justify-center rounded-[12px] bg-accent-tint text-accent">
+                  <LibraryBig size={21} aria-hidden="true" />
+                </span>
+                <span className="relative">
+                  <span className="t-headline block text-ink">My decks</span>
+                  <span className="t-footnote text-ink-2">{ownDecks + addedDecks === 0 ? 'Make one with your own words' : `${ownDecks} made${addedDecks ? ` · ${addedDecks} added` : ''}`}</span>
+                </span>
+              </Link>
+              <Link to="/words/decks?tab=community" className="group relative flex min-h-[132px] flex-col justify-between overflow-hidden rounded-card p-4 text-white" style={{ background: 'linear-gradient(135deg, #0e7490, #134e4a)' }}>
+                <span className="pointer-events-none absolute -right-2 -top-8 select-none text-[120px] font-black leading-none text-white/10" aria-hidden="true">
+                  A
+                </span>
+                <span className="relative flex size-[42px] items-center justify-center rounded-[12px] bg-white/15">
+                  <Globe2 size={21} aria-hidden="true" />
+                </span>
+                <span className="relative flex items-end justify-between gap-3">
+                  <span>
+                    <span className="t-headline block">Decks from other students</span>
+                    <span className="t-footnote text-white/75">Look inside, add the ones you like</span>
+                  </span>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 transition-colors group-hover:bg-white group-hover:text-[#134e4a]">
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </span>
+                </span>
+              </Link>
+            </section>
           </div>
 
           <aside className="flex flex-col gap-4">
@@ -270,6 +315,31 @@ function StudentWords() {
                 </div>
                 {days > 0 && !reviewed.has(today) && <p className="t-footnote mt-3 text-ink-2">Study today to keep it going.</p>}
               </div>
+            </section>
+            <section className="rounded-card border border-line bg-surface p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="t-headline flex items-center gap-1.5 text-ink">
+                  <Trophy size={17} aria-hidden="true" className="text-amber" /> Leaderboard
+                </h2>
+                <span className="t-footnote text-ink-2">{board.data ? `${monthName(board.data.month)} · ${enrolled ? 'your groups' : 'everyone'}` : ''}</span>
+              </div>
+              {board.data && board.data.entries.length > 0 ? (
+                <ol className="flex flex-col gap-1.5">
+                  {[...board.data.entries.slice(0, 3), ...(board.data.me && board.data.me.rank > 3 ? [board.data.me] : [])].map((e) => (
+                    <li key={`${e.rank}-${e.name}`} className={`flex items-center gap-2.5 rounded-control px-2 py-1.5 ${e.me ? 'bg-accent-tint' : ''}`}>
+                      <span className={`flex size-6 items-center justify-center rounded-full text-[12px] font-extrabold ${e.rank === 1 ? 'bg-[#e8b923] text-[#3d2c00]' : e.rank === 2 ? 'bg-[#c4ccd6] text-[#253041]' : e.rank === 3 ? 'bg-[#d08a52] text-[#3b1d06]' : 'bg-surface-2 text-ink-2'}`}>{e.rank}</span>
+                      <Avatar kind="student" firstName={e.name.split(' ')[0] ?? ''} lastName={e.name.split(' ')[1] ?? ''} id={e.rank * 7 + e.name.length} size={26} photo={e.photo_url} />
+                      <span className={`t-subhead min-w-0 flex-1 truncate ${e.me ? 'font-bold text-accent' : 'text-ink'}`}>{e.me ? 'You' : e.name}</span>
+                      <span className="t-footnote tabular font-semibold text-ink-2">{e.points}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="t-footnote text-ink-2">{board.isPending ? 'Loading…' : 'Nobody has points yet this month. Yours could be the first.'}</p>
+              )}
+              <Link to="/words/leaderboard" className="t-subhead mt-3 inline-flex min-h-9 items-center gap-1 font-semibold text-accent hover:underline">
+                See the whole board <ArrowRight size={15} aria-hidden="true" />
+              </Link>
             </section>
             {totals.total > 0 && (
               <section className="rounded-card border border-line bg-surface p-5">

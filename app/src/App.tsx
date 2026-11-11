@@ -36,6 +36,10 @@ const Study = page(() => import('@/screens/Study'), 'Study');
 const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
 const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
 const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
+const Leaderboard = page(() => import('@/screens/vocab/Leaderboard'), 'Leaderboard');
+const Decks = page(() => import('@/screens/vocab/Decks'), 'Decks');
+const DeckDetail = page(() => import('@/screens/vocab/DeckDetail'), 'DeckDetail');
+const DeckEditor = page(() => import('@/screens/vocab/DeckEditor'), 'DeckEditor');
 const AttendanceSession = page(() => import('@/screens/AttendanceSession'), 'AttendanceSession');
 const NewResults = page(() => import('@/screens/TeacherPractice'), 'NewResults');
 const GroupPractice = page(() => import('@/screens/TeacherPractice'), 'GroupPractice');
@@ -126,6 +130,11 @@ export function App() {
                   <Route path="/words" element={<Words />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
+                  <Route path="/words/leaderboard" element={<Leaderboard />} />
+                  <Route path="/words/decks" element={<Decks />} />
+                  <Route path="/words/decks/new" element={<DeckEditor />} />
+                  <Route path="/words/decks/:id" element={<DeckDetail />} />
+                  <Route path="/words/decks/:id/edit" element={<DeckEditor />} />
                   <Route path="/homework" element={<StudentAssignments kind="homework" />} />
                   <Route path="/level-checks" element={<StudentAssignments kind="level_check" />} />
                   <Route path="/exams" element={<StudentAssignments kind="exam" />} />

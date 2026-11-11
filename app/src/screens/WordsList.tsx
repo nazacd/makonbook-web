@@ -1,13 +1,14 @@
 import { Check, ChevronLeft, FileQuestion } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 
+import { useStudyDeck } from '@/api/vocabSocial';
 import { Icon } from '@/components/Icon';
 import { EmptyState, Skeleton } from '@/components/States';
 import { UnitBar } from '@/components/vocab/UnitBar';
 import { ScreenTitle } from '@/layouts/AppShell';
 import { useNow } from '@/lib/clock';
 import { useTitle } from '@/lib/title';
-import { useDeck, useVocabState } from '@/lib/vocab/hooks';
+import { useVocabState } from '@/lib/vocab/hooks';
 import { listName, listProgress } from '@/lib/vocab/progress';
 import { formatGap, isLearned, type Cards } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
@@ -19,7 +20,7 @@ type Kind = 'learning' | 'learned' | 'new';
 export function WordsList() {
   const now = useNow();
   const { slug = '' } = useParams();
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const list = deck.data?.lists.find((l) => l.slug === slug);
   const cards: Cards = state.data?.cards ?? new Map();

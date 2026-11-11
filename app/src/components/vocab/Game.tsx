@@ -2,12 +2,13 @@ import { ArrowLeft, RotateCcw, Trophy, Volume2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
+import { useStudyDeck } from '@/api/vocabSocial';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Notice } from '@/components/Notice';
 import { Skeleton } from '@/components/States';
 import { MIN_WORDS, pool } from '@/lib/vocab/games';
-import { useDeck, useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
+import { useSettings, useVocabState, useVocabSync } from '@/lib/vocab/hooks';
 import { activeLists } from '@/lib/vocab/scheduler';
 import type { VocabWord } from '@/lib/vocab/types';
 import { canSpeak, speak } from '@/lib/speak';
@@ -51,7 +52,7 @@ export function GameFrame({ title, step, total, right, children }: { title: stri
  * says what to do instead of starting.
  */
 export function GameGate({ title, fits, children }: { title: string; fits?: (w: VocabWord) => boolean; children: (words: GameWords) => ReactNode }) {
-  const deck = useDeck();
+  const deck = useStudyDeck();
   const state = useVocabState();
   const settings = useSettings();
   const needDeck = deck.isSuccess && deck.data == null;
