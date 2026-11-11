@@ -18,6 +18,7 @@ import {
   Moon,
   MoreHorizontal,
   Search,
+  LibraryBig,
   SpellCheck,
   Sun,
   User,
@@ -70,6 +71,7 @@ const STUDENT: Item[] = [
   { to: '/training-hall', label: 'Training Hall', icon: Dumbbell },
   { to: '/problem-questions', label: 'Problem questions', icon: Bookmark },
   { to: '/words', label: 'Vocabulary', icon: SpellCheck },
+  { to: '/library', label: 'Library', icon: LibraryBig },
 ];
 // The phone's bottom bar: three of them, an Assessments sheet, and More.
 const STUDENT_TABS = ['/', '/classes', '/roadmaps', ASSESSMENTS_TAB];
@@ -80,6 +82,7 @@ const TEACHER: Item[] = [
   { to: '/groups', label: 'Groups', icon: Users },
   { to: '/practice', label: 'Mock tests', icon: ClipboardList },
   { to: '/words', label: 'Vocabulary', icon: SpellCheck },
+  { to: '/library', label: 'Library', icon: LibraryBig },
 ];
 const TEACHER_TABS = ['/', '/assignments', '/groups', '/practice'];
 

@@ -45,6 +45,8 @@ const ResetPassword = page(() => import('@/screens/ResetPassword'), 'ResetPasswo
 const Roadmaps = page(() => import('@/screens/roadmap/Roadmaps'), 'Roadmaps');
 const Onboarding = page(() => import('@/screens/roadmap/Onboarding'), 'Onboarding');
 const DreamUniversity = page(() => import('@/screens/DreamUniversity'), 'DreamUniversity');
+const Library = page(() => import('@/screens/Library'), 'Library');
+const LibraryReader = page(() => import('@/screens/LibraryReader'), 'LibraryReader');
 const RoadmapMap = page(() => import('@/screens/roadmap/RoadmapMap'), 'RoadmapMap');
 const RoadmapUnit = page(() => import('@/screens/roadmap/RoadmapUnit'), 'RoadmapUnit');
 const RoadmapLesson = page(() => import('@/screens/roadmap/RoadmapLesson'), 'RoadmapLesson');
@@ -94,6 +96,7 @@ export function App() {
                 <Route element={<RequirePhone />}>
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/dream" element={<DreamUniversity />} />
+                  <Route path="/library/:id" element={<LibraryReader />} />
                   <Route path="/assessments/:id" element={<AssessmentRun />} />
                   <Route path="/practice/run/:code" element={<PracticeRun />} />
                   <Route path="/words/study" element={<Study />} />
@@ -115,6 +118,7 @@ export function App() {
                   <Route path="/practice/result/:id" element={<PracticeResult />} />
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<Words />} />
+                  <Route path="/library" element={<Library />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
                   <Route path="/homework" element={<StudentAssignments kind="homework" />} />
                   <Route path="/level-checks" element={<StudentAssignments kind="level_check" />} />

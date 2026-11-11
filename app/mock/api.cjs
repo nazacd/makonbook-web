@@ -225,6 +225,7 @@ const err = (res, status, code, message, extra = {}) => { res.writeHead(status, 
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
 // Assignments and notifications (mock/assignments.cjs).
 const universitiesApi = require('./universities.cjs');
+const libraryApi = require('./library.cjs');
 const assignmentsApi = require('./assignments.cjs')({ people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err });
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -321,6 +322,7 @@ http.createServer(async (req, res) => {
     return signIn(res, p);
   }
   if (universitiesApi.logo(url, res)) return;
+  if (libraryApi.cover(url, res)) return;
   if (url.startsWith('/v1/logos/')) { const lg = logos.get(url.slice('/v1/logos/'.length)); if (!lg) return err(res, 404, 'not_found', 'no logo'); res.writeHead(200, { 'content-type': lg.type, 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox" }); return res.end(lg.data); }
   if (url.startsWith('/v1/photos/') && photos.has(url.slice('/v1/photos/'.length))) {
     const ph = photos.get(url.slice('/v1/photos/'.length)); res.writeHead(200, { 'content-type': ph.type, 'cache-control': 'public, max-age=31536000, immutable' }); return res.end(ph.data);
@@ -444,7 +446,8 @@ http.createServer(async (req, res) => {
     return signIn(res, applyPhone(me, t.tg.phone, t.tg.id));
   }
   // No phone yet: everything with content stays shut.
-  if (me.status === 'registered' && !me.phone && /^\/v1\/(practice|vocab|learning|me\/(practice|vocab|goals|parked|questions|reports|issues|assignments))/.test(url)) return err(res, 403, 'phone_required', 'prove a phone number first');
+  if (me.status === 'registered' && !me.phone && /^\/v1\/(practice|vocab|learning|library|me\/(practice|vocab|goals|parked|questions|reports|issues|assignments))/.test(url)) return err(res, 403, 'phone_required', 'prove a phone number first');
+  if (libraryApi.route(url, req, res, body, login, json, err)) return;
   if (assignmentsApi(req, res, url, body, me) !== false) return;
   if (url === '/v1/me/attendance') return me.kind === 'student' ? json(res, 200, attendance) : err(res, 403, 'forbidden', 'not a student');
   if (url === '/v1/practice/tests') {

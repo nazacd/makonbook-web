@@ -346,3 +346,23 @@
 @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .float-y { animation: float-y 5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .tilt { transition: none; } .float-y { animation: none; } .globe-canvas { transition: none; } }
+
+/* The Library's books (components/library/BookCover): a cover standing at a
+   slight angle, light on its spine, pages down its fore-edge. */
+.book {
+  position: relative; display: block; flex: none; overflow: hidden; border-radius: 2px 5px 5px 2px; background: #2a0063;
+  transform: perspective(900px) rotateY(-20deg); transform-origin: 30% 50%; transition: transform 350ms var(--ease-soft), box-shadow 350ms;
+  box-shadow: 1px 0 0 #f4efe4, 2px 0 0 #d9d2c2, 3px 0 0 #f4efe4, 4px 0 0 #d9d2c2, 5px 1px 0 #efe9db, 16px 18px 28px -10px rgba(20, 8, 50, 0.45);
+}
+.book img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.book::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(255,255,255,0.28) 0, rgba(255,255,255,0.06) 3%, rgba(0,0,0,0.18) 5%, transparent 9%, transparent 92%, rgba(0,0,0,0.12)); }
+.book-card:hover .book, .book-card:focus-within .book { transform: perspective(900px) rotateY(-6deg) translateY(-4px); }
+.book-flat { transform: none; box-shadow: 1px 0 0 #f4efe4, 2px 0 0 #d9d2c2, 6px 8px 14px -6px rgba(20, 8, 50, 0.4); }
+@media (prefers-reduced-motion: reduce) { .book { transition: none; } }
+
+/* The reader (screens/LibraryReader): a turned page slides in from its side. */
+@keyframes page-next { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes page-prev { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+.page-next { animation: page-next 260ms var(--ease-soft) both; }
+.page-prev { animation: page-prev 260ms var(--ease-soft) both; }
+@media (prefers-reduced-motion: reduce) { .page-next, .page-prev { animation: fade 150ms ease both; } }
