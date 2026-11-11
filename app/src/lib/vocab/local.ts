@@ -40,3 +40,7 @@ export const savePending = (p: string, ids: string[]) => write(key(p, 'pending')
 /** The last server seq this browser has fetched reviews up to. */
 export const loadCursor = (p: string) => read<number>(key(p, 'cursor'), 0);
 export const saveCursor = (p: string, seq: number) => write(key(p, 'cursor'), seq);
+
+/** Whether the person has been shown how spacing works (once per browser). */
+export const introSeen = (p: string) => read<boolean>(key(p, 'intro'), false);
+export const markIntroSeen = (p: string) => write(key(p, 'intro'), true);

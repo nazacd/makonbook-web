@@ -65,7 +65,14 @@ Vocabulary: `lib/vocab/{types,scheduler,progress}.ts` are copies from the
 phone; `ts-fsrs` stays pinned to exactly 5.4.2 (no fuzz, 90 % retention) so
 replaying the same review log gives the same cards on every device. The deck
 and each person's log live in IndexedDB (`lib/idb.ts`); card states are only
-ever derived from the log. Teachers: `lib/attendance/code.ts` is the phone's
+ever derived from the log. The student's `/words` (`screens/Words`): today's
+words, Ways to practise, their lists, today's count, streak and progress;
+`Study` is the flashcard that turns over (the only thing that writes
+reviews). The games (`screens/vocab/{Pairs,Unscramble,FillGap}`, full screen
+at `/words/play/…`, framed by `components/vocab/Game`, logic in
+`lib/vocab/games.ts`) draw from the lists turned on, shakiest words first,
+and never touch the log: only best results, in localStorage. Words are said
+aloud with the browser's own voices (`lib/speak.ts`). Teachers: `lib/attendance/code.ts` is the phone's
 copy of the QR signing and must match the API's
 `internal/attendance/token.go`; the session screen polls every 3 s while
 open and draws the code itself from the session secret. Type comes from the `t-*`

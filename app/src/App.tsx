@@ -33,6 +33,9 @@ const PracticeHistory = page(() => import('@/screens/PracticeHistory'), 'Practic
 const Words = page(() => import('@/screens/Words'), 'Words');
 const WordsList = page(() => import('@/screens/WordsList'), 'WordsList');
 const Study = page(() => import('@/screens/Study'), 'Study');
+const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
+const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
+const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
 const AttendanceSession = page(() => import('@/screens/AttendanceSession'), 'AttendanceSession');
 const NewResults = page(() => import('@/screens/TeacherPractice'), 'NewResults');
 const GroupPractice = page(() => import('@/screens/TeacherPractice'), 'GroupPractice');
@@ -100,6 +103,9 @@ export function App() {
                   <Route path="/assessments/:id" element={<AssessmentRun />} />
                   <Route path="/practice/run/:code" element={<PracticeRun />} />
                   <Route path="/words/study" element={<Study />} />
+                  <Route path="/words/play/pairs" element={<Pairs />} />
+                  <Route path="/words/play/unscramble" element={<Unscramble />} />
+                  <Route path="/words/play/gap" element={<FillGap />} />
                   <Route path="/training-hall/drill" element={<Drill />} />
                 </Route>
                 <Route element={<AppShell />}>

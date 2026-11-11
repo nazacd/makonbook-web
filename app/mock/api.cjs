@@ -115,17 +115,42 @@ function grade(pkg, sections, answers) {
 
 // --- Vocabulary (fictional words) ---
 const vw = (list, i, word, pos, definition, example) => ({ id: `0000000${list}-0000-4000-8000-${String(i).padStart(12, '0')}`, word, part_of_speech: pos, definition, example, image: null });
-const deck = { version: 'demo-1', lists: [
+const deck = { version: 'demo-2', lists: [
   { slug: 'unit-1', title: 'SAT Words: Unit 1', words: [
-    vw(1, 1, 'abate', 'verb', 'To become less strong or intense.', 'The storm abated by morning.'),
-    vw(1, 2, 'candid', 'adjective', 'Truthful and straightforward.', 'Her candid reply surprised the committee.'),
-    vw(1, 3, 'diligent', 'adjective', 'Working carefully and steadily.', 'A diligent student checks every answer.'),
-    vw(1, 4, 'ephemeral', 'adjective', 'Lasting a very short time.', 'Fame on the internet is often ephemeral.'),
+    vw(1, 1, "abate", "verb", "To become less strong or intense.", "The storm abated by morning."),
+    vw(1, 2, "candid", "adjective", "Truthful and straightforward.", "Her candid reply surprised the committee."),
+    vw(1, 3, "diligent", "adjective", "Working carefully and steadily.", "A diligent student checks every answer."),
+    vw(1, 4, "ephemeral", "adjective", "Lasting a very short time.", "Fame on the internet is often ephemeral."),
+    vw(1, 5, "frugal", "adjective", "Careful not to waste money.", "A frugal traveller packs lunch from home."),
+    vw(1, 6, "gregarious", "adjective", "Fond of the company of others.", "The gregarious host greeted every guest."),
+    vw(1, 7, "hinder", "verb", "To make progress slow or difficult.", "Heavy snow hindered the rescue team."),
+    vw(1, 8, "impartial", "adjective", "Treating all sides equally.", "A judge must stay impartial."),
+    vw(1, 9, "jubilant", "adjective", "Feeling great joy.", "The jubilant crowd sang in the streets."),
+    vw(1, 10, "keen", "adjective", "Eager and sharp.", "She has a keen interest in astronomy."),
+    vw(1, 11, "lament", "verb", "To express sorrow about something.", "Fans lamented the loss of the old stadium."),
+    vw(1, 12, "mundane", "adjective", "Ordinary and not interesting.", "He escaped mundane chores by reading."),
   ] },
   { slug: 'unit-2', title: 'SAT Words: Unit 2', words: [
-    vw(2, 1, 'lucid', 'adjective', 'Clear and easy to understand.', 'The teacher gave a lucid explanation.'),
-    vw(2, 2, 'meticulous', 'adjective', 'Very careful about details.', 'He kept meticulous notes.'),
-    vw(2, 3, 'novel', 'adjective', 'New and original.', 'She proposed a novel approach to the problem.'),
+    vw(2, 1, "lucid", "adjective", "Clear and easy to understand.", "The teacher gave a lucid explanation."),
+    vw(2, 2, "meticulous", "adjective", "Very careful about details.", "He kept meticulous notes."),
+    vw(2, 3, "novel", "adjective", "New and original.", "She proposed a novel approach to the problem."),
+    vw(2, 4, "obscure", "adjective", "Not well known or hard to understand.", "The poem quotes an obscure legend."),
+    vw(2, 5, "pragmatic", "adjective", "Dealing with things in a practical way.", "A pragmatic plan beats a perfect dream."),
+    vw(2, 6, "quell", "verb", "To put an end to something by force or calm.", "The mayor tried to quell the rumours."),
+    vw(2, 7, "resilient", "adjective", "Able to recover quickly.", "Resilient plants survive the dry season."),
+    vw(2, 8, "scrutinize", "verb", "To examine very carefully.", "Editors scrutinize every sentence."),
+    vw(2, 9, "tenacious", "adjective", "Not giving up easily.", "A tenacious climber reached the summit."),
+    vw(2, 10, "undermine", "verb", "To weaken little by little.", "Constant delays undermine trust."),
+    vw(2, 11, "vivid", "adjective", "Producing strong, clear images.", "He gave a vivid account of the voyage."),
+    vw(2, 12, "wary", "adjective", "Careful about possible danger.", "Deer are wary of open fields."),
+  ] },
+  { slug: 'unit-3', title: 'SAT Words: Unit 3', words: [
+    vw(3, 1, "adept", "adjective", "Very skilled.", "She is adept at solving puzzles."),
+    vw(3, 2, "bolster", "verb", "To support or strengthen.", "New data bolster the theory."),
+    vw(3, 3, "concise", "adjective", "Giving much in few words.", "Write a concise summary of the article."),
+    vw(3, 4, "deter", "verb", "To discourage from acting.", "High fences deter trespassers."),
+    vw(3, 5, "elated", "adjective", "Extremely happy.", "The team was elated after the final."),
+    vw(3, 6, "feasible", "adjective", "Possible to do.", "A bridge here is feasible but costly."),
   ] },
 ] };
 const reviews = new Map(); // login -> [{seq, ...review}]
