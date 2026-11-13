@@ -244,7 +244,7 @@ function buildRoadmap(p, id) {
 const findLesson = (id, lid) => { const c = courses[id]; if (!c) return null; for (const u of c.units) for (const l of u.lessons) if (l.id === lid) return { u, l }; return null; };
 const strip = (q) => ({ id: q.id, position: q.position, type: q.type, passage: q.passage, stem: q.stem, choices: q.choices, figures: q.figures, domain: q.domain, skill: q.skill, difficulty: q.difficulty });
 const assessmentOut = (a) => ({ id: a.id, kind: a.kind, roadmap_id: a.roadmap_id, lesson_id: a.lesson_id, homework_index: a.homework_index, assignment: a.assignment || null, title: a.title, subject: a.subject, created_at: a.created_at, finished_at: a.finished_at,
-  questions: a.finished_at ? a.questions : a.questions.map(strip), images: {}, answers: Object.fromEntries(a.questions.map((q) => [q.id, a.answers[q.id] ?? null])), times: a.times || {}, result: a.result });
+  questions: a.finished_at ? a.questions : a.questions.map(strip), images: {}, answers: Object.fromEntries(a.questions.map((q) => [q.id, a.answers[q.id] ?? null])), times: a.times || {}, result: a.result, practice: a.practice || null });
 
 const err = (res, status, code, message, extra = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...extra }); res.end(JSON.stringify({ error: { code, message, request_id: 'req_demo' } })); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };

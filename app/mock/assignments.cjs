@@ -239,6 +239,50 @@ module.exports = function assignments(ctx) {
       const x = start(a, me); if (x.error) return err(res, ...x.error);
       return json(res, 200, ctx.assessmentOut(x));
     }
+    // Students' practice (spec 22.8): topics, questions, practice sets.
+    if (url.startsWith('/v1/me/practice/')) {
+      if (me.kind !== 'student') return err(res, 403, 'forbidden', 'only students practise');
+      const mine = () => [...assessments.values()].filter((x) => x.owner === me.login && x.kind === 'practice');
+      const perDay = me.status === 'registered' ? 40 : null;
+      if (url === '/v1/me/practice/topics') { const subjects = {}; for (const s of ['math', 'english']) { const doms = new Map(); for (const [d, sk] of SKILLS[s]) { const qs = bank[s].filter((x) => x.skill === sk); const l = doms.get(d) || []; l.push({ skill: sk, easy: qs.filter((x) => x.difficulty === 'easy').length, medium: qs.filter((x) => x.difficulty === 'medium').length, hard: qs.filter((x) => x.difficulty === 'hard').length, total: qs.length }); doms.set(d, l); } subjects[s] = [...doms].map(([domain, skills]) => ({ domain, skills })); } return json(res, 200, { subjects }); }
+      if (url === '/v1/me/practice/questions') {
+        const subject = q.get('subject'); const skill = (q.get('skill') || '').toLowerCase(); const diff = q.get('difficulty'); const text = (q.get('q') || '').toLowerCase(); const lim = Number(q.get('limit') || 30); const off = Number(q.get('offset') || 0);
+        const found = (bank[subject] || []).filter((x) => (!skill || x.skill.toLowerCase() === skill) && (!diff || x.difficulty === diff) && (!text || `${x.passage || ''} ${x.stem}`.toLowerCase().includes(text)));
+        const page = found.slice(off, off + lim);
+        const doneIds = new Set([...assessments.values()].filter((x) => x.owner === me.login && x.finished_at).flatMap((x) => x.questions.map((y) => y.id)));
+        return json(res, 200, { total: found.length, done: page.filter((x) => doneIds.has(x.id)).map((x) => x.id), questions: page.map((x) => ({ id: x.id, type: x.type, domain: x.domain, skill: x.skill, difficulty: x.difficulty, preview: `${x.passage ? x.passage + ' ' : ''}${x.stem}`.replace(/\\\(|\\\)|\*/g, '').slice(0, 140) })) });
+      }
+      if (url === '/v1/me/practice/sets' && req.method === 'GET') {
+        return json(res, 200, { free_questions_a_day: perDay, sets: mine().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50).map((x) => ({ id: x.id, practice: x.practice, questions: x.questions.length, created_at: x.created_at, finished_at: x.finished_at, correct: x.result?.correct ?? null, total: x.result?.total ?? null, percent: x.result?.percent ?? null })) });
+      }
+      if (url === '/v1/me/practice/sets' && req.method === 'POST') {
+        const open = mine().find((x) => !x.finished_at);
+        if (open) { res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { code: 'practice_open', message: 'finish or discard the practice set you started first' }, open: ctx.assessmentOut(open) })); return true; }
+        const subject = body.subject; if (!['math', 'english'].includes(subject)) return err(res, 422, 'invalid_practice', 'subject is math or english');
+        let picked;
+        if (body.question_ids?.length) picked = body.question_ids.map((id) => byId.get(id)).filter(Boolean);
+        else {
+          const count = body.count; if (!(count >= 1 && count <= 50)) return err(res, 422, 'invalid_practice', 'count is 1 to 50');
+          const skills = (body.skills || []).map((x) => x.toLowerCase()); const diff = body.difficulty || 'mixed';
+          const pool = bank[subject].filter((x) => !skills.length || skills.includes(x.skill.toLowerCase()));
+          const at = (d) => pool.filter((x) => x.difficulty === d).sort(() => Math.random() - 0.5);
+          picked = diff === 'mixed' ? [...at('easy').slice(0, Math.floor(count / 3)), ...at('medium').slice(0, count - 2 * Math.floor(count / 3)), ...at('hard').slice(0, Math.floor(count / 3))] : at(diff).slice(0, count);
+          if (picked.length < count) picked = [...picked, ...pool.filter((x) => !picked.includes(x)).slice(0, count - picked.length)];
+        }
+        if (!picked.length) return err(res, 409, 'no_questions', 'there are no questions for this yet');
+        if (perDay != null) { const today = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10); const used = mine().filter((x) => new Date(Date.parse(x.created_at) + 5 * 3600e3).toISOString().slice(0, 10) === today).reduce((n, x) => n + x.questions.length, 0); if (used + picked.length > perDay) return err(res, 403, 'practice_limit', 'free accounts practise up to 40 questions a day'); }
+        const skills = body.question_ids?.length ? [] : body.skills || [];
+        const label = { math: 'Math', english: 'Reading and Writing' }[subject];
+        const title = body.question_ids?.length === 1 ? `${label} · one question` : skills.length === 1 ? skills[0] : skills.length > 1 ? `${label} · ${skills.length} topics` : `${label} · ${picked.length} questions`;
+        const practice = { title, subject, skills, difficulty: body.difficulty || 'mixed', seconds_per_question: body.seconds_per_question || 0 };
+        const x = { id: `ps${Math.random().toString(16).slice(2, 8)}-0000-4000-8000-${String(assessments.size + 1).padStart(12, '0')}`, owner: me.login, kind: 'practice', roadmap_id: null, lesson_id: null, homework_index: null, assignment: null, title, subject, created_at: iso(Date.now()), finished_at: null, questions: picked.map((y, i) => full(y, i + 1)), answers: {}, times: {}, result: null, practice };
+        assessments.set(x.id, x);
+        return json(res, 201, ctx.assessmentOut(x));
+      }
+      const dm = url.match(/^\/v1\/me\/practice\/sets\/([^/]+)$/);
+      if (dm && req.method === 'DELETE') { const x = assessments.get(dm[1]); if (!x || x.owner !== me.login || x.kind !== 'practice' || x.finished_at) return err(res, 404, 'not_found', 'no such set'); assessments.delete(dm[1]); return json(res, 204); }
+      return false;
+    }
     if (!url.startsWith('/v1/teacher/assignments') && !['/v1/teacher/questions', '/v1/teacher/taxonomy', '/v1/teacher/curriculum'].includes(url) && !/^\/v1\/teacher\/groups\/\d+\/roadmap$/.test(url)) return false;
     if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'teachers only');
     if (url === '/v1/teacher/assignments' && req.method === 'GET') { const gid = Number(q.get('group_id')) || null; if (gid && !teaches(me, gid)) return err(res, 403, 'forbidden', 'not your group'); return json(res, 200, { assignments: [...list.values()].filter((a) => teaches(me, a.group_id) && (!gid || a.group_id === gid)).sort((x, y) => y.created_at.localeCompare(x.created_at)).map(out) }); }

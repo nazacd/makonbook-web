@@ -178,6 +178,16 @@ hub: students, assignments, a students × lessons roadmap matrix, mock tests,
 vocabulary, problem questions). New assignments notify the group's students
 (`NotificationsDrawer`, unread badge on the bell).
 
+Question bank (spec §22.8; `api/practiceSets.ts`, `screens/practice/QuestionBank`
+at `/questions`): Rush builds a practice set from chosen topics (difficulty,
+how many, time a question at SAT pace or not), Questions browses the bank
+and opens any question on its own, History lists the sets. A set is an
+assessment of kind `practice`, run in `AssessmentRun` (which shows the clock
+for a timed set and hands it in at zero) and graded on submit. One open set
+at a time: starting another answers `practice_open` with it
+(`PracticeOpenError`), to continue or discard. Free accounts: 40 questions
+a school day (`practice_limit`).
+
 Universities (spec §24.5; `api/universitySection.ts`): every listed
 university to browse (`screens/universities/Universities`: search, filters
 and sorts kept in the address, cards, the student's own list, saved with

@@ -5,13 +5,14 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useStartAssignment } from '@/api/assignments';
 import { describeError } from '@/api/errors';
 import { dueShort } from '@/components/assignments/format';
+import { PracticeOpenError, useStartPractice } from '@/api/practiceSets';
 import { saveAnswers, useAssessment, useStartAssessment, useSubmitAssessment, type Assessment, type AssessmentQuestion, type AssessmentResult } from '@/api/roadmaps';
 import { Spinner } from '@/components/Button';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { RichContent, type ImageLinks } from '@/components/practice/RichContent';
 import { Notice } from '@/components/Notice';
-import { useNow } from '@/lib/clock';
+import { useFastNow, useNow } from '@/lib/clock';
 import { useTitle } from '@/lib/title';
 import type { PackageImage } from '@/lib/practice/types';
 
@@ -26,6 +27,7 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 /** Where leaving goes: the assignment's tab, or the roadmap lesson. */
 const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
 export function backOf(a: Assessment): string {
+  if (a.kind === 'practice') return '/questions?tab=history';
   if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
   return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
 }
@@ -78,6 +80,9 @@ function Run({ a }: { a: Assessment }) {
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
   const back = backOf(a);
   const now = useNow();
+  // A timed practice set: the clock runs from when it was made, a question's time each.
+  const secs = a.practice?.seconds_per_question ?? 0;
+  const deadline = secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
 
   // Seconds spent on each question: counted while it is on screen and the
   // tab is visible, kept with the answers (the teacher's statistics).
@@ -159,10 +164,11 @@ function Run({ a }: { a: Assessment }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-ink">{a.title}</p>
             <p className="t-footnote truncate text-ink-2">
-              {a.kind === 'level_check' ? 'Level check' : 'Homework'} · {answered}/{a.questions.length} answered
+              {a.kind === 'level_check' ? 'Level check' : a.kind === 'practice' ? 'Practice' : 'Homework'} · {answered}/{a.questions.length} answered
               {a.assignment && ` · due ${dueShort(a.assignment.due_at, now)}`}
             </p>
           </div>
+          {deadline != null && <Countdown deadline={deadline} onEnd={() => !submit.isPending && finish()} />}
           <button type="button" onClick={() => setGrid(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-bold text-ink hover:bg-surface-2">
             <LayoutGrid size={15} aria-hidden="true" /> {i + 1} of {a.questions.length}
           </button>
@@ -296,16 +302,27 @@ function Result({ a }: { a: Assessment }) {
   const retaking = again.isPending || againAssigned.isPending;
   const back = backOf(a);
   const level = a.kind === 'level_check';
-  const verdict = level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
+  const practice = a.kind === 'practice';
+  const startPractice = useStartPractice();
+  const practiseAgain = () =>
+    a.practice &&
+    startPractice.mutate(
+      { subject: a.practice.subject, skills: a.practice.skills, difficulty: a.practice.difficulty, count: a.questions.length, seconds_per_question: a.practice.seconds_per_question },
+      {
+        onSuccess: (n) => void navigate(`/assessments/${n.id}`),
+        onError: (e) => e instanceof PracticeOpenError && void navigate(`/assessments/${e.open.id}`),
+      },
+    );
+  const verdict = practice ? (r.percent >= 80 ? 'Strong work' : r.percent >= 50 ? 'Good practice' : 'Keep going') : level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
   const ring = 2 * Math.PI * 52;
   return (
     <div className="min-h-dvh bg-brand">
       <div className="mx-auto max-w-[880px] px-4 py-6">
         <Link to={back} className="t-subhead mb-4 inline-flex items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
-          <ArrowLeft size={16} aria-hidden="true" /> {a.assignment ? `Back to ${a.assignment.kind === 'level_check' ? 'level checks' : 'homework'}` : 'Back to the lesson'}
+          <ArrowLeft size={16} aria-hidden="true" /> {practice ? 'Back to the question bank' : a.assignment ? `Back to ${a.assignment.kind === 'level_check' ? 'level checks' : 'homework'}` : 'Back to the lesson'}
         </Link>
         <section className="rise flex flex-col items-center rounded-card border border-line bg-surface p-6 text-center">
-          <p className="t-micro text-ink-3">{level ? 'Level check complete' : 'Homework complete'}</p>
+          <p className="t-micro text-ink-3">{practice ? 'Practice set complete' : level ? 'Level check complete' : 'Homework complete'}</p>
           <div className="relative mt-4 size-[132px]">
             <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
               <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-track)" strokeWidth="10" />
@@ -316,12 +333,17 @@ function Result({ a }: { a: Assessment }) {
           <h1 className="mt-3 text-[24px] font-semibold text-title">{verdict}</h1>
           <p className="t-subhead mt-1 max-w-md text-ink-2">
             {r.correct} of {r.total} right.{' '}
-            {level && !r.passed ? '70% passes. Read the explanations below, then try again with new questions.' : r.lesson_done ? 'Lesson complete: the next one is open on your map.' : level ? 'Now finish the homework to complete the lesson.' : 'Its mistakes are below, with explanations.'}
+            {practice ? 'Every question is below with its explanation. The ones you missed are the ones to look at.' : level && !r.passed ? '70% passes. Read the explanations below, then try again with new questions.' : r.lesson_done ? 'Lesson complete: the next one is open on your map.' : level ? 'Now finish the homework to complete the lesson.' : 'Its mistakes are below, with explanations.'}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">
             <button type="button" onClick={() => void navigate(r.lesson_done && a.roadmap_id ? `/roadmaps/${a.roadmap_id}` : back)} className="lift flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
-              {r.lesson_done && a.roadmap_id ? 'Back to the map' : a.assignment ? 'Done' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
+              {r.lesson_done && a.roadmap_id ? 'Back to the map' : a.assignment || practice ? 'Done' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
             </button>
+            {practice && a.practice && a.questions.length > 1 && (
+              <button type="button" disabled={startPractice.isPending} onClick={practiseAgain} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
+                <RotateCcw size={15} aria-hidden="true" /> {startPractice.isPending ? 'Preparing…' : 'New set, same topics'}
+              </button>
+            )}
             {((level && !r.passed) || a.assignment) && (
               <button type="button" disabled={retaking} onClick={retake} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
                 <RotateCcw size={15} aria-hidden="true" /> {retaking ? 'Preparing…' : 'Try again'}
@@ -402,5 +424,28 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
         {children}
       </div>
     </div>
+  );
+}
+
+/** A timed practice set's clock: the time left, red in the last minute; at zero, the set is submitted. */
+function Countdown({ deadline, onEnd }: { deadline: number; onEnd: () => void }) {
+  const now = useFastNow();
+  const left = Math.max(0, deadline - now);
+  const ended = useRef(false);
+  const latest = useRef(onEnd);
+  useEffect(() => {
+    latest.current = onEnd;
+  });
+  useEffect(() => {
+    if (left === 0 && !ended.current) {
+      ended.current = true;
+      latest.current();
+    }
+  }, [left]);
+  const s = Math.ceil(left / 1000);
+  return (
+    <span role="timer" aria-label={`${Math.floor(s / 60)} minutes ${s % 60} seconds left`} className={`t-subhead tabular flex h-9 items-center rounded-full px-3 font-bold ${s <= 60 ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink'}`}>
+      {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
+    </span>
   );
 }
