@@ -15,9 +15,10 @@ const LEVELS = ['easy', 'medium', 'hard'] as const;
 // Unrated questions count as medium in the trend.
 const level = (m: Record<string, number>, d: (typeof LEVELS)[number]) => (m[d] ?? 0) + (d === 'medium' ? (m.unrated ?? 0) : 0);
 
+// Colours from styles.css (--trend-*), with their own steps in dark mode.
 export const TREND = {
-  correct: { easy: '#4ade80', medium: '#16a34a', hard: '#166534' },
-  wrong: { easy: '#fca5a5', medium: '#ef4444', hard: '#991b1b' },
+  correct: { easy: 'var(--trend-right-easy)', medium: 'var(--trend-right-medium)', hard: 'var(--trend-right-hard)' },
+  wrong: { easy: 'var(--trend-wrong-easy)', medium: 'var(--trend-wrong-medium)', hard: 'var(--trend-wrong-hard)' },
 };
 
 const dayMonth = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -55,7 +56,7 @@ export function WeeklyTrend({ weeks }: { weeks: Week[] }) {
                     ...[...LEVELS].reverse().map((d) => ({ key: `c-${d}`, n: level(w.correct, d), color: TREND.correct[d] })),
                   ].filter((p) => p.n > 0);
               return (
-                <div key={w.week} className="relative flex h-full w-full max-w-[56px] flex-col items-center justify-end px-1" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+                <div key={w.week} className="relative flex h-full w-full max-w-[56px] flex-col items-center justify-end px-1" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => setHover(hover === i ? null : i)}>
                   <div className="flex w-full max-w-[24px] flex-col-reverse gap-[2px]">
                     {parts.map((p, k) => (
                       <span key={p.key} className={k === parts.length - 1 ? 'rounded-t-[4px]' : ''} style={{ height: Math.max(2, (p.n / top) * H - 2), background: p.color }} />
@@ -160,7 +161,7 @@ export function TopicAccuracy({ subject }: { subject: Subject }) {
             return (
               <li key={d.domain} className="grid grid-cols-[minmax(0,1fr)_minmax(0,40%)_3rem] items-center gap-3">
                 <span className="min-w-0">
-                  <span className="t-subhead block truncate text-ink">{d.domain}</span>
+                  <span className="t-subhead block leading-5 text-ink sm:truncate">{d.domain}</span>
                   <span className="t-caption text-ink-3">
                     {d.answers} {d.answers === 1 ? 'attempt' : 'attempts'}
                   </span>

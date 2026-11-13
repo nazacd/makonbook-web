@@ -67,7 +67,8 @@ export function SubjectBank() {
   const toggle = (skill: string) => setPicked((p) => (p.includes(skill) ? p.filter((x) => x !== skill) : [...p, skill]));
   const countOf = (skills: string[]) => {
     const list = skills.length ? allSkills.filter((s) => skills.includes(s.skill)) : allSkills;
-    return list.reduce((n, s) => n + (difficulty ? s[difficulty] : s.total) - (unsolved ? (solved[s.skill] ?? 0) : 0), 0);
+    // Solved counts aren't split by difficulty: with both filters on, this is at most what comes.
+    return list.reduce((n, s) => n + Math.max(0, (difficulty ? s[difficulty] : s.total) - (unsolved ? (solved[s.skill] ?? 0) : 0)), 0);
   };
 
   return (
@@ -244,7 +245,7 @@ function ModeDialog({ subject, available, busy, onClose, onStart }: { subject: S
         <section className="relative overflow-hidden rounded-card bg-surface-2 p-5">
           <h3 className="t-headline text-ink">At your own pace</h3>
           <p className="t-subhead mt-1 max-w-[300px] text-ink-2">
-            Check each answer as you go and read its explanation. {ownPace === available ? `All ${ownPace}` : `The first ${ownPace}`} questions, no clock.
+            Check each answer as you go and read its explanation. Up to {ownPace} questions, no clock.
           </p>
           <button type="button" disabled={busy || ownPace === 0} onClick={() => onStart('own_pace', ownPace)} className="t-subhead mt-4 inline-flex h-10 items-center gap-1 rounded-full bg-[#14161c] px-4 font-bold text-white disabled:opacity-50">
             Continue <ChevronRight size={15} aria-hidden="true" />

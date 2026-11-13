@@ -52,7 +52,7 @@ export function QuestionBank() {
       )}
 
       <p className="t-caption mx-auto mt-12 max-w-[640px] text-center text-ink-3">
-        SAT® is a registered trademark of the College Board, which is not affiliated with SATMAKON and does not endorse it. The questions here are SATMAKON’s own practice questions.
+        SAT® is a registered trademark of the College Board, which is not affiliated with SATMAKON and does not endorse it.
       </p>
     </div>
   );
@@ -102,6 +102,8 @@ function Analytics({ s }: { s: PracticeStats }) {
         />
         <Kpi label="Study streak" value={String(s.streak)} note={s.streak === 1 ? 'day in a row' : 'days in a row'} icon={Flame} />
       </div>
+
+      <p className="t-caption mt-2 text-ink-3">From your answers in the question bank, level checks and homework. Mock tests aren’t counted here.</p>
 
       <section className="mt-4 rounded-card border border-line bg-surface p-5 sm:p-6">
         <h3 className="text-[20px] font-semibold text-ink">Activity trend</h3>

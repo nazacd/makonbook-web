@@ -403,3 +403,20 @@ select:not([multiple]) {
   padding-right: 36px;
   text-overflow: ellipsis;
 }
+
+/* The question bank's trend: right green, wrong red, harder darker. Dark mode
+   has its own steps, so the hard ones don't sink into the surface. */
+:root {
+  --trend-right-easy: #4ade80; --trend-right-medium: #16a34a; --trend-right-hard: #166534;
+  --trend-wrong-easy: #fca5a5; --trend-wrong-medium: #ef4444; --trend-wrong-hard: #991b1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --trend-right-easy: #bbf7d0; --trend-right-medium: #4ade80; --trend-right-hard: #16a34a;
+    --trend-wrong-easy: #fecaca; --trend-wrong-medium: #f87171; --trend-wrong-hard: #dc2626;
+  }
+}
+:root[data-theme="dark"] {
+  --trend-right-easy: #bbf7d0; --trend-right-medium: #4ade80; --trend-right-hard: #16a34a;
+  --trend-wrong-easy: #fecaca; --trend-wrong-medium: #f87171; --trend-wrong-hard: #dc2626;
+}

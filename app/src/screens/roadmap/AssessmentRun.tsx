@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useStartAssignment } from '@/api/assignments';
+import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
 import { dueShort } from '@/components/assignments/format';
 import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
@@ -84,13 +85,12 @@ function Run({ a }: { a: Assessment }) {
   const now = useNow();
   // At one's own pace: each question is checked as it is answered, once.
   const ownPace = a.practice?.mode === 'own_pace';
-  const [checks, setChecks] = useState<Record<string, Checked>>(() => {
-    const out: Record<string, Checked> = {};
-    for (const x of a.questions) {
-      if (a.checked?.[x.id] != null) out[x.id] = { correct: a.checked[x.id]!, answer: a.answers[x.id] ?? '', correct_answer: x.correct ?? null, accepted: x.accepted ?? [], explanation: x.explanation ?? '' };
-    }
-    return out;
-  });
+  // What the assessment says was checked, with what was checked here since.
+  const [localChecks, setChecks] = useState<Record<string, Checked>>({});
+  const checks: Record<string, Checked> = { ...localChecks };
+  for (const x of a.questions) {
+    if (a.checked?.[x.id] != null && !checks[x.id]) checks[x.id] = { correct: a.checked[x.id]!, answer: a.answers[x.id] ?? '', correct_answer: x.correct ?? null, accepted: x.accepted ?? [], explanation: x.explanation ?? '' };
+  }
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<unknown>(null);
   const queryClient = useQueryClient();
@@ -104,9 +104,24 @@ function Run({ a }: { a: Assessment }) {
     checkQuestion(a.id, q.id, given, times.current[q.id] ?? 0)
       .then((c) => {
         setChecks((x) => ({ ...x, [q.id]: c }));
+        // The cached assessment learns it too, so leaving and coming back shows it checked.
+        queryClient.setQueryData<Assessment>(['assessment', a.id], (old) =>
+          old
+            ? {
+                ...old,
+                checked: { ...(old.checked ?? {}), [q.id]: c.correct },
+                answers: { ...old.answers, [q.id]: given },
+                questions: old.questions.map((x) => (x.id === q.id ? { ...x, correct: c.correct_answer ?? undefined, accepted: c.accepted, explanation: c.explanation } : x)),
+              }
+            : old,
+        );
         void queryClient.invalidateQueries({ queryKey: PRACTICE_STATS_KEY(person) });
       })
-      .catch(setCheckError)
+      .catch((e) => {
+        // Checked already (another tab, or an old copy here): the server's copy says how.
+        if (e instanceof ApiError && e.code === 'already_checked') void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] });
+        else setCheckError(e);
+      })
       .finally(() => setChecking(false));
   };
   // A timed practice set: the clock runs from when it was made, a question's time each.
@@ -375,7 +390,7 @@ function Result({ a }: { a: Assessment }) {
   const practiseAgain = () =>
     a.practice &&
     startPractice.mutate(
-      { subject: a.practice.subject, skills: a.practice.skills, difficulty: a.practice.difficulty, count: a.questions.length, seconds_per_question: a.practice.seconds_per_question },
+      { subject: a.practice.subject, skills: a.practice.skills, difficulty: a.practice.difficulty, count: Math.min(a.questions.length, a.practice.mode === 'own_pace' ? 200 : 50), seconds_per_question: a.practice.seconds_per_question, mode: a.practice.mode },
       {
         onSuccess: (n) => void navigate(`/assessments/${n.id}`),
         onError: (e) => e instanceof PracticeOpenError && void navigate(`/assessments/${e.open.id}`),
@@ -418,6 +433,11 @@ function Result({ a }: { a: Assessment }) {
               </button>
             )}
           </div>
+          {startPractice.error && !(startPractice.error instanceof PracticeOpenError) && (
+            <div className="mt-4 w-full text-left">
+              <Notice tone="error" message={describeError(startPractice.error)} />
+            </div>
+          )}
         </section>
 
         <h2 className="mb-3 mt-6 text-[18px] font-bold text-ink">Your answers</h2>
