@@ -37,6 +37,9 @@ const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
 const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
 const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
 const QuestionBank = page(() => import('@/screens/practice/QuestionBank'), 'QuestionBank');
+const SubjectBank = page(() => import('@/screens/practice/BankPages'), 'SubjectBank');
+const SavedQuestions = page(() => import('@/screens/practice/BankPages'), 'SavedQuestions');
+const PracticeSetsHistory = page(() => import('@/screens/practice/BankPages'), 'PracticeHistory');
 const Universities = page(() => import('@/screens/universities/Universities'), 'Universities');
 const UniversityPage = page(() => import('@/screens/universities/UniversityPage'), 'UniversityPage');
 const Leaderboard = page(() => import('@/screens/vocab/Leaderboard'), 'Leaderboard');
@@ -134,6 +137,9 @@ export function App() {
                   <Route path="/library" element={<Library />} />
                   <Route path="/universities" element={<Universities />} />
                   <Route path="/questions" element={<QuestionBank />} />
+                  <Route path="/questions/saved" element={<SavedQuestions />} />
+                  <Route path="/questions/history" element={<PracticeSetsHistory />} />
+                  <Route path="/questions/:subject" element={<SubjectBank />} />
                   <Route path="/universities/:id" element={<UniversityPage />} />
                   <Route path="/words/list/:slug" element={<WordsList />} />
                   <Route path="/words/leaderboard" element={<Leaderboard />} />

@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { usePerson } from '@/lib/practice/hooks';
-import { schoolDate } from '@/lib/schedule';
 
-import { api, ApiError, call } from './client';
+import { api, call } from './client';
 import type { Assessment } from './roadmaps';
 import type { components } from './schema';
 
@@ -59,6 +58,9 @@ export type PracticeRequest = {
   count?: number;
   seconds_per_question?: number;
   question_ids?: string[];
+  mode?: 'rush' | 'own_pace';
+  unsolved?: boolean;
+  shuffle?: boolean;
 };
 
 /** Starting answered 409 practice_open: the unfinished set, to continue or discard. */
@@ -93,12 +95,43 @@ export function useDiscardPractice() {
   });
 }
 
-/** How many questions a free account has left today (null: no limit). */
-export function leftToday(sets: PracticeSet[], perDay: number | null, now: number): number | null {
-  if (perDay == null) return null;
-  const today = schoolDate(now);
-  const used = sets.filter((s) => schoolDate(Date.parse(s.created_at)) === today).reduce((n, s) => n + s.questions, 0);
-  return Math.max(0, perDay - used);
+// --- Analytics, saved questions, checking one question.
+
+export type PracticeStats = Schemas['PracticeStats'];
+
+const statsKey = (person: string) => ['practice-stats', person] as const;
+
+export function usePracticeStats() {
+  const person = usePerson();
+  return useQuery({ queryKey: statsKey(person), queryFn: () => call(api.GET('/v1/me/practice/stats')) });
 }
 
-export const isPracticeLimit = (e: unknown) => e instanceof ApiError && e.code === 'practice_limit';
+const savedKey = (person: string) => ['practice-saved', person] as const;
+
+export function useSavedQuestions() {
+  const person = usePerson();
+  return useQuery({ queryKey: savedKey(person), queryFn: async () => (await call(api.GET('/v1/me/practice/saved'))).questions });
+}
+
+/** Saves (or unsaves) a question; the list and the analytics refresh. */
+export function useSaveQuestion() {
+  const person = usePerson();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, on }: { id: string; on: boolean }) => {
+      const path = { params: { path: { id } } };
+      if (on) await call(api.PUT('/v1/me/practice/saved/{id}', path));
+      else await call(api.DELETE('/v1/me/practice/saved/{id}', path));
+    },
+    onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: savedKey(person) }), queryClient.invalidateQueries({ queryKey: statsKey(person) })]),
+  });
+}
+
+export type Checked = { correct: boolean; answer: string; correct_answer: string | null; accepted: string[]; explanation: string };
+
+/** Checks one question of a set taken at one's own pace. */
+export async function checkQuestion(assessment: string, questionId: string, answer: string, seconds: number): Promise<Checked> {
+  return call(api.POST('/v1/me/assessments/{id}/check', { params: { path: { id: assessment } }, body: { question_id: questionId, answer, seconds } }));
+}
+
+export const PRACTICE_STATS_KEY = statsKey;

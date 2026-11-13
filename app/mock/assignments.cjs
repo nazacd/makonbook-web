@@ -7,7 +7,7 @@ const DAY = 86400e3;
 const iso = (t) => new Date(t).toISOString();
 
 module.exports = function assignments(ctx) {
-  const { people, roster, assessments, attempts, packages, courses, prog, findLesson, json, err } = ctx;
+  const { people, roster, assessments, attempts, packages, courses, prog, findLesson, json, err, answerLog } = ctx;
 
   // A small made-up bank per subject: skills and difficulties to draw from.
   const SKILLS = {
@@ -35,6 +35,14 @@ module.exports = function assignments(ctx) {
   }
   const byId = new Map([...bank.math, ...bank.english].map((q) => [q.id, q]));
   const subjectOf = (id) => (byId.get(id)?.id.startsWith('b1') ? 'math' : 'english');
+  const savedQ = new Map(); // login -> [question ids], newest first
+  // A few weeks of made-up answers for the demo student, so the analytics have something to show.
+  {
+    const log = []; const all = [...bank.math, ...bank.english]; let k = 0;
+    for (let day = 40; day >= 1; day -= 1 + (k % 3)) for (let j = 0; j < 3 + (day % 4); j++, k++) { const q = all[(k * 7) % all.length]; const hard = q.difficulty === 'hard'; log.push({ question_id: q.id, assessment_id: null, correct: (k * 13) % 10 > (hard ? 5 : 2), seconds: 40 + ((k * 17) % 90), at: new Date(Date.now() - day * 86400e3).toISOString() }); }
+    answerLog.set('demo.student', log);
+    savedQ.set('demo.student', [bank.math[2].id, bank.english[1].id]);
+  }
   const full = (q, position) => ({ id: q.id, position, type: q.type, passage: q.passage, stem: q.stem, choices: q.choices, figures: q.figures, correct: q.correct, accepted: q.accepted, explanation: q.explanation, domain: q.domain, skill: q.skill, difficulty: q.difficulty });
   const right = (q, given) => given != null && (q.type === 'mcq' ? given === q.correct : (q.accepted || []).includes(String(given).trim()));
 
@@ -239,11 +247,23 @@ module.exports = function assignments(ctx) {
       const x = start(a, me); if (x.error) return err(res, ...x.error);
       return json(res, 200, ctx.assessmentOut(x));
     }
+    // Checking one question of a set taken at one's own pace (spec 22.8).
+    const ck = url.match(/^\/v1\/me\/assessments\/([^/]+)\/check$/);
+    if (ck && req.method === 'POST') {
+      const x = assessments.get(ck[1]); if (!x || x.owner !== me.login) return err(res, 404, 'not_found', 'no such assessment');
+      if (x.kind !== 'practice' || x.practice?.mode !== 'own_pace') return err(res, 409, 'not_checkable', 'only a practice set taken at your own pace checks one question at a time');
+      if (x.finished_at) return err(res, 409, 'finished', 'already submitted');
+      const q2 = x.questions.find((y) => y.id === body.question_id); if (!q2 || !body.answer) return err(res, 422, 'invalid_answers', 'that question isn\'t in this set');
+      x.checked = x.checked || {}; if (q2.id in x.checked) return err(res, 409, 'already_checked', 'this question was checked already');
+      const given = String(body.answer).trim(); const ok = q2.type === 'mcq' ? given === q2.correct : (q2.accepted || []).includes(given);
+      x.checked[q2.id] = ok; x.answers[q2.id] = given; if (body.seconds) x.times = { ...(x.times || {}), [q2.id]: body.seconds };
+      const log = answerLog.get(me.login) || []; log.push({ question_id: q2.id, assessment_id: x.id, correct: ok, seconds: body.seconds || null, at: new Date().toISOString() }); answerLog.set(me.login, log);
+      return json(res, 200, { correct: ok, answer: given, correct_answer: q2.correct ?? null, accepted: q2.accepted || [], explanation: q2.explanation });
+    }
     // Students' practice (spec 22.8): topics, questions, practice sets.
     if (url.startsWith('/v1/me/practice/')) {
       if (me.kind !== 'student') return err(res, 403, 'forbidden', 'only students practise');
       const mine = () => [...assessments.values()].filter((x) => x.owner === me.login && x.kind === 'practice');
-      const perDay = me.status === 'registered' ? 40 : null;
       if (url === '/v1/me/practice/topics') { const subjects = {}; for (const s of ['math', 'english']) { const doms = new Map(); for (const [d, sk] of SKILLS[s]) { const qs = bank[s].filter((x) => x.skill === sk); const l = doms.get(d) || []; l.push({ skill: sk, easy: qs.filter((x) => x.difficulty === 'easy').length, medium: qs.filter((x) => x.difficulty === 'medium').length, hard: qs.filter((x) => x.difficulty === 'hard').length, total: qs.length }); doms.set(d, l); } subjects[s] = [...doms].map(([domain, skills]) => ({ domain, skills })); } return json(res, 200, { subjects }); }
       if (url === '/v1/me/practice/questions') {
         const subject = q.get('subject'); const skill = (q.get('skill') || '').toLowerCase(); const diff = q.get('difficulty'); const text = (q.get('q') || '').toLowerCase(); const lim = Number(q.get('limit') || 30); const off = Number(q.get('offset') || 0);
@@ -252,8 +272,29 @@ module.exports = function assignments(ctx) {
         const doneIds = new Set([...assessments.values()].filter((x) => x.owner === me.login && x.finished_at).flatMap((x) => x.questions.map((y) => y.id)));
         return json(res, 200, { total: found.length, done: page.filter((x) => doneIds.has(x.id)).map((x) => x.id), questions: page.map((x) => ({ id: x.id, type: x.type, domain: x.domain, skill: x.skill, difficulty: x.difficulty, preview: `${x.passage ? x.passage + ' ' : ''}${x.stem}`.replace(/\\\(|\\\)|\*/g, '').slice(0, 140) })) });
       }
+      if (url === '/v1/me/practice/stats') {
+        const log = answerLog.get(me.login) || [];
+        const tz = (t) => new Date(Date.parse(t) + 5 * 3600e3);
+        const subjects = {};
+        for (const s2 of ['math', 'english']) {
+          const qs = bank[s2]; const ids = new Set(qs.map((x) => x.id)); const mine2 = log.filter((x) => ids.has(x.question_id));
+          const solved = new Set(mine2.filter((x) => x.correct).map((x) => x.question_id));
+          const skills = {}; for (const x of qs) if (solved.has(x.id)) skills[x.skill] = (skills[x.skill] || 0) + 1;
+          const doms = new Map(); for (const x of mine2) { const q2 = byId.get(x.question_id); const d = doms.get(q2.domain) || { domain: q2.domain, answers: 0, correct: 0 }; d.answers++; if (x.correct) d.correct++; doms.set(q2.domain, d); }
+          const difficulty = ['easy', 'medium', 'hard'].map((d) => { const r = mine2.filter((x) => byId.get(x.question_id).difficulty === d); const timed = r.filter((x) => x.seconds > 0); return { difficulty: d, answers: r.length, correct: r.filter((x) => x.correct).length, avg_seconds: timed.length ? timed.reduce((n, x) => n + x.seconds, 0) / timed.length : null, site_accuracy: { easy: 0.86, medium: 0.68, hard: 0.47 }[d], site_avg_seconds: { easy: 62, medium: 84, hard: 118 }[d] }; });
+          subjects[s2] = { total: qs.length, attempted: new Set(mine2.map((x) => x.question_id)).size, solved: solved.size, skills, domains: [...doms.values()], difficulty };
+        }
+        const now = tz(new Date().toISOString()); const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
+        const weeks = Array.from({ length: 8 }, (_, i) => { const start = new Date(monday.getTime() - (7 - i) * 7 * 86400e3); const end = new Date(start.getTime() + 7 * 86400e3); const w = { week: start.toISOString().slice(0, 10), correct: {}, wrong: {} }; for (const x of log) { const t = tz(x.at); if (t >= start && t < end) { const d = byId.get(x.question_id)?.difficulty || 'unrated'; const k = x.correct ? 'correct' : 'wrong'; w[k][d] = (w[k][d] || 0) + 1; } } return w; });
+        const days = [...new Set(log.map((x) => tz(x.at).toISOString().slice(0, 10)))].sort().reverse();
+        let streak = 0; let d = now.toISOString().slice(0, 10); if (days[0] !== d) d = new Date(Date.parse(d) - 86400e3).toISOString().slice(0, 10); for (const x of days) { if (x !== d) break; streak++; d = new Date(Date.parse(d) - 86400e3).toISOString().slice(0, 10); }
+        return json(res, 200, { subjects, attempted: new Set(log.map((x) => x.question_id)).size, answers: log.length, correct: log.filter((x) => x.correct).length, saved: (savedQ.get(me.login) || []).length, streak, weeks });
+      }
+      if (url === '/v1/me/practice/saved') return json(res, 200, { questions: (savedQ.get(me.login) || []).map((id) => byId.get(id)).filter(Boolean).map((x) => ({ id: x.id, type: x.type, domain: x.domain, skill: x.skill, difficulty: x.difficulty, preview: `${x.passage ? x.passage + ' ' : ''}${x.stem}`.slice(0, 140) })) });
+      const sv = url.match(/^\/v1\/me\/practice\/saved\/([^/]+)$/);
+      if (sv) { const list = (savedQ.get(me.login) || []).filter((id) => id !== sv[1]); if (req.method === 'PUT') { if (!byId.has(sv[1])) return err(res, 404, 'not_found', 'no such question'); list.unshift(sv[1]); } savedQ.set(me.login, list); return json(res, 204); }
       if (url === '/v1/me/practice/sets' && req.method === 'GET') {
-        return json(res, 200, { free_questions_a_day: perDay, sets: mine().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50).map((x) => ({ id: x.id, practice: x.practice, questions: x.questions.length, created_at: x.created_at, finished_at: x.finished_at, correct: x.result?.correct ?? null, total: x.result?.total ?? null, percent: x.result?.percent ?? null })) });
+        return json(res, 200, { sets: mine().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50).map((x) => ({ id: x.id, practice: x.practice, questions: x.questions.length, created_at: x.created_at, finished_at: x.finished_at, correct: x.result?.correct ?? null, total: x.result?.total ?? null, percent: x.result?.percent ?? null })) });
       }
       if (url === '/v1/me/practice/sets' && req.method === 'POST') {
         const open = mine().find((x) => !x.finished_at);
@@ -262,20 +303,22 @@ module.exports = function assignments(ctx) {
         let picked;
         if (body.question_ids?.length) picked = body.question_ids.map((id) => byId.get(id)).filter(Boolean);
         else {
-          const count = body.count; if (!(count >= 1 && count <= 50)) return err(res, 422, 'invalid_practice', 'count is 1 to 50');
+          const count = body.count; const most = body.mode === 'own_pace' ? 200 : 50; if (!(count >= 1 && count <= most)) return err(res, 422, 'invalid_practice', `count is 1 to ${most}`);
           const skills = (body.skills || []).map((x) => x.toLowerCase()); const diff = body.difficulty || 'mixed';
-          const pool = bank[subject].filter((x) => !skills.length || skills.includes(x.skill.toLowerCase()));
+          const solvedIds = new Set((answerLog.get(me.login) || []).filter((x) => x.correct).map((x) => x.question_id));
+          const pool = bank[subject].filter((x) => (!skills.length || skills.includes(x.skill.toLowerCase())) && !(body.unsolved && solvedIds.has(x.id)));
           const at = (d) => pool.filter((x) => x.difficulty === d).sort(() => Math.random() - 0.5);
           picked = diff === 'mixed' ? [...at('easy').slice(0, Math.floor(count / 3)), ...at('medium').slice(0, count - 2 * Math.floor(count / 3)), ...at('hard').slice(0, Math.floor(count / 3))] : at(diff).slice(0, count);
           if (picked.length < count) picked = [...picked, ...pool.filter((x) => !picked.includes(x)).slice(0, count - picked.length)];
+          if (body.shuffle) picked = picked.sort(() => Math.random() - 0.5);
         }
         if (!picked.length) return err(res, 409, 'no_questions', 'there are no questions for this yet');
-        if (perDay != null) { const today = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10); const used = mine().filter((x) => new Date(Date.parse(x.created_at) + 5 * 3600e3).toISOString().slice(0, 10) === today).reduce((n, x) => n + x.questions.length, 0); if (used + picked.length > perDay) return err(res, 403, 'practice_limit', 'free accounts practise up to 40 questions a day'); }
         const skills = body.question_ids?.length ? [] : body.skills || [];
         const label = { math: 'Math', english: 'Reading and Writing' }[subject];
         const title = body.question_ids?.length === 1 ? `${label} · one question` : skills.length === 1 ? skills[0] : skills.length > 1 ? `${label} · ${skills.length} topics` : `${label} · ${picked.length} questions`;
-        const practice = { title, subject, skills, difficulty: body.difficulty || 'mixed', seconds_per_question: body.seconds_per_question || 0 };
-        const x = { id: `ps${Math.random().toString(16).slice(2, 8)}-0000-4000-8000-${String(assessments.size + 1).padStart(12, '0')}`, owner: me.login, kind: 'practice', roadmap_id: null, lesson_id: null, homework_index: null, assignment: null, title, subject, created_at: iso(Date.now()), finished_at: null, questions: picked.map((y, i) => full(y, i + 1)), answers: {}, times: {}, result: null, practice };
+        const mode = body.mode === 'own_pace' ? 'own_pace' : 'rush';
+        const practice = { title, subject, skills, difficulty: body.difficulty || 'mixed', seconds_per_question: mode === 'own_pace' ? 0 : body.seconds_per_question || 0, mode };
+        const x = { id: `ps${Math.random().toString(16).slice(2, 8)}-0000-4000-8000-${String(assessments.size + 1).padStart(12, '0')}`, owner: me.login, kind: 'practice', roadmap_id: null, lesson_id: null, homework_index: null, assignment: null, title, subject, created_at: iso(Date.now()), finished_at: null, questions: picked.map((y, i) => full(y, i + 1)), answers: {}, times: {}, result: null, practice, checked: {} };
         assessments.set(x.id, x);
         return json(res, 201, ctx.assessmentOut(x));
       }

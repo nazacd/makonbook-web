@@ -1,11 +1,13 @@
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, X, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useStartAssignment } from '@/api/assignments';
 import { describeError } from '@/api/errors';
 import { dueShort } from '@/components/assignments/format';
-import { PracticeOpenError, useStartPractice } from '@/api/practiceSets';
+import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePerson } from '@/lib/practice/hooks';
 import { saveAnswers, useAssessment, useStartAssessment, useSubmitAssessment, type Assessment, type AssessmentQuestion, type AssessmentResult } from '@/api/roadmaps';
 import { Spinner } from '@/components/Button';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
@@ -27,7 +29,7 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 /** Where leaving goes: the assignment's tab, or the roadmap lesson. */
 const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
 export function backOf(a: Assessment): string {
-  if (a.kind === 'practice') return '/questions?tab=history';
+  if (a.kind === 'practice') return a.practice ? `/questions/${a.practice.subject}` : '/questions';
   if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
   return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
 }
@@ -80,6 +82,33 @@ function Run({ a }: { a: Assessment }) {
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
   const back = backOf(a);
   const now = useNow();
+  // At one's own pace: each question is checked as it is answered, once.
+  const ownPace = a.practice?.mode === 'own_pace';
+  const [checks, setChecks] = useState<Record<string, Checked>>(() => {
+    const out: Record<string, Checked> = {};
+    for (const x of a.questions) {
+      if (a.checked?.[x.id] != null) out[x.id] = { correct: a.checked[x.id]!, answer: a.answers[x.id] ?? '', correct_answer: x.correct ?? null, accepted: x.accepted ?? [], explanation: x.explanation ?? '' };
+    }
+    return out;
+  });
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<unknown>(null);
+  const queryClient = useQueryClient();
+  const person = usePerson();
+  const check = () => {
+    const given = answers[q.id];
+    if (!given || checks[q.id]) return;
+    tally();
+    setChecking(true);
+    setCheckError(null);
+    checkQuestion(a.id, q.id, given, times.current[q.id] ?? 0)
+      .then((c) => {
+        setChecks((x) => ({ ...x, [q.id]: c }));
+        void queryClient.invalidateQueries({ queryKey: PRACTICE_STATS_KEY(person) });
+      })
+      .catch(setCheckError)
+      .finally(() => setChecking(false));
+  };
   // A timed practice set: the clock runs from when it was made, a question's time each.
   const secs = a.practice?.seconds_per_question ?? 0;
   const deadline = secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
@@ -133,6 +162,7 @@ function Run({ a }: { a: Assessment }) {
     flush();
   });
   const answer = (value: string | null) => {
+    if (checks[q.id]) return;
     setAnswers((x) => ({ ...x, [q.id]: value }));
     pending.current[q.id] = value;
     clearTimeout(timer.current);
@@ -179,10 +209,15 @@ function Run({ a }: { a: Assessment }) {
       </header>
 
       <main className="mx-auto w-full max-w-[880px] flex-1 px-4 py-6">
-        <Question key={q.id} q={q} n={i + 1} images={images} links={links} value={answers[q.id] ?? null} eliminated={eliminated[q.id] ?? []} onAnswer={answer} onEliminate={(l) => setEliminated((x) => ({ ...x, [q.id]: (x[q.id] ?? []).includes(l) ? x[q.id]!.filter((y) => y !== l) : [...(x[q.id] ?? []), l] }))} />
+        <Question key={q.id} q={q} n={i + 1} images={images} links={links} review={checks[q.id]} save={a.kind === 'practice' ? <SaveButton id={q.id} /> : null} value={answers[q.id] ?? null} eliminated={eliminated[q.id] ?? []} onAnswer={answer} onEliminate={(l) => setEliminated((x) => ({ ...x, [q.id]: (x[q.id] ?? []).includes(l) ? x[q.id]!.filter((y) => y !== l) : [...(x[q.id] ?? []), l] }))} />
         {submit.isError && (
           <div className="mt-4">
             <Notice tone="error" message={describeError(submit.error)} />
+          </div>
+        )}
+        {checkError != null && (
+          <div className="mt-4">
+            <Notice tone="error" message={describeError(checkError)} />
           </div>
         )}
       </main>
@@ -192,7 +227,11 @@ function Run({ a }: { a: Assessment }) {
           <button type="button" onClick={() => setI((x) => Math.max(0, x - 1))} disabled={i === 0} className="flex h-10 items-center gap-1 rounded-full border border-line px-4 text-[14px] font-bold text-ink hover:bg-surface-2 disabled:opacity-40">
             <ChevronLeft size={16} aria-hidden="true" /> Back
           </button>
-          {i < a.questions.length - 1 ? (
+          {ownPace && !checks[q.id] && answers[q.id] ? (
+            <button type="button" onClick={check} disabled={checking} className="lift flex h-10 items-center gap-1.5 rounded-full bg-ink px-5 text-[14px] font-bold text-surface disabled:opacity-60">
+              {checking ? 'Checking…' : 'Check'} <Check size={16} aria-hidden="true" />
+            </button>
+          ) : i < a.questions.length - 1 ? (
             <button type="button" onClick={() => setI((x) => x + 1)} className="lift flex h-10 items-center gap-1 rounded-full bg-primary px-5 text-[14px] font-bold text-on-primary hover:bg-primary-hover">
               Next <ChevronRight size={16} aria-hidden="true" />
             </button>
@@ -209,6 +248,8 @@ function Run({ a }: { a: Assessment }) {
           <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
             {a.questions.map((x, k) => {
               const done = answers[x.id] != null && answers[x.id] !== '';
+              const c = checks[x.id];
+              const look = c ? (c.correct ? 'border-good bg-good-tint text-good' : 'border-bad bg-bad-tint text-bad') : done ? 'border-primary bg-primary text-on-primary' : 'border-dashed border-line-strong text-ink';
               return (
                 <button
                   key={x.id}
@@ -217,8 +258,8 @@ function Run({ a }: { a: Assessment }) {
                     setI(k);
                     setGrid(false);
                   }}
-                  aria-label={`Question ${k + 1}${done ? ', answered' : ''}`}
-                  className={`flex h-11 items-center justify-center rounded-control border text-[14px] font-bold ${k === i ? 'ring-2 ring-primary ring-offset-2' : ''} ${done ? 'border-primary bg-primary text-on-primary' : 'border-dashed border-line-strong text-ink'}`}>
+                  aria-label={`Question ${k + 1}${c ? (c.correct ? ', right' : ', wrong') : done ? ', answered' : ''}`}
+                  className={`flex h-11 items-center justify-center rounded-control border text-[14px] font-bold ${k === i ? 'ring-2 ring-primary ring-offset-2' : ''} ${look}`}>
                   {k + 1}
                 </button>
               );
@@ -254,12 +295,18 @@ function Run({ a }: { a: Assessment }) {
   );
 }
 
-function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminate }: { q: AssessmentQuestion; n: number; images: Record<string, PackageImage>; links: ImageLinks; value: string | null; eliminated: string[]; onAnswer: (v: string | null) => void; onEliminate: (letter: string) => void }) {
+function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminate, review, save }: { q: AssessmentQuestion; n: number; images: Record<string, PackageImage>; links: ImageLinks; value: string | null; eliminated: string[]; onAnswer: (v: string | null) => void; onEliminate: (letter: string) => void; review?: Checked; save?: ReactNode }) {
   return (
     <div className="rise">
       <div className="mb-3 flex items-center gap-2">
         <span className="flex size-8 items-center justify-center rounded-[8px] bg-ink text-[14px] font-bold text-surface">{n}</span>
         {q.difficulty && <span className="t-micro text-ink-3">{q.difficulty}</span>}
+        {review && (
+          <span className={`t-footnote ml-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold ${review.correct ? 'bg-good-tint text-good' : 'bg-bad-tint text-bad'}`}>
+            {review.correct ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : <XCircle size={13} aria-hidden="true" />} {review.correct ? 'Right' : 'Not quite'}
+          </span>
+        )}
+        <span className="ml-auto">{save}</span>
       </div>
       <div className={`grid gap-6 ${q.passage ? 'lg:grid-cols-2' : ''}`}>
         {q.passage && (
@@ -283,9 +330,30 @@ function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminat
               </div>
             )}
           </div>
+          {review && (
+            <section className="rise mt-5 rounded-card border border-line bg-surface p-4" aria-live="polite">
+              <p className="t-subhead font-semibold text-ink">
+                {review.correct ? 'Right.' : 'Not quite.'} The answer is <span className="font-bold">{review.correct_answer ?? review.accepted[0] ?? ''}</span>
+                {!review.correct && review.answer ? <span className="text-ink-2"> · you answered {review.answer}</span> : null}
+              </p>
+              {review.explanation && <RichContent text={review.explanation} images={images} links={links} className="rich t-subhead mt-2 text-ink-2" />}
+            </section>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Saves the question to the student's saved questions (or unsaves it). */
+function SaveButton({ id }: { id: string }) {
+  const saved = useSavedQuestions();
+  const save = useSaveQuestion();
+  const on = (saved.data ?? []).some((q) => q.id === id) !== (save.isPending && save.variables?.id === id);
+  return (
+    <button type="button" onClick={() => save.mutate({ id, on: !on })} aria-pressed={on} aria-label={on ? 'Remove from saved questions' : 'Save this question'} className={`t-footnote inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-semibold ${on ? 'border-primary bg-accent-tint text-accent' : 'border-line text-ink-2 hover:text-ink'}`}>
+      <Bookmark size={14} fill={on ? 'currentColor' : 'none'} aria-hidden="true" /> {on ? 'Saved' : 'Save'}
+    </button>
   );
 }
 

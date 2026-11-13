@@ -178,15 +178,21 @@ hub: students, assignments, a students × lessons roadmap matrix, mock tests,
 vocabulary, problem questions). New assignments notify the group's students
 (`NotificationsDrawer`, unread badge on the bell).
 
-Question bank (spec §22.8; `api/practiceSets.ts`, `screens/practice/QuestionBank`
-at `/questions`): Rush builds a practice set from chosen topics (difficulty,
-how many, time a question at SAT pace or not), Questions browses the bank
-and opens any question on its own, History lists the sets. A set is an
-assessment of kind `practice`, run in `AssessmentRun` (which shows the clock
-for a timed set and hands it in at zero) and graded on submit. One open set
-at a time: starting another answers `practice_open` with it
-(`PracticeOpenError`), to continue or discard. Free accounts: 40 questions
-a school day (`practice_limit`).
+Question bank (spec §22.8; `api/practiceSets.ts`): the hub at `/questions`
+(`screens/practice/QuestionBank`: the two subjects with solved/total, then the
+analytics from `GET /v1/me/practice/stats`: four figures, the weekly trend and,
+per subject, accuracy by topic, time and accuracy by difficulty, in
+`components/practice/BankCharts`; art in `BankArt`, SATMAKON's own), a
+subject's topics at `/questions/:subject` (`BankPages`: difficulty, unsolved
+only, order; choose topics, then at one's own pace or a Question Rush),
+`/questions/saved` and `/questions/history`. Open to every student with a
+phone, no paid tier. A set is an assessment of kind `practice` in
+`AssessmentRun`: a rush is timed and handed in at zero; at one's own pace each
+question is checked (`checkQuestion`) with its answer and explanation, once,
+and can be saved (the bookmark). One open set at a time: starting another
+answers `practice_open` with it (`PracticeOpenError`). The trend's colours:
+right green, wrong red, harder darker (`TREND`), with a legend, tooltips and a
+table.
 
 Universities (spec §24.5; `api/universitySection.ts`): every listed
 university to browse (`screens/universities/Universities`: search, filters
