@@ -44,6 +44,7 @@ module.exports = function assignments(ctx) {
     savedQ.set('demo.student', [bank.math[2].id, bank.english[1].id]);
   }
   const full = (q, position) => ({ id: q.id, position, type: q.type, passage: q.passage, stem: q.stem, choices: q.choices, figures: q.figures, correct: q.correct, accepted: q.accepted, explanation: q.explanation, domain: q.domain, skill: q.skill, difficulty: q.difficulty });
+  ctx.bank = bank; ctx.full = full; // for competitions.cjs
   const right = (q, given) => given != null && (q.type === 'mcq' ? given === q.correct : (q.accepted || []).includes(String(given).trim()));
 
   const groupById = (gid) => Object.values(people).flatMap((p) => p.groups).find((g) => g.id === gid);

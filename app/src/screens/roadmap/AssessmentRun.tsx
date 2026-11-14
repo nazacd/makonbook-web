@@ -1,11 +1,12 @@
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, RotateCcw, Trophy, X, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useStartAssignment } from '@/api/assignments';
 import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
-import { dueShort } from '@/components/assignments/format';
+import { dueLong, dueShort } from '@/components/assignments/format';
+import { isTimeUp, useCompetitionBoard } from '@/api/competitions';
 import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePerson } from '@/lib/practice/hooks';
@@ -30,6 +31,7 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 /** Where leaving goes: the assignment's tab, or the roadmap lesson. */
 const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
 export function backOf(a: Assessment): string {
+  if (a.competition) return `/competitions/${a.competition.id}`;
   if (a.kind === 'practice') return a.practice ? `/questions/${a.practice.subject}` : '/questions';
   if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
   return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
@@ -54,7 +56,9 @@ export function AssessmentRun() {
         </Link>
       </div>
     );
-  return a.data.finished_at ? <Result a={a.data} /> : <Run a={a.data} />;
+  // How far this computer's clock is from the server's, from when the copy was fetched.
+  const skew = a.data.competition ? Date.parse(a.data.competition.server_time) - a.dataUpdatedAt : 0;
+  return a.data.finished_at ? <Result a={a.data} skew={skew} /> : <Run a={a.data} skew={skew} />;
 }
 
 /** The API's image links in the shape RichContent takes. */
@@ -70,7 +74,7 @@ function useImages(a: Assessment) {
   }, [a.images]);
 }
 
-function Run({ a }: { a: Assessment }) {
+function Run({ a, skew }: { a: Assessment; skew: number }) {
   const navigate = useNavigate();
   const submit = useSubmitAssessment(a.id);
   const { images, links } = useImages(a);
@@ -126,7 +130,8 @@ function Run({ a }: { a: Assessment }) {
   };
   // A timed practice set: the clock runs from when it was made, a question's time each.
   const secs = a.practice?.seconds_per_question ?? 0;
-  const deadline = secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
+  // A competition: the server's deadline, on this computer's clock.
+  const deadline = a.competition ? Date.parse(a.competition.deadline) - skew : secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
 
   // Seconds spent on each question: counted while it is on screen and the
   // tab is visible, kept with the answers (the teacher's statistics).
@@ -167,7 +172,8 @@ function Run({ a }: { a: Assessment }) {
     const sendTimes = timesDirty.current;
     timesDirty.current = false;
     if (Object.keys(batch).length || sendTimes)
-      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch(() => {
+      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch((e) => {
+        if (isTimeUp(e)) return; // the competition's time is over: nothing more is taken
         pending.current = { ...batch, ...pending.current };
         timesDirty.current = timesDirty.current || sendTimes;
       });
@@ -202,14 +208,14 @@ function Run({ a }: { a: Assessment }) {
               flush();
               void navigate(back);
             }}
-            aria-label="Save and leave"
+            aria-label={a.competition ? 'Leave (the clock keeps running)' : 'Save and leave'}
             className="flex size-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2">
             <X size={19} />
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-ink">{a.title}</p>
             <p className="t-footnote truncate text-ink-2">
-              {a.kind === 'level_check' ? 'Level check' : a.kind === 'practice' ? 'Practice' : 'Homework'} · {answered}/{a.questions.length} answered
+              {a.kind === 'level_check' ? 'Level check' : a.kind === 'practice' ? 'Practice' : a.kind === 'competition' ? 'Competition' : 'Homework'} · {answered}/{a.questions.length} answered
               {a.assignment && ` · due ${dueShort(a.assignment.due_at, now)}`}
             </p>
           </div>
@@ -372,7 +378,7 @@ function SaveButton({ id }: { id: string }) {
   );
 }
 
-function Result({ a }: { a: Assessment }) {
+function Result({ a, skew }: { a: Assessment; skew: number }) {
   const navigate = useNavigate();
   const r = a.result!;
   const { images, links } = useImages(a);
@@ -396,6 +402,16 @@ function Result({ a }: { a: Assessment }) {
         onError: (e) => e instanceof PracticeOpenError && void navigate(`/assessments/${e.open.id}`),
       },
     );
+  const comp = a.competition;
+  // Until the competition ends, a finished attempt shows its score only.
+  const hidden = !!comp && !comp.ended;
+  const now = useNow();
+  const queryClient = useQueryClient();
+  const endsAt = comp ? Date.parse(comp.ends_at) : 0;
+  useEffect(() => {
+    if (hidden && now + skew >= endsAt) void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] });
+  }, [hidden, now, skew, endsAt, queryClient, a.id]);
+  if (comp) return <CompetitionResult a={a} hidden={hidden} images={images} links={links} />;
   const verdict = practice ? (r.percent >= 80 ? 'Strong work' : r.percent >= 50 ? 'Good practice' : 'Keep going') : level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
   const ring = 2 * Math.PI * 52;
   return (
@@ -535,5 +551,65 @@ function Countdown({ deadline, onEnd }: { deadline: number; onEnd: () => void })
     <span role="timer" aria-label={`${Math.floor(s / 60)} minutes ${s % 60} seconds left`} className={`t-subhead tabular flex h-9 items-center rounded-full px-3 font-bold ${s <= 60 ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink'}`}>
       {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
     </span>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+/** A competition attempt, handed in: the score and the place; the answers once the competition ends. */
+function CompetitionResult({ a, hidden, images, links }: { a: Assessment; hidden: boolean; images: Record<string, PackageImage>; links: ImageLinks }) {
+  const comp = a.competition!;
+  const r = a.result!;
+  const board = useCompetitionBoard(comp.id, hidden);
+  const me = board.data?.me;
+  const ring = 2 * Math.PI * 52;
+  return (
+    <div className="min-h-dvh bg-brand">
+      <div className="mx-auto max-w-[880px] px-4 py-6">
+        <Link to={`/competitions/${comp.id}`} className="t-subhead mb-4 inline-flex items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to the competition
+        </Link>
+        <section className="rise flex flex-col items-center rounded-card border border-line bg-surface p-6 text-center">
+          <p className="t-micro text-ink-3">{comp.title}</p>
+          <div className="relative mt-4 size-[132px]">
+            <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-track)" strokeWidth="10" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-good)" strokeWidth="10" strokeLinecap="round" strokeDasharray={ring} strokeDashoffset={ring * (1 - r.percent / 100)} />
+            </svg>
+            <span className="t-number absolute inset-0 flex flex-col items-center justify-center text-[34px] leading-none text-ink">
+              {r.correct}
+              <span className="t-footnote mt-1 font-semibold text-ink-3">of {r.total}</span>
+            </span>
+          </div>
+          <h1 className="mt-3 text-[24px] font-semibold text-title">{hidden ? 'Handed in' : 'Final result'}</h1>
+          <p className="t-subhead mt-1 max-w-md text-ink-2">
+            {me ? (
+              <>
+                You’re <span className="font-bold text-ink">{ordinal(me.rank)}</span> of {board.data!.participants}
+                {hidden ? ' so far' : ''}.{' '}
+              </>
+            ) : null}
+            {hidden ? `Answers and explanations open when the competition ends, ${dueLong(comp.ends_at)}.` : 'Every question is below with its answer and explanation.'}
+          </p>
+          <Link to={`/competitions/${comp.id}`} className="lift mt-5 flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
+            <Trophy size={16} aria-hidden="true" /> See the board
+          </Link>
+        </section>
+
+        <h2 className="mb-3 mt-6 text-[18px] font-bold text-ink">Your answers</h2>
+        {hidden ? (
+          <div className="flex items-start gap-3 rounded-card border border-line bg-surface p-5">
+            <Lock size={18} className="mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
+            <p className="t-subhead text-ink-2">Others are still taking part, so the answers stay closed until {dueLong(comp.ends_at)}. This page opens them on its own then.</p>
+          </div>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {a.questions.map((q, k) => (
+              <Review key={q.id} q={q} n={k + 1} item={r.items.find((x) => x.question_id === q.id)} images={images} links={links} />
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
   );
 }

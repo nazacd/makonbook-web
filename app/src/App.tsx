@@ -36,6 +36,8 @@ const Study = page(() => import('@/screens/Study'), 'Study');
 const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
 const Unscramble = page(() => import('@/screens/vocab/Unscramble'), 'Unscramble');
 const FillGap = page(() => import('@/screens/vocab/FillGap'), 'FillGap');
+const Competitions = page(() => import('@/screens/competitions/Competitions'), 'Competitions');
+const CompetitionPage = page(() => import('@/screens/competitions/CompetitionPage'), 'CompetitionPage');
 const QuestionBank = page(() => import('@/screens/practice/QuestionBank'), 'QuestionBank');
 const SubjectBank = page(() => import('@/screens/practice/BankPages'), 'SubjectBank');
 const SavedQuestions = page(() => import('@/screens/practice/BankPages'), 'SavedQuestions');
@@ -136,6 +138,8 @@ export function App() {
                   <Route path="/words" element={<Words />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/universities" element={<Universities />} />
+                  <Route path="/competitions" element={<Competitions />} />
+                  <Route path="/competitions/:id" element={<CompetitionPage />} />
                   <Route path="/questions" element={<QuestionBank />} />
                   <Route path="/questions/saved" element={<SavedQuestions />} />
                   <Route path="/questions/history" element={<PracticeSetsHistory />} />
