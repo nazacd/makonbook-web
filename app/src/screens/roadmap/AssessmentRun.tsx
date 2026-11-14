@@ -6,7 +6,7 @@ import { useStartAssignment } from '@/api/assignments';
 import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
 import { dueLong, dueShort } from '@/components/assignments/format';
-import { isTimeUp, useCompetitionBoard } from '@/api/competitions';
+import { clock, isTimeUp, useCompetitionBoard } from '@/api/competitions';
 import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePerson } from '@/lib/practice/hooks';
@@ -195,7 +195,14 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
     pending.current = {};
     tally();
     timesDirty.current = false;
-    submit.mutate({ answers, times: { ...times.current } }, { onSuccess: () => window.scrollTo(0, 0) });
+    submit.mutate(
+      { answers, times: { ...times.current } },
+      {
+        onSuccess: () => window.scrollTo(0, 0),
+        // Handed in already (another tab, or the server graded it when its time ran out): show what the server has.
+        onError: (e) => e instanceof ApiError && e.code === 'finished' && void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] }),
+      },
+    );
   };
 
   return (
@@ -549,7 +556,7 @@ function Countdown({ deadline, onEnd }: { deadline: number; onEnd: () => void })
   const s = Math.ceil(left / 1000);
   return (
     <span role="timer" aria-label={`${Math.floor(s / 60)} minutes ${s % 60} seconds left`} className={`t-subhead tabular flex h-9 items-center rounded-full px-3 font-bold ${s <= 60 ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink'}`}>
-      {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
+      {clock(left)}
     </span>
   );
 }

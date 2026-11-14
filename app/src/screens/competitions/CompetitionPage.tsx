@@ -5,6 +5,8 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { ApiError } from '@/api/client';
 import { clock, useCompetition, useCompetitionBoard, useStartCompetition, type BoardEntry, type Competition } from '@/api/competitions';
 import { describeError } from '@/api/errors';
+import { assessmentKey } from '@/api/roadmaps';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMe } from '@/api/queries';
 import { dueLong } from '@/components/assignments/format';
 import { Avatar } from '@/components/Avatar';
@@ -109,6 +111,12 @@ function Attempt({ c, status, skew }: { c: Competition; status: Competition['sta
   const now = useNow() + skew;
   const student = me?.kind === 'student';
   const mine = c.mine;
+  const queryClient = useQueryClient();
+  // The attempt is read fresh: the server may have graded it since (its time ran out), and a cached open copy would run a clock at zero.
+  const openAttempt = (id: string) => {
+    queryClient.removeQueries({ queryKey: assessmentKey(id) });
+    void navigate(`/assessments/${id}`);
+  };
   const go = () =>
     start.mutate(c.id, {
       onSuccess: (a) => void navigate(`/assessments/${a.id}`),
@@ -122,7 +130,7 @@ function Attempt({ c, status, skew }: { c: Competition; status: Competition['sta
         <p className="t-subhead text-ink-2">
           You handed in <span className="font-bold text-ink">{mine.correct}</span> of {mine.total} right{status === 'ended' ? '.' : '. Answers open when it closes.'}
         </p>
-        <Action icon={ArrowRight} onClick={() => void navigate(`/assessments/${mine.assessment_id}`)}>
+        <Action icon={ArrowRight} onClick={() => openAttempt(mine.assessment_id)}>
           Your result
         </Action>
       </div>
@@ -133,7 +141,7 @@ function Attempt({ c, status, skew }: { c: Competition; status: Competition['sta
         <p className="t-subhead text-ink-2">
           Your attempt is open: <TimeLeft deadline={Date.parse(mine.deadline)} skew={skew} /> left.
         </p>
-        <Action icon={ArrowRight} onClick={() => void navigate(`/assessments/${mine.assessment_id}`)}>
+        <Action icon={ArrowRight} onClick={() => openAttempt(mine.assessment_id)}>
           Continue
         </Action>
       </div>
