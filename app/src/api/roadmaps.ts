@@ -66,7 +66,7 @@ export function useStartAssessment(id: string, lessonId: string) {
   });
 }
 
-const assessmentKey = (id: string) => ['assessment', id] as const;
+export const assessmentKey = (id: string) => ['assessment', id] as const;
 
 export function useAssessment(id: string) {
   return useQuery({
@@ -92,6 +92,7 @@ export function useSubmitAssessment(id: string) {
       // Progress changed: the map, the lesson and the list; and the assignments.
       void queryClient.invalidateQueries({ queryKey: roadmapsKey });
       void queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      void queryClient.invalidateQueries({ queryKey: ['competitions'] });
     },
   });
 }

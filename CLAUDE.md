@@ -178,6 +178,22 @@ hub: students, assignments, a students × lessons roadmap matrix, mock tests,
 vocabulary, problem questions). New assignments notify the group's students
 (`NotificationsDrawer`, unread badge on the bell).
 
+Question bank (spec §22.8; `api/practiceSets.ts`): the hub at `/questions`
+(`screens/practice/QuestionBank`: the two subjects with solved/total, then the
+analytics from `GET /v1/me/practice/stats`: four figures, the weekly trend and,
+per subject, accuracy by topic, time and accuracy by difficulty, in
+`components/practice/BankCharts`; art in `BankArt`, SATMAKON's own), a
+subject's topics at `/questions/:subject` (`BankPages`: difficulty, unsolved
+only, order; choose topics, then at one's own pace or a Question Rush),
+`/questions/saved` and `/questions/history`. Open to every student with a
+phone, no paid tier. A set is an assessment of kind `practice` in
+`AssessmentRun`: a rush is timed and handed in at zero; at one's own pace each
+question is checked (`checkQuestion`) with its answer and explanation, once,
+and can be saved (the bookmark). One open set at a time: starting another
+answers `practice_open` with it (`PracticeOpenError`). The trend's colours:
+right green, wrong red, harder darker (`TREND`), with a legend, tooltips and a
+table.
+
 Universities (spec §24.5; `api/universitySection.ts`): every listed
 university to browse (`screens/universities/Universities`: search, filters
 and sorts kept in the address, cards, the student's own list, saved with
@@ -206,8 +222,20 @@ MIME type for `.mjs`, and the build fails on any `.mjs` output). The books
 are never committed: the mock draws made-up ones, or reads a checkout of the
 private `makonbook-library` with `MOCK_LIBRARY=<folder>`.
 
+Competitions (spec §26; `api/competitions.ts`): timed contests made by
+editors in the admin panel, open to every student with a phone, once each.
+`screens/competitions/Competitions` (live, coming up, ended; an optional
+prize line) and `CompetitionPage` (details, the rules, Take part / Continue /
+Your result, and the board, polled every 15 s while live). An attempt is an
+assessment of kind `competition` in `AssessmentRun`: its countdown is the
+server's `deadline` measured against the server's clock (`server_time` minus
+the query's `dataUpdatedAt`), it hands itself in at zero, a late save answers
+409 `time_up` (dropped, not retried), and until the competition ends the
+result shows the score and place only (`CompetitionResult`), refetching once
+the end passes. Teachers see the list and boards but don't take part.
+
 `app/mock/api.cjs` is a fictional API for working without the real one (its
-header comment says how): the password is `demo-pass` unless
+header comment says how; competitions in `mock/competitions.cjs`, one of them two minutes long to watch the clock run out): the password is `demo-pass` unless
 `MB_DEMO_PASSWORD` says otherwise, SMS and email codes are `123456`, Google
 is `/v1/auth/google/start?as=name&email=…`, and Telegram's page is a small
 form at `/v1/auth/telegram/mock`.

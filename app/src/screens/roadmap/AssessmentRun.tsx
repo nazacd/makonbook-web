@@ -1,17 +1,22 @@
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, RotateCcw, Trophy, X, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useStartAssignment } from '@/api/assignments';
+import { ApiError } from '@/api/client';
 import { describeError } from '@/api/errors';
-import { dueShort } from '@/components/assignments/format';
+import { dueLong, dueShort } from '@/components/assignments/format';
+import { clock, isTimeUp, useCompetitionBoard } from '@/api/competitions';
+import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePerson } from '@/lib/practice/hooks';
 import { saveAnswers, useAssessment, useStartAssessment, useSubmitAssessment, type Assessment, type AssessmentQuestion, type AssessmentResult } from '@/api/roadmaps';
 import { Spinner } from '@/components/Button';
 import { AnswerChoice } from '@/components/practice/AnswerChoice';
 import { GridInInput } from '@/components/practice/GridInInput';
 import { RichContent, type ImageLinks } from '@/components/practice/RichContent';
 import { Notice } from '@/components/Notice';
-import { useNow } from '@/lib/clock';
+import { useFastNow, useNow } from '@/lib/clock';
 import { useTitle } from '@/lib/title';
 import type { PackageImage } from '@/lib/practice/types';
 
@@ -26,6 +31,8 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 /** Where leaving goes: the assignment's tab, or the roadmap lesson. */
 const ASSIGNMENT_TAB = { homework: '/homework', level_check: '/level-checks', exam: '/exams' } as const;
 export function backOf(a: Assessment): string {
+  if (a.competition) return `/competitions/${a.competition.id}`;
+  if (a.kind === 'practice') return a.practice ? `/questions/${a.practice.subject}` : '/questions';
   if (a.assignment) return ASSIGNMENT_TAB[a.assignment.kind];
   return a.roadmap_id && a.lesson_id ? `/roadmaps/${a.roadmap_id}/lessons/${a.lesson_id}` : '/roadmaps';
 }
@@ -49,7 +56,9 @@ export function AssessmentRun() {
         </Link>
       </div>
     );
-  return a.data.finished_at ? <Result a={a.data} /> : <Run a={a.data} />;
+  // How far this computer's clock is from the server's, from when the copy was fetched.
+  const skew = a.data.competition ? Date.parse(a.data.competition.server_time) - a.dataUpdatedAt : 0;
+  return a.data.finished_at ? <Result a={a.data} skew={skew} /> : <Run a={a.data} skew={skew} />;
 }
 
 /** The API's image links in the shape RichContent takes. */
@@ -65,7 +74,7 @@ function useImages(a: Assessment) {
   }, [a.images]);
 }
 
-function Run({ a }: { a: Assessment }) {
+function Run({ a, skew }: { a: Assessment; skew: number }) {
   const navigate = useNavigate();
   const submit = useSubmitAssessment(a.id);
   const { images, links } = useImages(a);
@@ -78,6 +87,51 @@ function Run({ a }: { a: Assessment }) {
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
   const back = backOf(a);
   const now = useNow();
+  // At one's own pace: each question is checked as it is answered, once.
+  const ownPace = a.practice?.mode === 'own_pace';
+  // What the assessment says was checked, with what was checked here since.
+  const [localChecks, setChecks] = useState<Record<string, Checked>>({});
+  const checks: Record<string, Checked> = { ...localChecks };
+  for (const x of a.questions) {
+    if (a.checked?.[x.id] != null && !checks[x.id]) checks[x.id] = { correct: a.checked[x.id]!, answer: a.answers[x.id] ?? '', correct_answer: x.correct ?? null, accepted: x.accepted ?? [], explanation: x.explanation ?? '' };
+  }
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<unknown>(null);
+  const queryClient = useQueryClient();
+  const person = usePerson();
+  const check = () => {
+    const given = answers[q.id];
+    if (!given || checks[q.id]) return;
+    tally();
+    setChecking(true);
+    setCheckError(null);
+    checkQuestion(a.id, q.id, given, times.current[q.id] ?? 0)
+      .then((c) => {
+        setChecks((x) => ({ ...x, [q.id]: c }));
+        // The cached assessment learns it too, so leaving and coming back shows it checked.
+        queryClient.setQueryData<Assessment>(['assessment', a.id], (old) =>
+          old
+            ? {
+                ...old,
+                checked: { ...(old.checked ?? {}), [q.id]: c.correct },
+                answers: { ...old.answers, [q.id]: given },
+                questions: old.questions.map((x) => (x.id === q.id ? { ...x, correct: c.correct_answer ?? undefined, accepted: c.accepted, explanation: c.explanation } : x)),
+              }
+            : old,
+        );
+        void queryClient.invalidateQueries({ queryKey: PRACTICE_STATS_KEY(person) });
+      })
+      .catch((e) => {
+        // Checked already (another tab, or an old copy here): the server's copy says how.
+        if (e instanceof ApiError && e.code === 'already_checked') void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] });
+        else setCheckError(e);
+      })
+      .finally(() => setChecking(false));
+  };
+  // A timed practice set: the clock runs from when it was made, a question's time each.
+  const secs = a.practice?.seconds_per_question ?? 0;
+  // A competition: the server's deadline, on this computer's clock.
+  const deadline = a.competition ? Date.parse(a.competition.deadline) - skew : secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
 
   // Seconds spent on each question: counted while it is on screen and the
   // tab is visible, kept with the answers (the teacher's statistics).
@@ -118,7 +172,8 @@ function Run({ a }: { a: Assessment }) {
     const sendTimes = timesDirty.current;
     timesDirty.current = false;
     if (Object.keys(batch).length || sendTimes)
-      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch(() => {
+      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch((e) => {
+        if (isTimeUp(e)) return; // the competition's time is over: nothing more is taken
         pending.current = { ...batch, ...pending.current };
         timesDirty.current = timesDirty.current || sendTimes;
       });
@@ -128,6 +183,7 @@ function Run({ a }: { a: Assessment }) {
     flush();
   });
   const answer = (value: string | null) => {
+    if (checks[q.id]) return;
     setAnswers((x) => ({ ...x, [q.id]: value }));
     pending.current[q.id] = value;
     clearTimeout(timer.current);
@@ -139,7 +195,14 @@ function Run({ a }: { a: Assessment }) {
     pending.current = {};
     tally();
     timesDirty.current = false;
-    submit.mutate({ answers, times: { ...times.current } }, { onSuccess: () => window.scrollTo(0, 0) });
+    submit.mutate(
+      { answers, times: { ...times.current } },
+      {
+        onSuccess: () => window.scrollTo(0, 0),
+        // Handed in already (another tab, or the server graded it when its time ran out): show what the server has.
+        onError: (e) => e instanceof ApiError && e.code === 'finished' && void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] }),
+      },
+    );
   };
 
   return (
@@ -152,17 +215,18 @@ function Run({ a }: { a: Assessment }) {
               flush();
               void navigate(back);
             }}
-            aria-label="Save and leave"
+            aria-label={a.competition ? 'Leave (the clock keeps running)' : 'Save and leave'}
             className="flex size-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2">
             <X size={19} />
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-ink">{a.title}</p>
             <p className="t-footnote truncate text-ink-2">
-              {a.kind === 'level_check' ? 'Level check' : 'Homework'} · {answered}/{a.questions.length} answered
+              {a.kind === 'level_check' ? 'Level check' : a.kind === 'practice' ? 'Practice' : a.kind === 'competition' ? 'Competition' : 'Homework'} · {answered}/{a.questions.length} answered
               {a.assignment && ` · due ${dueShort(a.assignment.due_at, now)}`}
             </p>
           </div>
+          {deadline != null && <Countdown deadline={deadline} onEnd={() => !submit.isPending && finish()} />}
           <button type="button" onClick={() => setGrid(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-bold text-ink hover:bg-surface-2">
             <LayoutGrid size={15} aria-hidden="true" /> {i + 1} of {a.questions.length}
           </button>
@@ -173,10 +237,15 @@ function Run({ a }: { a: Assessment }) {
       </header>
 
       <main className="mx-auto w-full max-w-[880px] flex-1 px-4 py-6">
-        <Question key={q.id} q={q} n={i + 1} images={images} links={links} value={answers[q.id] ?? null} eliminated={eliminated[q.id] ?? []} onAnswer={answer} onEliminate={(l) => setEliminated((x) => ({ ...x, [q.id]: (x[q.id] ?? []).includes(l) ? x[q.id]!.filter((y) => y !== l) : [...(x[q.id] ?? []), l] }))} />
+        <Question key={q.id} q={q} n={i + 1} images={images} links={links} review={checks[q.id]} save={a.kind === 'practice' ? <SaveButton id={q.id} /> : null} value={answers[q.id] ?? null} eliminated={eliminated[q.id] ?? []} onAnswer={answer} onEliminate={(l) => setEliminated((x) => ({ ...x, [q.id]: (x[q.id] ?? []).includes(l) ? x[q.id]!.filter((y) => y !== l) : [...(x[q.id] ?? []), l] }))} />
         {submit.isError && (
           <div className="mt-4">
             <Notice tone="error" message={describeError(submit.error)} />
+          </div>
+        )}
+        {checkError != null && (
+          <div className="mt-4">
+            <Notice tone="error" message={describeError(checkError)} />
           </div>
         )}
       </main>
@@ -186,7 +255,11 @@ function Run({ a }: { a: Assessment }) {
           <button type="button" onClick={() => setI((x) => Math.max(0, x - 1))} disabled={i === 0} className="flex h-10 items-center gap-1 rounded-full border border-line px-4 text-[14px] font-bold text-ink hover:bg-surface-2 disabled:opacity-40">
             <ChevronLeft size={16} aria-hidden="true" /> Back
           </button>
-          {i < a.questions.length - 1 ? (
+          {ownPace && !checks[q.id] && answers[q.id] ? (
+            <button type="button" onClick={check} disabled={checking} className="lift flex h-10 items-center gap-1.5 rounded-full bg-ink px-5 text-[14px] font-bold text-surface disabled:opacity-60">
+              {checking ? 'Checking…' : 'Check'} <Check size={16} aria-hidden="true" />
+            </button>
+          ) : i < a.questions.length - 1 ? (
             <button type="button" onClick={() => setI((x) => x + 1)} className="lift flex h-10 items-center gap-1 rounded-full bg-primary px-5 text-[14px] font-bold text-on-primary hover:bg-primary-hover">
               Next <ChevronRight size={16} aria-hidden="true" />
             </button>
@@ -203,6 +276,8 @@ function Run({ a }: { a: Assessment }) {
           <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
             {a.questions.map((x, k) => {
               const done = answers[x.id] != null && answers[x.id] !== '';
+              const c = checks[x.id];
+              const look = c ? (c.correct ? 'border-good bg-good-tint text-good' : 'border-bad bg-bad-tint text-bad') : done ? 'border-primary bg-primary text-on-primary' : 'border-dashed border-line-strong text-ink';
               return (
                 <button
                   key={x.id}
@@ -211,8 +286,8 @@ function Run({ a }: { a: Assessment }) {
                     setI(k);
                     setGrid(false);
                   }}
-                  aria-label={`Question ${k + 1}${done ? ', answered' : ''}`}
-                  className={`flex h-11 items-center justify-center rounded-control border text-[14px] font-bold ${k === i ? 'ring-2 ring-primary ring-offset-2' : ''} ${done ? 'border-primary bg-primary text-on-primary' : 'border-dashed border-line-strong text-ink'}`}>
+                  aria-label={`Question ${k + 1}${c ? (c.correct ? ', right' : ', wrong') : done ? ', answered' : ''}`}
+                  className={`flex h-11 items-center justify-center rounded-control border text-[14px] font-bold ${k === i ? 'ring-2 ring-primary ring-offset-2' : ''} ${look}`}>
                   {k + 1}
                 </button>
               );
@@ -248,12 +323,18 @@ function Run({ a }: { a: Assessment }) {
   );
 }
 
-function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminate }: { q: AssessmentQuestion; n: number; images: Record<string, PackageImage>; links: ImageLinks; value: string | null; eliminated: string[]; onAnswer: (v: string | null) => void; onEliminate: (letter: string) => void }) {
+function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminate, review, save }: { q: AssessmentQuestion; n: number; images: Record<string, PackageImage>; links: ImageLinks; value: string | null; eliminated: string[]; onAnswer: (v: string | null) => void; onEliminate: (letter: string) => void; review?: Checked; save?: ReactNode }) {
   return (
     <div className="rise">
       <div className="mb-3 flex items-center gap-2">
         <span className="flex size-8 items-center justify-center rounded-[8px] bg-ink text-[14px] font-bold text-surface">{n}</span>
         {q.difficulty && <span className="t-micro text-ink-3">{q.difficulty}</span>}
+        {review && (
+          <span className={`t-footnote ml-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold ${review.correct ? 'bg-good-tint text-good' : 'bg-bad-tint text-bad'}`}>
+            {review.correct ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : <XCircle size={13} aria-hidden="true" />} {review.correct ? 'Right' : 'Not quite'}
+          </span>
+        )}
+        <span className="ml-auto">{save}</span>
       </div>
       <div className={`grid gap-6 ${q.passage ? 'lg:grid-cols-2' : ''}`}>
         {q.passage && (
@@ -277,13 +358,34 @@ function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminat
               </div>
             )}
           </div>
+          {review && (
+            <section className="rise mt-5 rounded-card border border-line bg-surface p-4" aria-live="polite">
+              <p className="t-subhead font-semibold text-ink">
+                {review.correct ? 'Right.' : 'Not quite.'} The answer is <span className="font-bold">{review.correct_answer ?? review.accepted[0] ?? ''}</span>
+                {!review.correct && review.answer ? <span className="text-ink-2"> · you answered {review.answer}</span> : null}
+              </p>
+              {review.explanation && <RichContent text={review.explanation} images={images} links={links} className="rich t-subhead mt-2 text-ink-2" />}
+            </section>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Result({ a }: { a: Assessment }) {
+/** Saves the question to the student's saved questions (or unsaves it). */
+function SaveButton({ id }: { id: string }) {
+  const saved = useSavedQuestions();
+  const save = useSaveQuestion();
+  const on = (saved.data ?? []).some((q) => q.id === id) !== (save.isPending && save.variables?.id === id);
+  return (
+    <button type="button" onClick={() => save.mutate({ id, on: !on })} aria-pressed={on} aria-label={on ? 'Remove from saved questions' : 'Save this question'} className={`t-footnote inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-semibold ${on ? 'border-primary bg-accent-tint text-accent' : 'border-line text-ink-2 hover:text-ink'}`}>
+      <Bookmark size={14} fill={on ? 'currentColor' : 'none'} aria-hidden="true" /> {on ? 'Saved' : 'Save'}
+    </button>
+  );
+}
+
+function Result({ a, skew }: { a: Assessment; skew: number }) {
   const navigate = useNavigate();
   const r = a.result!;
   const { images, links } = useImages(a);
@@ -296,16 +398,37 @@ function Result({ a }: { a: Assessment }) {
   const retaking = again.isPending || againAssigned.isPending;
   const back = backOf(a);
   const level = a.kind === 'level_check';
-  const verdict = level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
+  const practice = a.kind === 'practice';
+  const startPractice = useStartPractice();
+  const practiseAgain = () =>
+    a.practice &&
+    startPractice.mutate(
+      { subject: a.practice.subject, skills: a.practice.skills, difficulty: a.practice.difficulty, count: Math.min(a.questions.length, a.practice.mode === 'own_pace' ? 200 : 50), seconds_per_question: a.practice.seconds_per_question, mode: a.practice.mode },
+      {
+        onSuccess: (n) => void navigate(`/assessments/${n.id}`),
+        onError: (e) => e instanceof PracticeOpenError && void navigate(`/assessments/${e.open.id}`),
+      },
+    );
+  const comp = a.competition;
+  // Until the competition ends, a finished attempt shows its score only.
+  const hidden = !!comp && !comp.ended;
+  const now = useNow();
+  const queryClient = useQueryClient();
+  const endsAt = comp ? Date.parse(comp.ends_at) : 0;
+  useEffect(() => {
+    if (hidden && now + skew >= endsAt) void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] });
+  }, [hidden, now, skew, endsAt, queryClient, a.id]);
+  if (comp) return <CompetitionResult a={a} hidden={hidden} images={images} links={links} />;
+  const verdict = practice ? (r.percent >= 80 ? 'Strong work' : r.percent >= 50 ? 'Good practice' : 'Keep going') : level ? (r.passed ? 'Passed' : 'Not yet') : 'Homework done';
   const ring = 2 * Math.PI * 52;
   return (
     <div className="min-h-dvh bg-brand">
       <div className="mx-auto max-w-[880px] px-4 py-6">
         <Link to={back} className="t-subhead mb-4 inline-flex items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
-          <ArrowLeft size={16} aria-hidden="true" /> {a.assignment ? `Back to ${a.assignment.kind === 'level_check' ? 'level checks' : 'homework'}` : 'Back to the lesson'}
+          <ArrowLeft size={16} aria-hidden="true" /> {practice ? 'Back to the question bank' : a.assignment ? `Back to ${a.assignment.kind === 'level_check' ? 'level checks' : 'homework'}` : 'Back to the lesson'}
         </Link>
         <section className="rise flex flex-col items-center rounded-card border border-line bg-surface p-6 text-center">
-          <p className="t-micro text-ink-3">{level ? 'Level check complete' : 'Homework complete'}</p>
+          <p className="t-micro text-ink-3">{practice ? 'Practice set complete' : level ? 'Level check complete' : 'Homework complete'}</p>
           <div className="relative mt-4 size-[132px]">
             <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
               <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-track)" strokeWidth="10" />
@@ -316,18 +439,28 @@ function Result({ a }: { a: Assessment }) {
           <h1 className="mt-3 text-[24px] font-semibold text-title">{verdict}</h1>
           <p className="t-subhead mt-1 max-w-md text-ink-2">
             {r.correct} of {r.total} right.{' '}
-            {level && !r.passed ? '70% passes. Read the explanations below, then try again with new questions.' : r.lesson_done ? 'Lesson complete: the next one is open on your map.' : level ? 'Now finish the homework to complete the lesson.' : 'Its mistakes are below, with explanations.'}
+            {practice ? 'Every question is below with its explanation. The ones you missed are the ones to look at.' : level && !r.passed ? '70% passes. Read the explanations below, then try again with new questions.' : r.lesson_done ? 'Lesson complete: the next one is open on your map.' : level ? 'Now finish the homework to complete the lesson.' : 'Its mistakes are below, with explanations.'}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">
             <button type="button" onClick={() => void navigate(r.lesson_done && a.roadmap_id ? `/roadmaps/${a.roadmap_id}` : back)} className="lift flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
-              {r.lesson_done && a.roadmap_id ? 'Back to the map' : a.assignment ? 'Done' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
+              {r.lesson_done && a.roadmap_id ? 'Back to the map' : a.assignment || practice ? 'Done' : 'Back to the lesson'} <ArrowRight size={16} aria-hidden="true" />
             </button>
+            {practice && a.practice && a.questions.length > 1 && (
+              <button type="button" disabled={startPractice.isPending} onClick={practiseAgain} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
+                <RotateCcw size={15} aria-hidden="true" /> {startPractice.isPending ? 'Preparing…' : 'New set, same topics'}
+              </button>
+            )}
             {((level && !r.passed) || a.assignment) && (
               <button type="button" disabled={retaking} onClick={retake} className="flex h-11 items-center gap-1.5 rounded-full border border-line-strong bg-surface px-5 text-[15px] font-bold text-ink hover:bg-surface-2 disabled:opacity-60">
                 <RotateCcw size={15} aria-hidden="true" /> {retaking ? 'Preparing…' : 'Try again'}
               </button>
             )}
           </div>
+          {startPractice.error && !(startPractice.error instanceof PracticeOpenError) && (
+            <div className="mt-4 w-full text-left">
+              <Notice tone="error" message={describeError(startPractice.error)} />
+            </div>
+          )}
         </section>
 
         <h2 className="mb-3 mt-6 text-[18px] font-bold text-ink">Your answers</h2>
@@ -400,6 +533,89 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
           </button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+/** A timed practice set's clock: the time left, red in the last minute; at zero, the set is submitted. */
+function Countdown({ deadline, onEnd }: { deadline: number; onEnd: () => void }) {
+  const now = useFastNow();
+  const left = Math.max(0, deadline - now);
+  const ended = useRef(false);
+  const latest = useRef(onEnd);
+  useEffect(() => {
+    latest.current = onEnd;
+  });
+  useEffect(() => {
+    if (left === 0 && !ended.current) {
+      ended.current = true;
+      latest.current();
+    }
+  }, [left]);
+  const s = Math.ceil(left / 1000);
+  return (
+    <span role="timer" aria-label={`${Math.floor(s / 60)} minutes ${s % 60} seconds left`} className={`t-subhead tabular flex h-9 items-center rounded-full px-3 font-bold ${s <= 60 ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink'}`}>
+      {clock(left)}
+    </span>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+/** A competition attempt, handed in: the score and the place; the answers once the competition ends. */
+function CompetitionResult({ a, hidden, images, links }: { a: Assessment; hidden: boolean; images: Record<string, PackageImage>; links: ImageLinks }) {
+  const comp = a.competition!;
+  const r = a.result!;
+  const board = useCompetitionBoard(comp.id, hidden);
+  const me = board.data?.me;
+  const ring = 2 * Math.PI * 52;
+  return (
+    <div className="min-h-dvh bg-brand">
+      <div className="mx-auto max-w-[880px] px-4 py-6">
+        <Link to={`/competitions/${comp.id}`} className="t-subhead mb-4 inline-flex items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to the competition
+        </Link>
+        <section className="rise flex flex-col items-center rounded-card border border-line bg-surface p-6 text-center">
+          <p className="t-micro text-ink-3">{comp.title}</p>
+          <div className="relative mt-4 size-[132px]">
+            <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-track)" strokeWidth="10" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--color-good)" strokeWidth="10" strokeLinecap="round" strokeDasharray={ring} strokeDashoffset={ring * (1 - r.percent / 100)} />
+            </svg>
+            <span className="t-number absolute inset-0 flex flex-col items-center justify-center text-[34px] leading-none text-ink">
+              {r.correct}
+              <span className="t-footnote mt-1 font-semibold text-ink-3">of {r.total}</span>
+            </span>
+          </div>
+          <h1 className="mt-3 text-[24px] font-semibold text-title">{hidden ? 'Handed in' : 'Final result'}</h1>
+          <p className="t-subhead mt-1 max-w-md text-ink-2">
+            {me ? (
+              <>
+                You’re <span className="font-bold text-ink">{ordinal(me.rank)}</span> of {board.data!.participants}
+                {hidden ? ' so far' : ''}.{' '}
+              </>
+            ) : null}
+            {hidden ? `Answers and explanations open when the competition ends, ${dueLong(comp.ends_at)}.` : 'Every question is below with its answer and explanation.'}
+          </p>
+          <Link to={`/competitions/${comp.id}`} className="lift mt-5 flex h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-[15px] font-bold text-on-primary hover:bg-primary-hover">
+            <Trophy size={16} aria-hidden="true" /> See the board
+          </Link>
+        </section>
+
+        <h2 className="mb-3 mt-6 text-[18px] font-bold text-ink">Your answers</h2>
+        {hidden ? (
+          <div className="flex items-start gap-3 rounded-card border border-line bg-surface p-5">
+            <Lock size={18} className="mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
+            <p className="t-subhead text-ink-2">Others are still taking part, so the answers stay closed until {dueLong(comp.ends_at)}. This page opens them on its own then.</p>
+          </div>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {a.questions.map((q, k) => (
+              <Review key={q.id} q={q} n={k + 1} item={r.items.find((x) => x.question_id === q.id)} images={images} links={links} />
+            ))}
+          </ol>
+        )}
       </div>
     </div>
   );
