@@ -1,4 +1,4 @@
-import { AtSign, Camera, KeyRound, LogOut, Monitor, Moon, Pencil, Sun, type LucideIcon } from 'lucide-react';
+import { AtSign, Camera, KeyRound, LogOut, Monitor, Moon, Pencil, Sparkles, Sun, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -20,6 +20,7 @@ import { useAppearance, type AppearanceMode } from '@/lib/appearance';
 import { useNow } from '@/lib/clock';
 import { normalCase, parseClassName } from '@/lib/groups';
 import { formatDate, schoolDate } from '@/lib/schedule';
+import { burst, SEASON_META, useReducedMotion, useSeason, useSeasonFx } from '@/lib/season';
 import { useTitle } from '@/lib/title';
 
 const MODES: { value: AppearanceMode; label: string; icon: LucideIcon }[] = [
@@ -182,6 +183,7 @@ export function Profile() {
               );
             })}
           </div>
+          <SeasonalEffects />
           <button type="button" onClick={() => void signOut()} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-control border border-line text-[14px] font-bold text-bad hover:bg-bad-tint">
             <LogOut size={16} aria-hidden="true" /> Sign out
           </button>
@@ -199,6 +201,39 @@ export function Profile() {
         />
       )}
       {photo && <PhotoEditor profile={profile} onClose={() => setPhoto(false)} />}
+    </div>
+  );
+}
+
+// The season's particles and scenes, on or off for this browser (the season
+// itself is MakonBook's). Reduced motion turns them off regardless.
+function SeasonalEffects() {
+  const { season, holiday } = useSeason();
+  const [on, setOn] = useSeasonFx();
+  const reduced = useReducedMotion();
+  const meta = SEASON_META[season];
+  return (
+    <div className="mt-4 flex items-center justify-between gap-4 border-t border-line pt-4">
+      <div className="min-w-0">
+        <p className="t-headline text-ink">Seasonal effects</p>
+        <p className="t-footnote text-ink-2">
+          {meta.label} · {meta.uz}: falling {meta.particles}
+          {holiday ? `, and ${holiday.english.replace(/!$/, '')} this week` : ''}. The season itself is chosen by MakonBook.
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on && !reduced}
+        disabled={reduced}
+        onClick={() => {
+          setOn(!on);
+          if (!on) window.setTimeout(() => burst(18), 50);
+        }}
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold ${on && !reduced ? 'border-primary/30 bg-accent-tint text-accent' : 'border-line bg-surface-2 text-ink-2'} disabled:opacity-60`}>
+        <Sparkles size={14} aria-hidden="true" />
+        {reduced ? 'Reduced motion' : on ? 'On' : 'Off'}
+      </button>
     </div>
   );
 }

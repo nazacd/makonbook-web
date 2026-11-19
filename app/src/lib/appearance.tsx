@@ -39,3 +39,16 @@ export function useAppearance() {
   if (!value) throw new Error('useAppearance must be used inside <AppearanceProvider>');
   return value;
 }
+
+/** Whether the page is dark now (the saved choice, or the computer's). */
+export function useIsDark(): boolean {
+  const { mode } = useAppearance();
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const on = () => setSystemDark(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return mode === 'dark' || (mode === 'system' && systemDark);
+}

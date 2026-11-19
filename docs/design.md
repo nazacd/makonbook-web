@@ -39,6 +39,28 @@ Nunito everywhere (`@fontsource-variable/nunito`). Page titles 28–32px/600
 with tight tracking (`PageHeader`); `t-title`…`t-caption` for the rest;
 `t-micro` for labels; `t-number` for big figures.
 
+## Seasons and Mako
+The app wears the season (Tashkent's calendar: Dec–Feb winter, Mar–May
+spring, Jun–Aug summer, Sep–Nov autumn), as the old MakonBook did. It stays
+behind the cards, never over text: two soft colour washes (the season's
+colours at a tenth to a third of their strength, lighter still in dark mode),
+the season's drawing at the top right and bottom right of the student's
+dashboard (a pomegranate branch and cotton in autumn, a blue dome and tandir
+in winter, sumalak and tulips in spring, a grapevine and melons in summer;
+all SATMAKON's own), and a few falling particles, fewer on other pages, none
+on full-screen pages. Holidays (New Year, Navruz, 8 March, the Hayits,
+Independence, Teachers' and Constitution Day) swap the particles and Mako's
+greeting. Everything stops under reduced motion and with Profile →
+"Seasonal effects" off; the washes stay, because they are the theme, not an
+effect.
+
+**Mako the panda** is the mascot: drawn in code, so he has emotions rather
+than poses. He lives at the top of the dashboard beside "Welcome back", with
+his line of the day in a speech bubble and one next step. His lines are
+rule-based and short, from what the page already shows; he is a companion,
+not an assistant, and never claims to be an AI. He wears the season (a
+blossom, a cap, a chinar leaf, a scarf) and celebrates into its particles.
+
 ## Building blocks (`components/ui.tsx`)
 `PageHeader` (icon tile, title, actions) · `Card` · `Widget` + `WidgetLabel`
 (top-tinted card, uppercase label with icon chip) · `Pill` · `Segmented`

@@ -36,14 +36,17 @@ import { UniversityBadge } from '@/components/onboarding/Crest';
 import { Flag } from '@/screens/roadmap/flags';
 import { dueRelative, dueShort } from '@/components/assignments/format';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
+import { MakoHello } from '@/components/mascot/MakoHello';
 import { Skeleton } from '@/components/States';
 import { Progress, Widget, WidgetLabel } from '@/components/ui';
 import { useNow } from '@/lib/clock';
 import { normalCase, parseClassName, roomNumber } from '@/lib/groups';
+import { makoMood } from '@/lib/mako';
+import { useSeason } from '@/lib/season';
 import { useCatalog, useRuns } from '@/lib/practice/hooks';
 import { toRepair, useAnswered, useResolved, type Answered } from '@/lib/practice/mistakes';
 import { testName } from '@/lib/practice/run';
-import { addDays, describeDay, nextClass, schoolDate } from '@/lib/schedule';
+import { addDays, describeDay, formatDate, nextClass, schoolDate } from '@/lib/schedule';
 import { useTitle } from '@/lib/title';
 import { useVocabToday } from '@/lib/vocab/today';
 
@@ -87,14 +90,52 @@ export function Dashboard() {
   const nextTest = catalog.data?.find((t) => t.version != null && !finishedCodes.has(t.code) && !runs.data?.[t.code]);
   const totals = [...attempts].filter((a) => a.total != null).sort((a, b) => a.finished_at.localeCompare(b.finished_at));
 
+  // Days with an answer, a review or a fixed mistake: the streak (This week) and Mako's mood.
+  const reviewDays = vocab.hasDeck ? vocab.log.map((r) => schoolDate(Date.parse(r.reviewed_at))) : [];
+  const activity = activeDays(answered, reviewDays, resolved, now);
+  const { holiday } = useSeason();
+  const top = topSkill(repair);
+  const mood = makoMood({
+    now,
+    due: soon ? { title: testName(soon.title), dueAt: Date.parse(soon.due_at), path: soon.kind === 'exam' ? examPath(soon) : KIND[soon.kind].path, inProgress: soon.mine.status === 'in_progress' } : null,
+    streak: activity.streak,
+    activeToday: activity.active.has(activity.today),
+    weakest: top ? { skill: top.a.skill, count: top.n, path: `/training-hall/drill?${new URLSearchParams({ subject: top.a.subject, domain: top.a.domain, skill: top.a.skill })}` } : null,
+    wordsDue: vocab.hasDeck ? vocab.toStudy : 0,
+    hasGoal: !!goals.data?.target_total,
+    hasGroup: profile.groups.length > 0,
+    holiday,
+    onSetGoal: () => setEditGoals(true),
+  });
+  const dream = goals.data?.university ?? null;
+
   return (
     <div className="mx-auto w-full max-w-[1240px]">
-      <header className="mb-5 flex items-center gap-3 pt-1">
-        <span className="text-[30px] leading-none" aria-hidden="true">
-          👋
-        </span>
-        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em] text-ink">Hi {normalCase(`${profile.first_name} ${profile.last_name}`)}</h1>
-      </header>
+      <MakoHello
+        name={normalCase(profile.first_name)}
+        mood={mood}
+        summary={
+          goals.data?.exam_date || goals.data?.target_total || dream ? (
+            <>
+              {goals.data?.exam_date && (
+                <>
+                  SAT on <b className="font-bold text-ink">{formatDate(goals.data.exam_date).slice(5)} {goals.data.exam_date.slice(0, 4)}</b>.{' '}
+                </>
+              )}
+              {goals.data?.target_total && (
+                <>
+                  Target <b className="font-bold text-ink">{goals.data.target_total}</b>.{' '}
+                </>
+              )}
+              {dream && (
+                <>
+                  Dream university <b className="font-bold text-ink">{dream.name}</b>.
+                </>
+              )}
+            </>
+          ) : undefined
+        }
+      />
 
       <div className="grid gap-3.5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.85fr)_minmax(0,1fr)]">
         <div className="lg:col-span-2 xl:col-span-1">
@@ -106,7 +147,7 @@ export function Dashboard() {
 
       <div className="mt-3.5 grid gap-3.5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Mistakes repair={repair} attempts={attempts.length} fixed={Object.keys(resolved).length} loading={isPending} />
-        <ThisWeek answered={answered} reviewDays={vocab.hasDeck ? vocab.log.map((r) => schoolDate(Date.parse(r.reviewed_at))) : []} resolved={resolved} now={now} />
+        <ThisWeek answered={answered} activity={activity} />
       </div>
 
       <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
@@ -392,7 +433,10 @@ function Mistakes({ repair, attempts, fixed, loading }: { repair: Answered[]; at
   );
 }
 
-function ThisWeek({ answered, reviewDays, resolved, now }: { answered: Answered[]; reviewDays: string[]; resolved: Record<string, string>; now: number }) {
+type Activity = { today: string; /** The last 14 days, oldest first. */ days: string[]; byDay: Map<string, { right: number; all: number }>; /** Days with an answer, a review or a fixed mistake. */ active: Set<string>; /** Days in a row up to today. */ streak: number; /** Active days of the last 7. */ week: number };
+
+/** What the student did on which day (the streak, the 14-day strip). */
+function activeDays(answered: Answered[], reviewDays: string[], resolved: Record<string, string>, now: number): Activity {
   const today = schoolDate(now);
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
   const byDay = new Map<string, { right: number; all: number }>();
@@ -407,6 +451,11 @@ function ThisWeek({ answered, reviewDays, resolved, now }: { answered: Answered[
   let streak = 0;
   for (let d = today; active.has(d); d = addDays(d, -1)) streak++;
   const week = days.slice(7).filter((d) => active.has(d)).length;
+  return { today, days, byDay, active, streak, week };
+}
+
+function ThisWeek({ answered, activity }: { answered: Answered[]; activity: Activity }) {
+  const { days, byDay, active, streak, week } = activity;
   const recent = answered.filter((a) => days.includes(schoolDate(Date.parse(a.at))));
   const share = (subject: 'math' | 'english') => {
     const list = recent.filter((a) => a.subject === subject);

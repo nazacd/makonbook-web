@@ -234,6 +234,29 @@ the query's `dataUpdatedAt`), it hands itself in at zero, a late save answers
 result shows the score and place only (`CompetitionResult`), refetching once
 the end passes. Teachers see the list and boards but don't take part.
 
+Mako and the seasons (web only, from the old MakonBook's V70 themes;
+`docs/design.md` "Seasons and Mako"): **Mako the panda** is SATMAKON's
+mascot, a vector rig in `components/mascot/Panda` (13 emotions by
+`data-emotion`, the `.pd-*` CSS in `styles.css`; pupils follow the pointer,
+he blinks, and the parent drives him through `PandaHandle`: `set`, `setBase`,
+`talk`, `perk`). On the dashboard `MakoHello` is the header: "Welcome back",
+the SAT summary, his bubble with the mood from `lib/mako.ts` (rule-based,
+from the page's own data: work due, the streak, the weakest skill, words due,
+the goals; never an AI, never invented numbers) and one next step at a time;
+pokes, five in a row makes him cross, a double press celebrates. Onboarding's
+`Mascot` slots are his poses. The **season** is `lib/season.ts`: from the
+Tashkent calendar (`?season=…&holiday=…` previews one for the tab; `auto`
+clears), with fixed holidays and the dated Hayits (update each year like
+`satDates.ts`). `components/season/SeasonLayer` sits in `AppShell` at
+z-index -1 (`.mbs-*`): the washes, the four scenes (`scenes.tsx`, SATMAKON's
+own drawings, with a day and night sky) on the student's dashboard, the
+particle canvas (`particles.ts`, pre-rendered sprites, wind from the
+pointer, paused when hidden, fewer on other pages, none under reduced
+motion or when Profile → "Seasonal effects" is off: `useSeasonFx`). A
+holiday swaps the mix and Mako's greeting; `burst()` throws particles for
+his celebrations. The logo wears `SeasonOrnament`. Nothing of this talks to
+the API yet (a pinned season would come through `/v1/app/config`).
+
 `app/mock/api.cjs` is a fictional API for working without the real one (its
 header comment says how; competitions in `mock/competitions.cjs`, one of them two minutes long to watch the clock run out): the password is `demo-pass` unless
 `MB_DEMO_PASSWORD` says otherwise, SMS and email codes are `123456`, Google
