@@ -182,7 +182,7 @@ export function AchievementTree({ g, now }: { g: Gamification; now: number }) {
   const dx = Math.floor((width - W) / 2);
   const pos = new Map(nodes.map((n) => [n.code, at(n, dx)]));
 
-  // The pit's picture: public/achievements/pit.png when it is there (the
+  // The pit's picture: public/achievements/pit.webp when it is there (the
   // owner's own, generated to brief), covering the pit, repeated sideways on
   // very wide windows; otherwise the blocks drawn in code.
   useEffect(() => {
@@ -203,7 +203,7 @@ export function AchievementTree({ g, now }: { g: Gamification; now: number }) {
     img.onerror = () => {
       if (!gone) paintPit(el, width, H);
     };
-    img.src = '/achievements/pit.png';
+    img.src = '/achievements/pit.webp';
     return () => {
       gone = true;
     };

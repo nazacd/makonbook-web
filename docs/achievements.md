@@ -34,7 +34,7 @@ get thirteen at once.
 
 The Progress page shows the achievements as the old games did: a window
 with a bevelled grey frame, and inside it a pit of blocks that scrolls and
-drags: `app/public/achievements/pit.png` when it is there (generated to the
+drags: `app/public/achievements/pit.webp` when it is there (generated to the
 owner's brief: an underground cross-section, no sky, grass and dirt at the
 top edge, stone darkening to bedrock, ore by depth, tiling sideways), else
 blocks drawn in code, with the achievements laid out as a tree over
