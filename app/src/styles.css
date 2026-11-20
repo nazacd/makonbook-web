@@ -707,7 +707,10 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 }
 .mc-toast.is-in { transform: none; }
 .mc-card { padding: 8px 12px 8px 8px; }
-.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 48px; height: 48px; flex: none; image-rendering: pixelated; }
+.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 48px; height: 48px; flex: none; }
+.mc-badge { position: relative; display: inline-grid; place-items: center; flex: none; }
+.mc-badge > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.mc-badge > svg { position: relative; }
 .mc-toast-text, .mc-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mc-toast-head, .mc-card-head { font-size: 15px; line-height: 18px; color: var(--mc-head); text-shadow: 2px 2px 0 var(--mc-shadow); }
 .mc-toast[data-kind="challenge"] .mc-toast-head, .mc-card[data-kind="challenge"] .mc-card-head { color: var(--mc-head-challenge); }
