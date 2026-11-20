@@ -30,32 +30,40 @@ hasn't shown yet (`mb.toasts.seen.<person>`): the first look on a device
 marks everything seen without a toast, so an account with history doesn't
 get thirteen at once.
 
-## The list today (spec 27)
+## The window (`components/achievements/Tree.tsx`)
 
-First Step, Momentum, Four Digits · Scholar, Double Digits (C) · Three-Day
-Spark, Week Warrior, Month of Momentum (C) · Century, Five Hundred, Two
-Thousand (C) · Quest Habit, Quest Regular (C).
+The Progress page shows the achievements as the old games did: a window
+with a bevelled grey frame, and inside it a pit of blocks drawn in code
+(dirt at the top, stone darkening to bedrock, ore in little clusters by
+depth) that scrolls and drags, with the achievements laid out as a tree over
+it. Each hangs from the one before it (`LAYOUT`: grid cells and a parent),
+joined by elbowed arrows that brighten once the child is earned. Earned ones
+sit in grey frames; the rest in purple, their icons dimmed; a secret shows a
+padlock and "???". Hover or press a frame for a slab tooltip. A List toggle
+shows the same achievements as slabs, for reading and for keyboards.
 
-## Next batch (agreed, not built)
+## The list (spec 27, 36 of them)
 
-Needs a column or two on the ledger (the percentage or score of the thing
-done, the time of day) and a few hooks. C = challenge, S = secret until earned.
+Tiers: A advancement (square), G goal (rounded), C challenge (jagged); S secret.
 
-- **Getting started:** Getting Words (first review), Pencil Age (first mock
-  test), Open Book (first page read), Front Row (first lesson attended).
-- **Streak:** Unbreakable (100 days, C), Comeback (back after two weeks away, S).
-- **Answers:** Ten Thousand (C), Sniper (20 right in a row in one assessment, C).
-- **Tests and scores:** Marathon (10 mocks), Perfect Set (100 % on 10+
-  questions), On Target (a mock at or above the target), 1500 Club (C), Full
-  Marks (1600, C, S).
-- **Words:** Wordsmith (500 reviews), Lexicon (2,000), Pair of Aces (a Pairs
-  round with no mistakes).
-- **Time of day:** Night Owl (S), Early Bird (S), Weekend Scholar.
-- **Quests:** Full House (all three dailies in a day), Clean Sweep (all six in
-  a week, C).
-- **Out in the world:** Contender (first competition), Podium (top three, C),
-  Dream Set (dream university chosen), Bookworm (reading on 10 days), Regular
-  (20 lessons attended), **Graduation** (a roadmap course finished; the cap
-  icon is drawn).
-- **When video lessons exist:** Watching the Video (the first one watched to
-  the end; the heart icon).
+- **Getting started:** First Step (A), Pencil Age (first mock, A), Getting
+  Words (first review, A), Open Book (first page, A), Front Row (first lesson
+  scanned in, A), Dream Set (dream university, A).
+- **XP and levels:** Momentum 500 (A), Four Digits 1,000 (A), Scholar level 5
+  (G), Double Digits level 10 (C).
+- **Streak:** Three-Day Spark (A), Week Warrior (G), Month of Momentum (C),
+  Unbreakable 100 days (C), Weekend Scholar (A), Comeback (A, S).
+- **Answers:** Century (A), Five Hundred (A), Two Thousand (C), Ten Thousand (C).
+- **Tests and scores:** Marathon 10 mocks (G), Perfect Set (G), On Target (G),
+  1500 Club (C), Full Marks (C, S).
+- **Words:** Wordsmith 500 reviews (A), Lexicon 2,000 (G).
+- **The clock:** Night Owl (A, S), Early Bird (A, S).
+- **Quests:** Quest Habit (A), Quest Regular (C), Full House (G), Clean Sweep (C).
+- **The world:** Bookworm (G), Regular 20 lessons (G), Contender (A).
+
+## Still to come
+
+Need hooks the API doesn't have yet: Podium (top three in a competition),
+Graduation (a roadmap course finished; the cap icon is drawn), Sniper (20
+right in a row), Pair of Aces (a Pairs round with no mistakes), and Watching
+the Video once video lessons exist (the heart icon).

@@ -16,10 +16,7 @@ import { chime } from '@/lib/sounds';
 // first look on a device marks everything as seen without a toast. Pressing
 // a toast opens the Progress page.
 
-/** The hard ones: a purple header, as the old games mark a challenge. */
-export const CHALLENGE = new Set(['streak_30', 'answers_2000', 'level_10', 'quests_25']);
-
-type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: PixelIconName };
+type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: PixelIconName; shape?: FrameShape };
 type Seen = { achievements: Record<string, string>; quests: Record<string, string> };
 
 /** The frame's shape per kind: square, rounded for a goal, jagged for a challenge. */
@@ -55,7 +52,7 @@ export function fresh(g: Gamification, seen: Seen | null, now = new Date()): { t
     if (!a.unlocked_at) continue;
     next.achievements[a.code] = a.unlocked_at;
     if (seen && seen.achievements[a.code] !== a.unlocked_at) {
-      toasts.push({ id: `a:${a.code}:${a.unlocked_at}`, kind: CHALLENGE.has(a.code) ? 'challenge' : 'achievement', title: a.title, icon: ICON_OF[a.code] ?? 'star' });
+      toasts.push({ id: `a:${a.code}:${a.unlocked_at}`, kind: a.tier === 'challenge' ? 'challenge' : 'achievement', title: a.title, icon: ICON_OF[a.code] ?? 'star', shape: a.tier });
     }
   }
   for (const q of [...g.quests.daily, ...g.quests.weekly]) {
@@ -136,7 +133,7 @@ export function AchievementToasts() {
         }}
         aria-label={`${head} ${current.title}. ${current.kind === 'nudge' ? 'Open the dashboard.' : 'Open your progress.'}`}>
         <span className="mc-toast-icon">
-          <Badge icon={current.icon} shape={SHAPE[current.kind]} done size={48} />
+          <Badge icon={current.icon} shape={current.shape ?? SHAPE[current.kind]} done size={48} />
         </span>
         <span className="mc-toast-text">
           <span className="mc-toast-head">{head}</span>
