@@ -195,7 +195,7 @@ export function useRecordGame() {
   const queryClient = useQueryClient();
   return (result: GameResultIn) => {
     writePending(person, [...readPending(person), result]);
-    void sendGames(person).then(() => Promise.all([queryClient.invalidateQueries({ queryKey: ['vocab-games', person] }), queryClient.invalidateQueries({ queryKey: ['vocab-board'] })]));
+    void sendGames(person).then(() => Promise.all([queryClient.invalidateQueries({ queryKey: ['vocab-games', person] }), queryClient.invalidateQueries({ queryKey: ['vocab-board'] }), queryClient.invalidateQueries({ queryKey: ['gamification'] })]));
   };
 }
 

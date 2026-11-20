@@ -93,6 +93,7 @@ export function useSubmitAssessment(id: string) {
       void queryClient.invalidateQueries({ queryKey: roadmapsKey });
       void queryClient.invalidateQueries({ queryKey: ['assignments'] });
       void queryClient.invalidateQueries({ queryKey: ['competitions'] });
+      void queryClient.invalidateQueries({ queryKey: ['gamification'] }); // XP, quests, achievements (spec 27)
     },
   });
 }

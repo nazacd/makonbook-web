@@ -1,6 +1,8 @@
-import { Award, CalendarCheck, Flame, Lock, Medal, Sparkles, Target, Trophy, type LucideIcon } from 'lucide-react';
+import { Award, CalendarCheck, Flame, Medal, Sparkles, Trophy } from 'lucide-react';
 
 import { useGamification, xp, type Gamification, type Quest } from '@/api/gamification';
+import { ICON_OF, PixelIcon } from '@/components/achievements/PixelIcon';
+import { CHALLENGE } from '@/components/achievements/Toasts';
 import { ErrorState, Skeleton } from '@/components/States';
 import { PageHeader, Progress as Bar, Widget, WidgetLabel } from '@/components/ui';
 import { useNow } from '@/lib/clock';
@@ -12,12 +14,6 @@ import { useTitle } from '@/lib/title';
 // All of it comes from the server; nothing is computed here.
 
 const ACCENT = { level: 'var(--color-primary)', streak: 'var(--color-amber)', quests: 'var(--color-teal)', badges: 'var(--color-violet)', recent: 'var(--color-slate)' };
-
-const BADGE_ICON: Record<string, LucideIcon> = {
-  first_xp: Sparkles, xp_500: Sparkles, xp_1000: Sparkles, level_5: Medal, level_10: Medal,
-  streak_3: Flame, streak_7: Flame, streak_30: Flame, answers_100: Target, answers_500: Target, answers_2000: Target,
-  quests_5: CalendarCheck, quests_25: CalendarCheck,
-};
 
 export function Progress() {
   useTitle('Your progress');
@@ -101,20 +97,26 @@ function Loaded({ g, now }: { g: Gamification; now: number }) {
 
       <Widget accent={ACCENT.badges} className="mt-3.5">
         <WidgetLabel icon={Award} label="Achievements" accent={ACCENT.badges} right={<span className="t-caption text-ink-2">{unlocked} of {g.achievements.length}</span>} />
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {g.achievements.map((a) => {
-            const I = BADGE_ICON[a.code] ?? Award;
             const on = !!a.unlocked_at;
+            const challenge = CHALLENGE.has(a.code);
             return (
-              <li key={a.code} className={`flex items-center gap-3 rounded-control border p-3 ${on ? 'border-primary/25 bg-accent-tint/60' : 'border-line bg-surface-2'}`}>
-                <span className={`flex size-10 shrink-0 items-center justify-center rounded-full ${on ? 'bg-primary text-on-primary' : 'bg-surface text-ink-3'}`}>
-                  {on ? <I size={18} aria-hidden="true" /> : <Lock size={16} aria-hidden="true" />}
+              <li key={a.code} className={`mc-card ${on ? '' : 'is-locked'}`} data-kind={challenge ? 'challenge' : 'achievement'} title={a.description}>
+                <span className="mc-card-icon">
+                  <PixelIcon name={on ? (ICON_OF[a.code] ?? 'star') : 'lock'} size={32} />
                 </span>
-                <span className="min-w-0">
-                  <span className={`t-headline block ${on ? 'text-ink' : 'text-ink-2'}`}>{a.title}</span>
-                  <span className="t-caption block font-medium text-ink-2">
+                <span className="mc-card-text flex-1">
+                  <span className="mc-card-head">{on ? (challenge ? 'Challenge complete!' : 'Achievement unlocked!') : challenge ? 'Challenge' : 'Achievement'}</span>
+                  <span className="mc-card-title">{a.title}</span>
+                  <span className="mc-card-sub">
                     {a.description} {on ? `Unlocked ${relativeDay(Date.parse(a.unlocked_at!), now)}.` : `${xp(a.progress)} / ${xp(a.target)}`}
                   </span>
+                  {!on && (
+                    <span className="mc-card-bar" aria-hidden="true">
+                      <i style={{ width: `${Math.min(100, (100 * a.progress) / Math.max(1, a.target))}%` }} />
+                    </span>
+                  )}
                 </span>
               </li>
             );

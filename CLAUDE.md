@@ -267,6 +267,14 @@ and its XP bar; `/progress` (`screens/Progress`, sidebar Progress) is the
 whole picture; Mako celebrates a level reached today or all daily quests
 done (`lib/mako.ts`). The mock keeps a made-up ledger in
 `mock/gamification.cjs` and awards for attempts, submits and reviews.
+Achievements look like the old games' advancement toasts (`docs/achievements.md`;
+`components/achievements/`): `PixelIcon` draws 16-pixel icons in code,
+`AchievementToasts` (in `AppShell`) slides a slab in at the top right for each
+unlock, quest done, the evening nudge and the cobwebs, once per device
+(`mb.toasts.seen.<person>`), with a synthesised chime (`lib/sounds.ts`,
+Profile → Sounds); the `.mc-*` styles and the pixel font (Pixelify Sans,
+self-hosted, toasts and slabs only). Calls that earn XP invalidate
+`['gamification']` so the toast comes at once.
 
 Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
 the Customise menu in the header, a tick per widget, kept in this browser as
