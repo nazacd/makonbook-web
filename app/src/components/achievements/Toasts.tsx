@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { needsPhone } from '@/api/accounts';
 import { useGamification, type Gamification } from '@/api/gamification';
 import { useMe } from '@/api/queries';
-import { ICON_OF, PixelIcon, type PixelIconName } from '@/components/achievements/PixelIcon';
+import { Badge, ICON_OF, type FrameShape, type PixelIconName } from '@/components/achievements/PixelIcon';
 import { usePerson } from '@/lib/practice/hooks';
 import { burst } from '@/lib/season';
 import { chime } from '@/lib/sounds';
@@ -21,6 +21,9 @@ export const CHALLENGE = new Set(['streak_30', 'answers_2000', 'level_10', 'ques
 
 type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: PixelIconName };
 type Seen = { achievements: Record<string, string>; quests: Record<string, string> };
+
+/** The frame's shape per kind: square, rounded for a goal, jagged for a challenge. */
+const SHAPE: Record<Toast['kind'], FrameShape> = { achievement: 'advancement', challenge: 'challenge', quest: 'goal', none: 'advancement', nudge: 'advancement' };
 
 const HOLD = 5000;
 const SLIDE = 450;
@@ -133,7 +136,7 @@ export function AchievementToasts() {
         }}
         aria-label={`${head} ${current.title}. ${current.kind === 'nudge' ? 'Open the dashboard.' : 'Open your progress.'}`}>
         <span className="mc-toast-icon">
-          <PixelIcon name={current.icon} size={32} />
+          <Badge icon={current.icon} shape={SHAPE[current.kind]} done size={48} />
         </span>
         <span className="mc-toast-text">
           <span className="mc-toast-head">{head}</span>
