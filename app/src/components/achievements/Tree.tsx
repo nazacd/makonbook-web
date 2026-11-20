@@ -59,6 +59,11 @@ const LAYOUT: Node[] = [
   { code: 'front_row', col: 2, row: 7, parent: 'dream_set' },
   { code: 'regular', col: 1, row: 7, parent: 'front_row' },
   { code: 'contender', col: 2, row: 8, parent: 'front_row' },
+  { code: 'podium', col: 1, row: 8, parent: 'contender' },
+  { code: 'graduation', col: 0, row: 7, parent: 'regular' },
+  // the sharpshooters
+  { code: 'sniper', col: 6, row: 6, parent: 'answers_2000' },
+  { code: 'pair_of_aces', col: 4, row: 7, parent: 'getting_words' },
 ];
 
 const CELL = 76; // grid pitch

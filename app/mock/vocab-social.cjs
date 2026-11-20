@@ -39,6 +39,8 @@ function deckOut(d, login, teacher, withWords) {
   };
 }
 
+const gamification = require('./gamification.cjs');
+
 function route(url, req, res, body, me, json, err) {
   const login = me.login;
   const student = me.kind === 'student';
@@ -57,6 +59,12 @@ function route(url, req, res, body, me, json, err) {
       added++;
     }
     games.set(login, list);
+    // XP for the rounds (spec 27), a day's row that grows up to the cap; a clean Pairs round is Pair of Aces.
+    for (const day of new Set((body.results || []).map((g) => tz(g.played_at)))) {
+      const mine = list.filter((x) => tz(x.played_at) === day);
+      gamification.award(login, { source_key: `games:${day}`, title: 'Word games', amount: Math.min(100, mine.reduce((a, x) => a + x.score * 2, 0)), happened_at: `${day}T12:00:00+05:00`, metrics: { right_answers: mine.reduce((a, x) => a + x.score, 0) }, replace: true });
+    }
+    if ((body.results || []).some((g) => g.game === 'pairs' && g.mistakes === 0)) gamification.perfectPairs(login);
     return json(res, 200, { received: (body.results || []).length, added }), true;
   }
   if (url === '/v1/me/vocab/games') {

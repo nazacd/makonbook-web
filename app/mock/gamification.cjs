@@ -62,6 +62,10 @@ const ACHIEVEMENTS = [
   ['bookworm', 'Bookworm', 'Reading on ten days.', 'reading_days', 10, G],
   ['regular', 'Regular', 'Twenty lessons, scanned in.', 'lessons', 20, G],
   ['contender', 'Contender', 'Take part in a competition.', 'competitions', 1, A],
+  ['podium', 'Podium', 'Top three in a competition.', 'podiums', 1, C],
+  ['graduation', 'Graduation', 'A whole roadmap course finished.', 'graduations', 1, C],
+  ['sniper', 'Sniper', 'Twenty right in a row in one test or assessment.', 'best_run', 20, C],
+  ['pair_of_aces', 'Pair of Aces', 'A round of Pairs with no mistakes.', 'perfect_pairs', 1, A],
 ].map(([code, title, description, key, target, tier, secret]) => ({ code, title, description, key, target, tier, secret: !!secret }));
 
 const ledgers = new Map(); // login -> { events: Map(source_key -> event), quests: Map(code:period -> row), unlocked: Map(code -> at), right: number }
@@ -113,20 +117,25 @@ function figures(L, today) {
     early: ev.filter((e) => !e.source_key.startsWith('quest:') && hourOf(e.happened_at) >= 4 && hourOf(e.happened_at) < 7).length,
     full_days: Object.values(byPeriod).filter((n) => n === 3).length, full_weeks: Object.values(byPeriod).filter((n) => n === 6).length,
     dream: goals.university_id ? 1 : 0, on_target: goals.target_total && bestScore >= goals.target_total ? 1 : 0, weekend, comeback,
+    best_run: Math.max(0, ...ev.map((e) => e.run || 0)), graduations: kind('graduation').length, podiums: kind('podium').length,
+    perfect_pairs: L.perfectPairs ? 1 : 0,
   };
 }
+
+/** A Pairs round with no mistakes (api.cjs tells us when the games come in). */
+function perfectPairs(login) { ledger(login).perfectPairs = true; }
 
 /** The student's goals, for Dream Set and On Target (api.cjs keeps them in step). */
 function setGoals(login, goals) { ledger(login).goals = goals; }
 
 /** Record something done: `metrics` feed the quests ({ right_answers, reviews, finished }). */
-function award(login, { source_key, title, amount, happened_at = new Date().toISOString(), metrics = {}, replace = false, kind, percent, questions, score, units }) {
+function award(login, { source_key, title, amount, happened_at = new Date().toISOString(), metrics = {}, replace = false, kind, percent, questions, score, units, run }) {
   const L = ledger(login);
   const before = levelOf(total(L));
   const had = L.events.get(source_key);
   if (had && !replace) return;
   if (had) { L.right -= had.right || 0; }
-  L.events.set(source_key, { source_key, title, amount, happened_at, right: metrics.right_answers || 0, kind, percent, questions, score, units: units ?? metrics.reviews ?? 0 });
+  L.events.set(source_key, { source_key, title, amount, happened_at, right: metrics.right_answers || 0, kind, percent, questions, score, units: units ?? metrics.reviews ?? 0, run: run || 0 });
   L.right += metrics.right_answers || 0;
   const day = dayOf(happened_at);
   // quests of that day and week
@@ -185,10 +194,10 @@ function seed(login) {
   for (let d = 32; d >= 1; d--) {
     const day = addDays(today, -d);
     award(login, { source_key: `vocab:${day}`, title: 'Word reviews', amount: 14 + (d % 5) * 4, happened_at: at(d, 9), metrics: { reviews: 14 + (d % 5) * 4 } });
-    award(login, { source_key: `attempt:seed-${d}`, title: `Day ${1 + (d % 6)} mock test`, amount: 30 + 58 + (d % 7), happened_at: at(d, d === 3 ? 1 : 16), metrics: { right_answers: 58 + (d % 7), finished: 1 }, questions: 98, percent: Math.round(((58 + (d % 7)) * 100) / 98), score: 1280 + (d % 7) * 30 });
+    award(login, { source_key: `attempt:seed-${d}`, title: `Day ${1 + (d % 6)} mock test`, amount: 30 + 58 + (d % 7), happened_at: at(d, d === 3 ? 1 : 16), metrics: { right_answers: 58 + (d % 7), finished: 1 }, questions: 98, percent: Math.round(((58 + (d % 7)) * 100) / 98), score: 1280 + (d % 7) * 30, run: 9 + (d % 8) });
     award(login, { source_key: `assessment:seed-${d}`, title: 'Homework set finished', amount: 15 + 8 + (d % 3), happened_at: at(d, 19), metrics: { right_answers: 8 + (d % 3), finished: 1 }, questions: 10, percent: 80 + (d % 3) * 10 });
     if (d % 4 === 0) award(login, { source_key: `read:${day}`, title: 'A page read in the Library', amount: 5, happened_at: at(d, 21) });
   }
 }
 
-module.exports = { award, state, seed, dayOf, setGoals };
+module.exports = { award, state, seed, dayOf, setGoals, perfectPairs };
