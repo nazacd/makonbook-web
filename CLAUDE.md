@@ -257,6 +257,11 @@ holiday swaps the mix and Mako's greeting; `burst()` throws particles for
 his celebrations. The logo wears `SeasonOrnament`. Nothing of this talks to
 the API yet (a pinned season would come through `/v1/app/config`).
 
+Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
+the Customise menu in the header, a tick per widget, kept in this browser as
+`mb.dashboard.hidden`; Today's plan and Your SAT always stay; the hidden ones
+are named in one row at the bottom to bring back). No dragging, no editor.
+
 `app/mock/api.cjs` is a fictional API for working without the real one (its
 header comment says how; competitions in `mock/competitions.cjs`, one of them two minutes long to watch the clock run out): the password is `demo-pass` unless
 `MB_DEMO_PASSWORD` says otherwise, SMS and email codes are `123456`, Google

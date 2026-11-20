@@ -35,6 +35,7 @@ import { examPath } from '@/components/assignments/AssignmentCard';
 import { UniversityBadge } from '@/components/onboarding/Crest';
 import { Flag } from '@/screens/roadmap/flags';
 import { dueRelative, dueShort } from '@/components/assignments/format';
+import { CustomiseMenu, HiddenRow, useHiddenWidgets } from '@/components/dashboard/Customise';
 import { GoalsModal } from '@/components/dashboard/GoalsModal';
 import { MakoHello } from '@/components/mascot/MakoHello';
 import { Skeleton } from '@/components/States';
@@ -108,12 +109,17 @@ export function Dashboard() {
     onSetGoal: () => setEditGoals(true),
   });
   const dream = goals.data?.university ?? null;
+  // Widgets this browser hides (Customise); each row's grid fits what's left.
+  const { shown } = useHiddenWidgets();
+  const row3 = [shown('due'), shown('continue'), shown('roadmap')].filter(Boolean).length;
+  const row4 = [shown('vocab'), shown('scores')].filter(Boolean).length;
 
   return (
     <div className="mx-auto w-full max-w-[1240px]">
       <MakoHello
         name={normalCase(profile.first_name)}
         mood={mood}
+        right={<CustomiseMenu />}
         summary={
           goals.data?.exam_date || goals.data?.target_total || dream ? (
             <>
@@ -137,29 +143,37 @@ export function Dashboard() {
         }
       />
 
-      <div className="grid gap-3.5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.85fr)_minmax(0,1fr)]">
-        <div className="lg:col-span-2 xl:col-span-1">
+      <div className={`grid gap-3.5 lg:grid-cols-2 ${shown('class') ? 'xl:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.85fr)_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]'}`}>
+        <div className={shown('class') ? 'lg:col-span-2 xl:col-span-1' : ''}>
           <TodaysPlan due={soon} now={now} repair={repair} vocabToStudy={vocab.hasDeck ? vocab.toStudy : 0} run={inProgress[0]} nextTest={nextTest} loading={isPending} />
         </div>
-        <NextClassWidget profile={profile} now={now} />
+        {shown('class') && <NextClassWidget profile={profile} now={now} />}
         <YourSat goals={goals.data} latest={totals.at(-1)?.total ?? null} now={now} onEdit={() => setEditGoals(true)} />
       </div>
 
-      <div className="mt-3.5 grid gap-3.5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Mistakes repair={repair} attempts={attempts.length} fixed={Object.keys(resolved).length} loading={isPending} />
-        <ThisWeek answered={answered} activity={activity} />
-      </div>
+      {(shown('mistakes') || shown('week')) && (
+        <div className={`mt-3.5 grid gap-3.5 ${shown('mistakes') && shown('week') ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}>
+          {shown('mistakes') && <Mistakes repair={repair} attempts={attempts.length} fixed={Object.keys(resolved).length} loading={isPending} />}
+          {shown('week') && <ThisWeek answered={answered} activity={activity} />}
+        </div>
+      )}
 
-      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-        <DueWork list={assignments.data} loading={assignments.isPending && profile.status !== 'registered'} registered={profile.status === 'registered' || profile.groups.length === 0} now={now} />
-        <Continue runs={inProgress} book={reading} />
-        <RoadmapWidget />
-      </div>
+      {row3 > 0 && (
+        <div className={`mt-3.5 grid gap-3.5 ${row3 === 3 ? 'md:grid-cols-2 xl:grid-cols-3' : row3 === 2 ? 'md:grid-cols-2' : ''}`}>
+          {shown('due') && <DueWork list={assignments.data} loading={assignments.isPending && profile.status !== 'registered'} registered={profile.status === 'registered' || profile.groups.length === 0} now={now} />}
+          {shown('continue') && <Continue runs={inProgress} book={reading} />}
+          {shown('roadmap') && <RoadmapWidget />}
+        </div>
+      )}
 
-      <div className="mt-3.5 grid gap-3.5 md:grid-cols-2">
-        <VocabWidget v={vocab} now={now} />
-        <Scores totals={totals.map((a) => ({ total: a.total!, at: a.finished_at, title: a.title }))} goal={goals.data?.target_total ?? null} />
-      </div>
+      {row4 > 0 && (
+        <div className={`mt-3.5 grid gap-3.5 ${row4 === 2 ? 'md:grid-cols-2' : ''}`}>
+          {shown('vocab') && <VocabWidget v={vocab} now={now} />}
+          {shown('scores') && <Scores totals={totals.map((a) => ({ total: a.total!, at: a.finished_at, title: a.title }))} goal={goals.data?.target_total ?? null} />}
+        </div>
+      )}
+
+      <HiddenRow />
 
       {editGoals && <GoalsModal goals={goals.data} onClose={() => setEditGoals(false)} />}
     </div>

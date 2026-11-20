@@ -39,6 +39,13 @@ Nunito everywhere (`@fontsource-variable/nunito`). Page titles 28–32px/600
 with tight tracking (`PageHeader`); `t-title`…`t-caption` for the rest;
 `t-micro` for labels; `t-number` for big figures.
 
+## The dashboard's widgets
+The dashboard is a designed page, not a widget board: Today's plan and Your
+SAT always stay. The rest can be hidden from the Customise menu (a tick per
+widget, this browser only); each row's grid fits what is left, and the
+hidden ones are named in one quiet row at the bottom, so nothing feels
+deleted. No dragging and no editor page.
+
 ## Seasons and Mako
 The app wears the season (Tashkent's calendar: Dec–Feb winter, Mar–May
 spring, Jun–Aug summer, Sep–Nov autumn), as the old MakonBook did. It stays
