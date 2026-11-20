@@ -434,14 +434,21 @@ function inside(shape: FrameShape, x: number, y: number): boolean {
     case 'goal':
       return (dx / 11.8) ** 4 + (dy / 11.8) ** 4 <= 1;
     case 'challenge': {
-      if (dx <= 9.5 && dy <= 9.5) return true;
-      // corner spikes along the diagonals, and teeth along the edges
-      if (dx <= 12.5 && dy <= 12.5 && Math.abs(dx - dy) <= 1.5 && dx > 8) return true;
-      const tooth = (a: number) => [1.5, 5.5].some((p) => Math.abs(a - p) <= 1);
-      return (dx <= 11.5 && dy <= 8 && tooth(dy)) || (dy <= 11.5 && dx <= 8 && tooth(dx));
+      // Folded to the top-left quadrant (the shape is symmetric both ways).
+      const qx = x < F / 2 ? x : F - 1 - x;
+      const qy = y < F / 2 ? y : F - 1 - y;
+      // The corner tab: a diamond-ish flare that sticks out 3 px.
+      if (CHALLENGE_EAR.some(([ex, ey]) => ex === qx && ey === qy)) return true;
+      // The body: a square inset by 3, with a wavy edge (bumps at 9–10 and 12).
+      return qx >= 3 && qy >= 3 && qy >= CHALLENGE_TOP[qx]! && qx >= CHALLENGE_TOP[qy]!;
     }
   }
 }
+
+// How far down the top edge sits in each column of the left half (3 flat,
+// 4 where the edge dips), mirrored for the right half and the other edges.
+const CHALLENGE_TOP = [3, 3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 4, 3];
+const CHALLENGE_EAR: [number, number][] = [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [1, 3], [2, 3], [2, 4]];
 
 const FRAME_COLOURS = {
   done: { outline: '#1b1b1f', main: '#d6d6dc', light: '#ffffff', shade: '#9e9ea8' },
