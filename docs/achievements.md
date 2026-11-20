@@ -19,6 +19,11 @@ Headers, by kind:
 | none | Not an achievement | grey | back after seven dead days: "A week of cobwebs" |
 | nudge | Achievement get! | gold | evening, nothing done today: "please lock in" |
 
+The icon sits in a pixel **frame** (`Badge` in `PixelIcon.tsx`, worked out on
+a 26-pixel grid): a square for an achievement, a rounded one for a goal
+(quests, the nudge), a jagged one for a challenge; light grey once completed,
+SATMAKON purple until then.
+
 The API decides what is unlocked (spec 27); the browser only decides what it
 hasn't shown yet (`mb.toasts.seen.<person>`): the first look on a device
 marks everything seen without a toast, so an account with history doesn't

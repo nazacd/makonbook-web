@@ -414,3 +414,101 @@ export function PixelIcon({ name, size = 32, className = '', dim = false }: { na
     </svg>
   );
 }
+
+// ---- frames: the pixel background behind an icon, as the old games' three
+// kinds. A square for an achievement, a rounded one for a goal (our quests),
+// a jagged one for a challenge. Light grey once completed, SATMAKON purple
+// until then. Worked out on a 26-pixel grid: the shape, its outline, a light
+// edge top-left and a shadow bottom-right.
+
+export type FrameShape = 'advancement' | 'goal' | 'challenge';
+const F = 26;
+const C = (F - 1) / 2;
+
+function inside(shape: FrameShape, x: number, y: number): boolean {
+  const dx = Math.abs(x - C);
+  const dy = Math.abs(y - C);
+  switch (shape) {
+    case 'advancement':
+      return dx <= 11.5 && dy <= 11.5 && !(dx > 9.5 && dy > 9.5 && dx + dy > 20.5);
+    case 'goal':
+      return (dx / 11.8) ** 4 + (dy / 11.8) ** 4 <= 1;
+    case 'challenge': {
+      if (dx <= 9.5 && dy <= 9.5) return true;
+      // corner spikes along the diagonals, and teeth along the edges
+      if (dx <= 12.5 && dy <= 12.5 && Math.abs(dx - dy) <= 1.5 && dx > 8) return true;
+      const tooth = (a: number) => [1.5, 5.5].some((p) => Math.abs(a - p) <= 1);
+      return (dx <= 11.5 && dy <= 8 && tooth(dy)) || (dy <= 11.5 && dx <= 8 && tooth(dx));
+    }
+  }
+}
+
+const FRAME_COLOURS = {
+  done: { outline: '#1b1b1f', main: '#d6d6dc', light: '#ffffff', shade: '#9e9ea8' },
+  todo: { outline: '#1b1b1f', main: '#6d3bd1', light: '#9b6cf0', shade: '#46259a' },
+};
+
+function frameRuns(shape: FrameShape, state: 'done' | 'todo') {
+  const c = FRAME_COLOURS[state];
+  const grid: (string | null)[][] = [];
+  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < F && y < F && inside(shape, x, y);
+  for (let y = 0; y < F; y++) {
+    const row: (string | null)[] = [];
+    for (let x = 0; x < F; x++) {
+      if (!at(x, y)) {
+        row.push(null);
+        continue;
+      }
+      const edge = !at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1);
+      if (edge) row.push(c.outline);
+      else {
+        const nearTop = !at(x - 1, y - 1) || !at(x, y - 2) || !at(x - 2, y);
+        const nearBottom = !at(x + 1, y + 1) || !at(x, y + 2) || !at(x + 2, y);
+        row.push(nearTop ? c.light : nearBottom ? c.shade : c.main);
+      }
+    }
+    grid.push(row);
+  }
+  const out: { x: number; y: number; w: number; fill: string }[] = [];
+  grid.forEach((row, y) => {
+    let x = 0;
+    while (x < F) {
+      const fill = row[x];
+      let w = 1;
+      while (row[x + w] === fill) w++;
+      if (fill) out.push({ x, y, w, fill });
+      x += w;
+    }
+  });
+  return out;
+}
+
+const frameCache = new Map<string, ReturnType<typeof frameRuns>>();
+
+/** An icon in its frame: the shape says what kind it is, the colour whether it's done. */
+export function Badge({ icon, shape, done, size = 44, className = '' }: { icon: PixelIconName | string; shape: FrameShape; done: boolean; size?: number; className?: string }) {
+  const key = `${shape}:${done ? 'done' : 'todo'}`;
+  let f = frameCache.get(key);
+  if (!f) {
+    f = frameRuns(shape, done ? 'done' : 'todo');
+    frameCache.set(key, f);
+  }
+  const rows = ICONS[icon] ?? ICONS.lock!;
+  let r = cache.get(icon);
+  if (!r) {
+    r = runs(rows);
+    cache.set(icon, r);
+  }
+  return (
+    <svg viewBox={`0 0 ${F} ${F}`} width={size} height={size} shapeRendering="crispEdges" className={className} aria-hidden="true">
+      {f.map((q, i) => (
+        <rect key={`f${i}`} x={q.x} y={q.y} width={q.w} height={1} fill={q.fill} />
+      ))}
+      <g transform="translate(5 5)">
+        {r.map((q, i) => (
+          <rect key={i} x={q.x} y={q.y} width={q.w} height={1} fill={q.fill} />
+        ))}
+      </g>
+    </svg>
+  );
+}

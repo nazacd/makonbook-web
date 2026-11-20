@@ -681,7 +681,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
   transform: translateX(calc(100% + 24px)); transition: transform .45s cubic-bezier(.2, 1.25, .4, 1);
 }
 .mc-toast.is-in { transform: none; }
-.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; background: #2a2a2f; border: 2px solid #3d3d44; box-shadow: inset 0 0 0 1px #1a1a1d; image-rendering: pixelated; }
+.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 48px; height: 48px; flex: none; image-rendering: pixelated; }
 .mc-toast-text, .mc-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mc-toast-head, .mc-card-head { font-size: 15px; line-height: 18px; color: #ffff55; text-shadow: 2px 2px 0 #3f3f14; }
 .mc-toast[data-kind="challenge"] .mc-toast-head, .mc-card[data-kind="challenge"] .mc-card-head { color: #ff55ff; text-shadow: 2px 2px 0 #3f143f; }

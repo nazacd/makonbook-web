@@ -1,7 +1,7 @@
 import { Award, CalendarCheck, Flame, Medal, Sparkles, Trophy } from 'lucide-react';
 
 import { useGamification, xp, type Gamification, type Quest } from '@/api/gamification';
-import { ICON_OF, PixelIcon } from '@/components/achievements/PixelIcon';
+import { Badge, ICON_OF } from '@/components/achievements/PixelIcon';
 import { CHALLENGE } from '@/components/achievements/Toasts';
 import { ErrorState, Skeleton } from '@/components/States';
 import { PageHeader, Progress as Bar, Widget, WidgetLabel } from '@/components/ui';
@@ -104,7 +104,7 @@ function Loaded({ g, now }: { g: Gamification; now: number }) {
             return (
               <li key={a.code} className={`mc-card ${on ? '' : 'is-locked'}`} data-kind={challenge ? 'challenge' : 'achievement'} title={a.description}>
                 <span className="mc-card-icon">
-                  <PixelIcon name={on ? (ICON_OF[a.code] ?? 'star') : 'lock'} size={32} />
+                  <Badge icon={on ? (ICON_OF[a.code] ?? 'star') : 'lock'} shape={challenge ? 'challenge' : 'advancement'} done={on} size={48} />
                 </span>
                 <span className="mc-card-text flex-1">
                   <span className="mc-card-head">{on ? (challenge ? 'Challenge complete!' : 'Achievement unlocked!') : challenge ? 'Challenge' : 'Achievement'}</span>

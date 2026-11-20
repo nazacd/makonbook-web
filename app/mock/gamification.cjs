@@ -115,18 +115,19 @@ function state(login, now = new Date()) {
   };
 }
 
-/** The demo student's past: a few weeks of work, so the page has something to show. */
+/** The demo student's past: a month of daily work, so the wall of achievements is full
+ * (a 32-day streak to yesterday, 2,000+ right answers, every quest of every day). */
 function seed(login) {
   if (ledgers.has(login)) return;
   const today = dayOf(new Date().toISOString());
   const at = (daysAgo, h = 18) => new Date(`${addDays(today, -daysAgo)}T${String(h).padStart(2, '0')}:00:00+05:00`).toISOString();
-  for (const d of [1, 2, 3, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17]) {
-    award(login, { source_key: `vocab:${addDays(today, -d)}`, title: 'Word reviews', amount: 12 + (d % 5) * 4, happened_at: at(d, 9), metrics: { reviews: 12 + (d % 5) * 4 } });
-    if (d % 3 === 1) award(login, { source_key: `assessment:seed-${d}`, title: 'Homework set finished', amount: 15 + 7 + d % 4, happened_at: at(d, 19), metrics: { right_answers: 7 + (d % 4), finished: 1 } });
+  for (let d = 32; d >= 1; d--) {
+    const day = addDays(today, -d);
+    award(login, { source_key: `vocab:${day}`, title: 'Word reviews', amount: 14 + (d % 5) * 4, happened_at: at(d, 9), metrics: { reviews: 14 + (d % 5) * 4 } });
+    award(login, { source_key: `attempt:seed-${d}`, title: `Day ${1 + (d % 6)} mock test`, amount: 30 + 58 + (d % 7), happened_at: at(d, 16), metrics: { right_answers: 58 + (d % 7), finished: 1 } });
+    award(login, { source_key: `assessment:seed-${d}`, title: 'Homework set finished', amount: 15 + 8 + (d % 3), happened_at: at(d, 19), metrics: { right_answers: 8 + (d % 3), finished: 1 } });
+    if (d % 4 === 0) award(login, { source_key: `read:${day}`, title: 'A page read in the Library', amount: 5, happened_at: at(d, 21) });
   }
-  award(login, { source_key: 'attempt:seed-1', title: 'Day 1 mock test', amount: 30 + 61, happened_at: at(9, 16), metrics: { right_answers: 61, finished: 1 } });
-  award(login, { source_key: 'attempt:seed-2', title: 'Day 2 mock test', amount: 30 + 66, happened_at: at(2, 16), metrics: { right_answers: 66, finished: 1 } });
-  award(login, { source_key: `read:${addDays(today, -1)}`, title: 'A page read in the Library', amount: 5, happened_at: at(1, 21) });
 }
 
 module.exports = { award, state, seed, dayOf };
