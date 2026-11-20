@@ -1,8 +1,9 @@
-import { Award, CalendarCheck, Flame, Medal, Sparkles, Trophy } from 'lucide-react';
+import { Award, CalendarCheck, Flame, LayoutList, Medal, Network, Sparkles, Trophy } from 'lucide-react';
+import { useState } from 'react';
 
 import { useGamification, xp, type Gamification, type Quest } from '@/api/gamification';
 import { Badge, ICON_OF } from '@/components/achievements/PixelIcon';
-import { CHALLENGE } from '@/components/achievements/Toasts';
+import { AchievementTree } from '@/components/achievements/Tree';
 import { ErrorState, Skeleton } from '@/components/States';
 import { PageHeader, Progress as Bar, Widget, WidgetLabel } from '@/components/ui';
 import { useNow } from '@/lib/clock';
@@ -46,6 +47,7 @@ export function Progress() {
 }
 
 function Loaded({ g, now }: { g: Gamification; now: number }) {
+  const [view, setView] = useState<'tree' | 'list'>('tree');
   const span = Math.max(1, g.next_level_xp - g.level_floor);
   const into = g.xp_total - g.level_floor;
   const unlocked = g.achievements.filter((a) => a.unlocked_at).length;
@@ -96,32 +98,55 @@ function Loaded({ g, now }: { g: Gamification; now: number }) {
       </div>
 
       <Widget accent={ACCENT.badges} className="mt-3.5">
-        <WidgetLabel icon={Award} label="Achievements" accent={ACCENT.badges} right={<span className="t-caption text-ink-2">{unlocked} of {g.achievements.length}</span>} />
-        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {g.achievements.map((a) => {
-            const on = !!a.unlocked_at;
-            const challenge = CHALLENGE.has(a.code);
-            return (
-              <li key={a.code} className={`mc-card ${on ? '' : 'is-locked'}`} data-kind={challenge ? 'challenge' : 'achievement'} title={a.description}>
-                <span className="mc-card-icon">
-                  <Badge icon={on ? (ICON_OF[a.code] ?? 'star') : 'lock'} shape={challenge ? 'challenge' : 'advancement'} done={on} size={48} />
-                </span>
-                <span className="mc-card-text flex-1">
-                  <span className="mc-card-head">{on ? (challenge ? 'Challenge complete!' : 'Achievement unlocked!') : challenge ? 'Challenge' : 'Achievement'}</span>
-                  <span className="mc-card-title">{a.title}</span>
-                  <span className="mc-card-sub">
-                    {a.description} {on ? `Unlocked ${relativeDay(Date.parse(a.unlocked_at!), now)}.` : `${xp(a.progress)} / ${xp(a.target)}`}
+        <WidgetLabel
+          icon={Award}
+          label="Achievements"
+          accent={ACCENT.badges}
+          right={
+            <span className="flex items-center gap-2">
+              <span className="t-caption text-ink-2">
+                {unlocked} of {g.achievements.length}
+              </span>
+              <span className="flex rounded-full border border-line bg-surface-2 p-[2px]" role="radiogroup" aria-label="How to show the achievements">
+                {(['tree', 'list'] as const).map((v) => (
+                  <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => setView(v)} className={`flex h-7 items-center gap-1 rounded-full px-2.5 text-[12px] font-semibold ${view === v ? 'bg-accent-tint text-accent' : 'text-ink-2 hover:text-ink'}`}>
+                    {v === 'tree' ? <Network size={13} aria-hidden="true" /> : <LayoutList size={13} aria-hidden="true" />}
+                    {v === 'tree' ? 'Tree' : 'List'}
+                  </button>
+                ))}
+              </span>
+            </span>
+          }
+        />
+        {view === 'tree' ? (
+          <AchievementTree g={g} now={now} />
+        ) : (
+          <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {g.achievements.map((a) => {
+              const on = !!a.unlocked_at;
+              const hidden = a.secret && !on;
+              return (
+                <li key={a.code} className={`mc-card ${on ? '' : 'is-locked'}`} data-kind={a.tier} title={a.description}>
+                  <span className="mc-card-icon">
+                    <Badge icon={hidden ? 'lock' : (ICON_OF[a.code] ?? 'star')} shape={a.tier} done={on} size={48} dim={!on} />
                   </span>
-                  {!on && (
-                    <span className="mc-card-bar" aria-hidden="true">
-                      <i style={{ width: `${Math.min(100, (100 * a.progress) / Math.max(1, a.target))}%` }} />
+                  <span className="mc-card-text flex-1">
+                    <span className="mc-card-head">{on ? (a.tier === 'challenge' ? 'Challenge complete!' : 'Achievement unlocked!') : a.tier === 'challenge' ? 'Challenge' : a.tier === 'goal' ? 'Goal' : 'Achievement'}</span>
+                    <span className="mc-card-title">{a.title}</span>
+                    <span className="mc-card-sub">
+                      {a.description} {on ? `Unlocked ${relativeDay(Date.parse(a.unlocked_at!), now)}.` : hidden ? '' : `${xp(a.progress)} / ${xp(a.target)}`}
                     </span>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+                    {!on && !hidden && (
+                      <span className="mc-card-bar" aria-hidden="true">
+                        <i style={{ width: `${Math.min(100, (100 * a.progress) / Math.max(1, a.target))}%` }} />
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Widget>
 
       <Widget accent={ACCENT.recent} className="mt-3.5">

@@ -274,7 +274,12 @@ unlock, quest done, the evening nudge and the cobwebs, once per device
 (`mb.toasts.seen.<person>`), with a synthesised chime (`lib/sounds.ts`,
 Profile → Sounds); the `.mc-*` styles and the pixel font (Mojang, in `public/fonts`,
 self-hosted, toasts and slabs only). Calls that earn XP invalidate
-`['gamification']` so the toast comes at once.
+`['gamification']` so the toast comes at once. The Progress page's
+achievements are the old games' window (`components/achievements/Tree`): a
+pit of blocks drawn on a canvas, the 36 achievements as a tree with arrows
+(`LAYOUT` there), frames by tier (`tier` from the API: advancement, goal,
+challenge; the six frame images in `public/achievements`), secrets as
+padlocks, a slab tooltip, and a List toggle.
 
 Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
 the Customise menu in the header, a tick per widget, kept in this browser as

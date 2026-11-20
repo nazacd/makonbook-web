@@ -551,6 +551,7 @@ http.createServer(async (req, res) => {
       goals.set(login, g);
     }
     const g = goals.get(login) ?? { target_math: null, target_rw: null, exam_date: null, university_id: null, updated_at: null };
+    gamification.setGoals(login, { university_id: g.university_id, target_total: g.target_math != null && g.target_rw != null ? g.target_math + g.target_rw : null });
     return json(res, 200, { ...g, university_id: g.university_id ?? null, university: (g.university_id && universitiesApi.byId.get(g.university_id)) || null, target_total: g.target_math != null && g.target_rw != null ? g.target_math + g.target_rw : null });
   }
   if (url === '/v1/practice/attempts' && req.method === 'POST') {

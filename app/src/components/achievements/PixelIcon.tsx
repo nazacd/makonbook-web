@@ -351,6 +351,367 @@ const ICONS: Record<string, string[]> = {
     'W..............W',
     '................',
   ],
+  // letters (Getting Words)
+  word: [
+    '................',
+    '..kkkkkkkkkkkk..',
+    '.kwwwwwwwwwwwwk.',
+    '.kwwkkwwwwwwwwk.',
+    '.kwkvvkwwwvvvwk.',
+    '.kwkvvkwwwwwvwk.',
+    '.kwkvvkwwwvvvwk.',
+    '.kwkvvvvkwvwvwk.',
+    '.kwkvvkvvkvvvwk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kwwkkkkkkkkwwk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kwwkkkkkkwwwwk.',
+    '.kwwwwwwwwwwwwk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+  ],
+  // an open book (Open Book, Bookworm)
+  openbook: [
+    '................',
+    '................',
+    '..kkkkk..kkkkk..',
+    '.kwwwwwkkwwwwwk.',
+    '.kwkkkwwkwkkkwk.',
+    '.kwwwwwwkwwwwwk.',
+    '.kwkkkkwkwkkkkk.',
+    '.kwwwwwwkwwwwwk.',
+    '.kwkkkwwkwkkkwk.',
+    '.kwwwwwwkwwwwwk.',
+    '.kwwwwwwkwwwwwk.',
+    '.kTwwwwwkwwwwTk.',
+    '..kTTTTTkTTTTk..',
+    '...kkkkkkkkkk...',
+    '................',
+    '................',
+  ],
+  // a school chair (Front Row, Regular)
+  chair: [
+    '................',
+    '....kkkkkkkk....',
+    '....kTTTTTTk....',
+    '....kTttttTk....',
+    '....kTTTTTTk....',
+    '....kkkkkkkk....',
+    '.....kk..kk.....',
+    '..kkkkkkkkkkkk..',
+    '..kttttttttttk..',
+    '..kTTTTTTTTTTk..',
+    '..kkkkkkkkkkkk..',
+    '..kGk......kGk..',
+    '..kGk......kGk..',
+    '..kGk......kGk..',
+    '..kkk......kkk..',
+    '................',
+  ],
+  // a globe (Dream Set)
+  globe: [
+    '................',
+    '.....kkkkkk.....',
+    '....kbbbbbbk....',
+    '...kbbnnbbbbk...',
+    '..kbbnnnnbbbbk..',
+    '..kbnnnbbbnnbk..',
+    '.kbbbnbbbbnnnbk.',
+    '.kbbbbbbbnnnbbk.',
+    '.kbbbbbbbbnbbbk.',
+    '.kbnnbbbbbbbbbk.',
+    '..kbnnnbbbbbbk..',
+    '..kbbnnbbnbbbk..',
+    '...kbbbbbbbbk...',
+    '....kbbbbbbk....',
+    '....kkkkkkkk....',
+    '...kkkkkkkkkk...',
+  ],
+  // a diamond (Unbreakable)
+  diamond: [
+    '................',
+    '................',
+    '....kkkkkkkk....',
+    '...kcwcccccck...',
+    '..kcwcccccccck..',
+    '.kcwccccccccccl.',
+    '.kcccccccccccck.',
+    '..kcccccccccck..',
+    '...kccccccccc...',
+    '...kcccccccck...',
+    '....kcccccck....',
+    '.....kccccck....',
+    '......kcck......',
+    '.......kk.......',
+    '................',
+    '................',
+  ],
+  // a calendar (Weekend Scholar)
+  calendar: [
+    '................',
+    '...k........k...',
+    '.kkkkkkkkkkkkkk.',
+    '.krrrrrrrrrrrrk.',
+    '.krrrrrrrrrrrrk.',
+    '.kkkkkkkkkkkkkk.',
+    '.kwwkwwkwwkwwwk.',
+    '.kwkwkwkwkwkwwk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kwkwkwkwkwvvvk.',
+    '.kwwwwwwwwwvvvk.',
+    '.kwkwkwkwkwvvvk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kkkkkkkkkkkkkk.',
+    '................',
+    '................',
+  ],
+  // an arrow back (Comeback)
+  arrowback: [
+    '................',
+    '................',
+    '......k.........',
+    '.....kok........',
+    '....kook........',
+    '...koook........',
+    '..kooookkkkkk...',
+    '.koooooooooook..',
+    '.kooooooooooook.',
+    '..kooookkkkkook.',
+    '...koook....kok.',
+    '....kook....kok.',
+    '.....kok...kook.',
+    '......k...kook..',
+    '..........kkk...',
+    '................',
+  ],
+  // a stopwatch (Marathon)
+  stopwatch: [
+    '................',
+    '......kkkk......',
+    '.......kk.......',
+    '....kkkkkkkk.k..',
+    '...kwwwwwwwwkk..',
+    '..kwwwwkwwwwwk..',
+    '.kwwwwwkwwwwwwk.',
+    '.kwwwwwkwwwwwwk.',
+    '.kwwwwwkkkwwwwk.',
+    '.kwwwwwwwwwwwwk.',
+    '.kwwwwwwwwwwwwk.',
+    '..kwwwwwwwwwwk..',
+    '...kwwwwwwwwk...',
+    '....kkkkkkkk....',
+    '................',
+    '................',
+  ],
+  // a 100 badge (Perfect Set)
+  hundred: [
+    '................',
+    '..kkkkkkkkkkkk..',
+    '.knnnnnnnnnnnnk.',
+    '.knnnnnnnnnnnnk.',
+    '.knwnnwwwnwwwnk.',
+    '.kwwnwnnnwnnnwk.',
+    '.knwnwnnnwnnnwk.',
+    '.knwnwnnnwnnnwk.',
+    '.knwnwnnnwnnnwk.',
+    '.knwnnwwwnwwwnk.',
+    '.knnnnnnnnnnnnk.',
+    '.knnnnnnnnnnnnk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................',
+  ],
+  // a flag (On Target)
+  flag: [
+    '................',
+    '..kk............',
+    '..kTk...........',
+    '..kTkkkkkkkkk...',
+    '..kTkrrrrrrrrk..',
+    '..kTkrrwwrrrrk..',
+    '..kTkrwrrwrrrrk.',
+    '..kTkrwrrwrrrrk.',
+    '..kTkrrwwrrrrk..',
+    '..kTkrrrrrrrrk..',
+    '..kTkkkkkkkkk...',
+    '..kTk...........',
+    '..kTk...........',
+    '..kTk...........',
+    '.kkkkk..........',
+    '................',
+  ],
+  // a medal (1500 Club)
+  medal: [
+    '................',
+    '....kkk..kkk....',
+    '...kbbbkkrrrk...',
+    '...kbbbkkrrrk...',
+    '....kbbkkrrk....',
+    '....kbbkkrrk....',
+    '.....kbkkrk.....',
+    '.....kkkkkk.....',
+    '....kyyyyyyk....',
+    '...kyyYyyYyyk...',
+    '...kyYyyyyYyk...',
+    '...kyyyywyyyk...',
+    '...kyYyyyyYyk...',
+    '....kyyYYyyk....',
+    '.....kkkkkk.....',
+    '................',
+  ],
+  // laurels (Full Marks)
+  laurel: [
+    '................',
+    '..k..........k..',
+    '.knk........knk.',
+    '.knnk..kk..knnk.',
+    '..knk.kyyk.knk..',
+    '.knnkkyyyykknnk.',
+    '..knkyyYYyyknk..',
+    '.knnkyyYYyyknnk.',
+    '..knkkyyyykknk..',
+    '.knnk.kyyk.knnk.',
+    '..knk..kk..knk..',
+    '...knk....knk...',
+    '....knkkkknk....',
+    '.....kkkkkk.....',
+    '................',
+    '................',
+  ],
+  // flash cards (Wordsmith)
+  cards: [
+    '................',
+    '................',
+    '.....kkkkkkkkk..',
+    '....kwwwwwwwwwk.',
+    '...kwwwwwwwwwwk.',
+    '..kkkkkkkkkwwwk.',
+    '..kwwwwwwwkwwwk.',
+    '..kwkkkkwwkwwwk.',
+    '..kwwwwwwwkwwwk.',
+    '..kwkkkkkwkwwwk.',
+    '..kwwwwwwwkwwwk.',
+    '..kwkkkwwwkkkk..',
+    '..kwwwwwwwk.....',
+    '..kkkkkkkkk.....',
+    '................',
+    '................',
+  ],
+  // a shelf of books (Lexicon)
+  shelf: [
+    '................',
+    '..kkkkkkkkkkkk..',
+    '.kTTTTTTTTTTTTk.',
+    '.kTkkkkkkkkkkTk.',
+    '.kTkrrkbbkvvkTk.',
+    '.kTkrrkbbkvvkTk.',
+    '.kTkrykbwkvykTk.',
+    '.kTkrrkbbkvvkTk.',
+    '.kTkrrkbbkvvkTk.',
+    '.kTkrrkbbkvvkTk.',
+    '.kTkkkkkkkkkkTk.',
+    '.kTTTTTTTTTTTTk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+    '................',
+  ],
+  // a moon (Night Owl)
+  moon: [
+    '................',
+    '......kkkkk.....',
+    '....kkyyyyyk....',
+    '...kyyyykkkk....',
+    '..kyyyyk........',
+    '..kyyyk.........',
+    '.kyyyyk.........',
+    '.kyyyk..........',
+    '.kyyyk..........',
+    '.kyyyyk.........',
+    '..kyyyk.........',
+    '..kyyyyk........',
+    '...kyyyykkkk....',
+    '....kkyyyyyk....',
+    '......kkkkk.....',
+    '................',
+  ],
+  // a sun (Early Bird)
+  sun: [
+    '.......k........',
+    '..k....k....k...',
+    '...k..kyk..k....',
+    '....k.kyk.k.....',
+    '.....kkkkk......',
+    '....kyyyyyk.....',
+    'kkkkyyyyyyykkkk.',
+    '..kyyyywyyyyk...',
+    'kkkkyyyyyyykkkk.',
+    '....kyyyyyk.....',
+    '.....kkkkk......',
+    '....k.kyk.k.....',
+    '...k..kyk..k....',
+    '..k....k....k...',
+    '.......k........',
+    '................',
+  ],
+  // a house (Full House)
+  house: [
+    '................',
+    '.......k........',
+    '......kok.......',
+    '.....kooook.....',
+    '....koooooook...',
+    '...koooooooook..',
+    '..kooooooooooook',
+    '.kkkkkkkkkkkkkk.',
+    '..kwwwwwwwwwwk..',
+    '..kwkkwwwwkkwk..',
+    '..kwkbkwwwkbkk..',
+    '..kwkkwwwwkkwk..',
+    '..kwwwwkTkwwwk..',
+    '..kwwwwkTkwwwk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+  ],
+  // a broom (Clean Sweep)
+  broom: [
+    '............kk..',
+    '...........kTk..',
+    '..........kTk...',
+    '.........kTk....',
+    '........kTk.....',
+    '.......kTk......',
+    '......kTk.......',
+    '.....kTk........',
+    '....kkk.........',
+    '...kyyyk........',
+    '..kyyyyyk.......',
+    '.kyyyyyyk.......',
+    '.kyykyykk.......',
+    '.kyykyyk........',
+    '.kkkkkkk........',
+    '................',
+  ],
+  // crossed pencils (Contender)
+  swords: [
+    '................',
+    '.kk..........kk.',
+    '.kpk........kpk.',
+    '..kyk......kyk..',
+    '...kyk....kyk...',
+    '....kyk..kyk....',
+    '.....kykkyk.....',
+    '......kyyk......',
+    '......kyyk......',
+    '.....kykkyk.....',
+    '....kyk..kyk....',
+    '...ktk....ktk...',
+    '..ktk......ktk..',
+    '..kk........kk..',
+    '................',
+    '................',
+  ],
   // Mako (a level reached)
   mako: [
     '................',
@@ -376,9 +737,14 @@ export type PixelIconName = keyof typeof ICONS;
 
 /** The icon for an achievement code (one per family); `lock` for the rest. */
 export const ICON_OF: Record<string, PixelIconName> = {
-  first_xp: 'star', xp_500: 'bolt', xp_1000: 'coins', level_5: 'scroll', level_10: 'crown',
-  streak_3: 'flame', streak_7: 'shield', streak_30: 'heart', answers_100: 'target', answers_500: 'pencil', answers_2000: 'trophy',
-  quests_5: 'check', quests_25: 'book',
+  first_xp: 'star', pencil_age: 'pencil', getting_words: 'word', open_book: 'openbook', front_row: 'chair', dream_set: 'globe',
+  xp_500: 'bolt', xp_1000: 'coins', level_5: 'scroll', level_10: 'crown',
+  streak_3: 'flame', streak_7: 'shield', streak_30: 'heart', streak_100: 'diamond', weekend_scholar: 'calendar', comeback: 'arrowback',
+  answers_100: 'target', answers_500: 'hundred', answers_2000: 'trophy', answers_10000: 'medal',
+  tests_10: 'stopwatch', perfect_set: 'check', on_target: 'flag', club_1500: 'medal', full_marks: 'laurel',
+  reviews_500: 'cards', reviews_2000: 'shelf', night_owl: 'moon', early_bird: 'sun',
+  quests_5: 'check', quests_25: 'book', full_house: 'house', clean_sweep: 'broom',
+  bookworm: 'openbook', regular: 'chair', contender: 'swords',
 };
 
 /** Rows of same-colour runs, so an icon is a few dozen rectangles, not 256. */
@@ -415,100 +781,19 @@ export function PixelIcon({ name, size = 32, className = '', dim = false }: { na
   );
 }
 
-// ---- frames: the pixel background behind an icon, as the old games' three
-// kinds. A square for an achievement, a rounded one for a goal (our quests),
-// a jagged one for a challenge. Light grey once completed, SATMAKON purple
-// until then. Worked out on a 26-pixel grid: the shape, its outline, a light
-// edge top-left and a shadow bottom-right.
+// ---- frames: the background behind an icon, the three kinds cut from the
+// reference (public/achievements/frame-<shape>-<state>.png): a square for an
+// achievement, a rounded one for a goal (our quests), a jagged one for a
+// challenge; light grey once completed, purple until then.
 
 export type FrameShape = 'advancement' | 'goal' | 'challenge';
-const F = 26;
-const C = (F - 1) / 2;
-
-function inside(shape: FrameShape, x: number, y: number): boolean {
-  const dx = Math.abs(x - C);
-  const dy = Math.abs(y - C);
-  switch (shape) {
-    case 'advancement':
-      return dx <= 11.5 && dy <= 11.5 && !(dx > 9.5 && dy > 9.5 && dx + dy > 20.5);
-    case 'goal':
-      return (dx / 11.8) ** 4 + (dy / 11.8) ** 4 <= 1;
-    case 'challenge': {
-      if (dx <= 9.5 && dy <= 9.5) return true;
-      // corner spikes along the diagonals, and teeth along the edges
-      if (dx <= 12.5 && dy <= 12.5 && Math.abs(dx - dy) <= 1.5 && dx > 8) return true;
-      const tooth = (a: number) => [1.5, 5.5].some((p) => Math.abs(a - p) <= 1);
-      return (dx <= 11.5 && dy <= 8 && tooth(dy)) || (dy <= 11.5 && dx <= 8 && tooth(dx));
-    }
-  }
-}
-
-const FRAME_COLOURS = {
-  done: { outline: '#1b1b1f', main: '#d6d6dc', light: '#ffffff', shade: '#9e9ea8' },
-  todo: { outline: '#1b1b1f', main: '#6d3bd1', light: '#9b6cf0', shade: '#46259a' },
-};
-
-function frameRuns(shape: FrameShape, state: 'done' | 'todo') {
-  const c = FRAME_COLOURS[state];
-  const grid: (string | null)[][] = [];
-  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < F && y < F && inside(shape, x, y);
-  for (let y = 0; y < F; y++) {
-    const row: (string | null)[] = [];
-    for (let x = 0; x < F; x++) {
-      if (!at(x, y)) {
-        row.push(null);
-        continue;
-      }
-      const edge = !at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1);
-      if (edge) row.push(c.outline);
-      else {
-        const nearTop = !at(x - 1, y - 1) || !at(x, y - 2) || !at(x - 2, y);
-        const nearBottom = !at(x + 1, y + 1) || !at(x, y + 2) || !at(x + 2, y);
-        row.push(nearTop ? c.light : nearBottom ? c.shade : c.main);
-      }
-    }
-    grid.push(row);
-  }
-  const out: { x: number; y: number; w: number; fill: string }[] = [];
-  grid.forEach((row, y) => {
-    let x = 0;
-    while (x < F) {
-      const fill = row[x];
-      let w = 1;
-      while (row[x + w] === fill) w++;
-      if (fill) out.push({ x, y, w, fill });
-      x += w;
-    }
-  });
-  return out;
-}
-
-const frameCache = new Map<string, ReturnType<typeof frameRuns>>();
 
 /** An icon in its frame: the shape says what kind it is, the colour whether it's done. */
-export function Badge({ icon, shape, done, size = 44, className = '' }: { icon: PixelIconName | string; shape: FrameShape; done: boolean; size?: number; className?: string }) {
-  const key = `${shape}:${done ? 'done' : 'todo'}`;
-  let f = frameCache.get(key);
-  if (!f) {
-    f = frameRuns(shape, done ? 'done' : 'todo');
-    frameCache.set(key, f);
-  }
-  const rows = ICONS[icon] ?? ICONS.lock!;
-  let r = cache.get(icon);
-  if (!r) {
-    r = runs(rows);
-    cache.set(icon, r);
-  }
+export function Badge({ icon, shape, done, size = 48, className = '', dim = false }: { icon: PixelIconName | string; shape: FrameShape; done: boolean; size?: number; className?: string; /** The icon greyed, for one not yet earned. */ dim?: boolean }) {
   return (
-    <svg viewBox={`0 0 ${F} ${F}`} width={size} height={size} shapeRendering="crispEdges" className={className} aria-hidden="true">
-      {f.map((q, i) => (
-        <rect key={`f${i}`} x={q.x} y={q.y} width={q.w} height={1} fill={q.fill} />
-      ))}
-      <g transform="translate(5 5)">
-        {r.map((q, i) => (
-          <rect key={i} x={q.x} y={q.y} width={q.w} height={1} fill={q.fill} />
-        ))}
-      </g>
-    </svg>
+    <span className={`mc-badge ${className}`} style={{ width: size, height: size }} aria-hidden="true">
+      <img src={`/achievements/frame-${shape}-${done ? 'done' : 'todo'}.png`} alt="" draggable={false} />
+      <PixelIcon name={icon} size={Math.round(size * 0.62)} dim={dim} />
+    </span>
   );
 }
