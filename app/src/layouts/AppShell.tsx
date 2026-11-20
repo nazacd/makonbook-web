@@ -45,7 +45,8 @@ import { LockedModal } from '@/components/shell/LockedModal';
 import { PhoneLocked, ProvePanelContext, ProvePhonePanel, useProvePanel } from '@/components/shell/ProvePhone';
 import { needsPhone } from '@/api/accounts';
 import { NotificationsDrawer } from '@/components/shell/NotificationsDrawer';
-import { useAppearance } from '@/lib/appearance';
+import { SeasonLayer } from '@/components/season/SeasonLayer';
+import { useAppearance, useIsDark } from '@/lib/appearance';
 import { useTrackPracticeVisits } from '@/lib/practice/summary';
 import { APP_VERSION } from '@/lib/version';
 
@@ -115,18 +116,7 @@ function useCollapsed(): [boolean, (v: boolean) => void] {
   return [collapsed, save];
 }
 
-/** Whether the page is dark now (the saved choice, or the computer's). */
-export function useIsDark(): boolean {
-  const { mode } = useAppearance();
-  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const on = () => setSystemDark(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return mode === 'dark' || (mode === 'system' && systemDark);
-}
+export { useIsDark };
 
 function useThemeToggle() {
   const { setMode } = useAppearance();
@@ -178,6 +168,8 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh">
+      {/* The season behind the page: the whole scene on the student's dashboard, washes and a few particles elsewhere. */}
+      <SeasonLayer full={!teacher && pathname === '/'} />
       <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} unread={unread} isLocked={isLocked} onLocked={onLocked} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} unread={unread} />

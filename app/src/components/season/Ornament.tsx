@@ -1,0 +1,57 @@
+import { useSeason } from '@/lib/season';
+
+// A tiny seasonal ornament on the logo's shield (the old MakonBook's
+// sidebar touch): a blossom in spring, a sun in summer, a chinar leaf in
+// autumn, a cap of snow in winter. Positioned by .mbs-brand-* in styles.css;
+// the parent is `relative`.
+
+export function SeasonOrnament() {
+  const { season } = useSeason();
+  switch (season) {
+    case 'spring':
+      return (
+        <svg className="mbs-brand mbs-brand-spring" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false">
+          <g fill="#fbb6ce">
+            <ellipse cy="-5.6" rx="4.4" ry="5.8" />
+            <ellipse cy="-5.6" rx="4.4" ry="5.8" transform="rotate(72)" />
+            <ellipse cy="-5.6" rx="4.4" ry="5.8" transform="rotate(144)" />
+            <ellipse cy="-5.6" rx="4.4" ry="5.8" transform="rotate(216)" />
+            <ellipse cy="-5.6" rx="4.4" ry="5.8" transform="rotate(288)" />
+          </g>
+          <circle r="2.6" fill="#c2255c" />
+        </svg>
+      );
+    case 'summer':
+      return (
+        <svg className="mbs-brand mbs-brand-summer" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false">
+          <g stroke="#f59f00" strokeWidth="2" strokeLinecap="round">
+            <path d="M0-11V-8" />
+            <path d="M0 8V11" />
+            <path d="M-11 0H-8" />
+            <path d="M8 0H11" />
+            <path d="M-7.8-7.8L-5.7-5.7" />
+            <path d="M5.7 5.7L7.8 7.8" />
+            <path d="M7.8-7.8L5.7-5.7" />
+            <path d="M-5.7 5.7L-7.8 7.8" />
+          </g>
+          <circle r="5.4" fill="#ffd166" />
+        </svg>
+      );
+    case 'autumn':
+      return (
+        <svg className="mbs-brand mbs-brand-autumn" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <path
+            d="M50 94L48 75C40 79 28 81 17 78L24 68C13 64 5 56 3 47L16 47C11 39 11 29 15 20C24 27 30 31 34 34L31 17C38 21 43 13 50 3C57 13 62 21 69 17L66 34C70 31 76 27 85 20C89 29 89 39 84 47L97 47C95 56 87 64 76 68L83 78C72 81 60 79 52 75L50 94Z"
+            fill="#e76f51"
+          />
+          <path d="M50 90L50 14" stroke="#8a3b1c" strokeWidth="5" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className="mbs-brand mbs-brand-winter" viewBox="0 0 40 12" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M1 10C2 4 8 1 20 1C32 1 38 4 39 10C34 8 31 11 27 9C23 11 19 8 15 10C11 8 6 11 1 10Z" fill="#ffffff" stroke="#cfe3f5" strokeWidth=".8" />
+        </svg>
+      );
+  }
+}

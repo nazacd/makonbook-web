@@ -1,5 +1,6 @@
 import { useId } from 'react';
 
+import { SeasonOrnament } from '@/components/season/Ornament';
 import { SHIELD_INNER, SHIELD_LETTERS, SHIELD_LOWER, SHIELD_RING, SHIELD_VIEWBOX } from './shield';
 
 /** The shield alone, in the current text colour. */
@@ -28,7 +29,10 @@ export const TAGLINE = 'Your road to 1600';
 export function Wordmark({ compact = false }: { compact?: boolean }) {
   return (
     <span className="flex items-center gap-2.5 text-primary">
-      <ShieldMark size={compact ? 30 : 34} />
+      <span className="relative flex">
+        <ShieldMark size={compact ? 30 : 34} />
+        <SeasonOrnament />
+      </span>
       {!compact && (
         <span className="flex flex-col leading-none">
           <span className="text-[21px] font-extrabold tracking-[-0.03em]">{BRAND}</span>
