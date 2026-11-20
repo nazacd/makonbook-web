@@ -39,8 +39,10 @@ export function useSaveProgress(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (page: number) => call(api.PUT('/v1/library/{id}/progress', { params: { path: { id } }, body: { page } })),
-    onSuccess: (progress) =>
-      queryClient.setQueryData<Book[]>(libraryKey(person), (books) => books?.map((b) => (b.id === id ? { ...b, progress, views: b.views + (b.progress ? 0 : 1) } : b))),
+    onSuccess: (progress) => {
+      queryClient.setQueryData<Book[]>(libraryKey(person), (books) => books?.map((b) => (b.id === id ? { ...b, progress, views: b.views + (b.progress ? 0 : 1) } : b)));
+      void queryClient.invalidateQueries({ queryKey: ['gamification'] }); // a day's reading earns XP (spec 27)
+    },
   });
 }
 

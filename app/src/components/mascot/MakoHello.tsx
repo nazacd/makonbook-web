@@ -15,7 +15,7 @@ import { burstFrom, useSeason } from '@/lib/season';
 
 const POKE_WINDOW = 2600;
 
-export function MakoHello({ name, summary, mood }: { name: string; summary?: ReactNode; mood: MakoMood }) {
+export function MakoHello({ name, summary, mood, right }: { name: string; summary?: ReactNode; mood: MakoMood; /** Something small at the far end of the header (the Customise button). */ right?: ReactNode }) {
   const { season } = useSeason();
   const panda = useRef<PandaHandle>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -82,7 +82,7 @@ export function MakoHello({ name, summary, mood }: { name: string; summary?: Rea
   };
 
   const step = mood.steps[stepAt % Math.max(1, mood.steps.length)];
-  const stepClass = 'mk-say-step pop inline-flex h-8 items-center gap-1.5 rounded-chip bg-primary px-3 text-[12.5px] font-bold text-on-primary';
+  const stepClass = 'mk-say-step pop inline-flex max-w-full min-h-8 items-center gap-1.5 rounded-chip bg-primary px-3 py-1 text-left text-[12.5px] font-bold leading-[18px] text-on-primary';
   return (
     <header className="mk-hello mb-5 flex items-start gap-3 pt-1 md:gap-4">
       <button
@@ -128,6 +128,7 @@ export function MakoHello({ name, summary, mood }: { name: string; summary?: Rea
             ))}
         </div>
       </div>
+      {right}
     </header>
   );
 }

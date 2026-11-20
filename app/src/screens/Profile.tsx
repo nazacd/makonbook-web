@@ -1,4 +1,4 @@
-import { AtSign, Camera, KeyRound, LogOut, Monitor, Moon, Pencil, Sparkles, Sun, type LucideIcon } from 'lucide-react';
+import { AtSign, Camera, KeyRound, LogOut, Monitor, Moon, Pencil, Sparkles, Sun, Volume2, VolumeX, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -21,6 +21,7 @@ import { useNow } from '@/lib/clock';
 import { normalCase, parseClassName } from '@/lib/groups';
 import { formatDate, schoolDate } from '@/lib/schedule';
 import { burst, SEASON_META, useReducedMotion, useSeason, useSeasonFx } from '@/lib/season';
+import { chime, useSounds } from '@/lib/sounds';
 import { useTitle } from '@/lib/title';
 
 const MODES: { value: AppearanceMode; label: string; icon: LucideIcon }[] = [
@@ -184,6 +185,7 @@ export function Profile() {
             })}
           </div>
           <SeasonalEffects />
+          <Sounds />
           <button type="button" onClick={() => void signOut()} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-control border border-line text-[14px] font-bold text-bad hover:bg-bad-tint">
             <LogOut size={16} aria-hidden="true" /> Sign out
           </button>
@@ -233,6 +235,31 @@ function SeasonalEffects() {
         className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold ${on && !reduced ? 'border-primary/30 bg-accent-tint text-accent' : 'border-line bg-surface-2 text-ink-2'} disabled:opacity-60`}>
         <Sparkles size={14} aria-hidden="true" />
         {reduced ? 'Reduced motion' : on ? 'On' : 'Off'}
+      </button>
+    </div>
+  );
+}
+
+// The achievement chime, on or off for this browser.
+function Sounds() {
+  const [on, setOn] = useSounds();
+  return (
+    <div className="mt-4 flex items-center justify-between gap-4 border-t border-line pt-4">
+      <div className="min-w-0">
+        <p className="t-headline text-ink">Sounds</p>
+        <p className="t-footnote text-ink-2">A short chime when an achievement unlocks or a quest is done.</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={() => {
+          setOn(!on);
+          if (!on) window.setTimeout(() => chime('achievement'), 50);
+        }}
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold ${on ? 'border-primary/30 bg-accent-tint text-accent' : 'border-line bg-surface-2 text-ink-2'}`}>
+        {on ? <Volume2 size={14} aria-hidden="true" /> : <VolumeX size={14} aria-hidden="true" />}
+        {on ? 'On' : 'Off'}
       </button>
     </div>
   );

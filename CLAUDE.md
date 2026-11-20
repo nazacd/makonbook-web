@@ -257,6 +257,30 @@ holiday swaps the mix and Mako's greeting; `burst()` throws particles for
 his celebrations. The logo wears `SeasonOrnament`. Nothing of this talks to
 the API yet (a pinned season would come through `/v1/app/config`).
 
+Gamification (spec §27; `api/gamification.ts`, `useGamification`): XP, the
+level, the streak, three daily and three weekly quests and the achievements
+are **computed by the API** from what it recorded (attempts, assessments,
+reviews, games, reading, attendance); the web only shows them. The
+dashboard's This week widget takes the streak from the server once loaded
+(the 14-day strip's colours stay this browser's answers) and adds the level
+and its XP bar; `/progress` (`screens/Progress`, sidebar Progress) is the
+whole picture; Mako celebrates a level reached today or all daily quests
+done (`lib/mako.ts`). The mock keeps a made-up ledger in
+`mock/gamification.cjs` and awards for attempts, submits and reviews.
+Achievements look like the old games' advancement toasts (`docs/achievements.md`;
+`components/achievements/`): `PixelIcon` draws 16-pixel icons in code,
+`AchievementToasts` (in `AppShell`) slides a slab in at the top right for each
+unlock, quest done, the evening nudge and the cobwebs, once per device
+(`mb.toasts.seen.<person>`), with a synthesised chime (`lib/sounds.ts`,
+Profile → Sounds); the `.mc-*` styles and the pixel font (Pixelify Sans,
+self-hosted, toasts and slabs only). Calls that earn XP invalidate
+`['gamification']` so the toast comes at once.
+
+Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
+the Customise menu in the header, a tick per widget, kept in this browser as
+`mb.dashboard.hidden`; Today's plan and Your SAT always stay; the hidden ones
+are named in one row at the bottom to bring back). No dragging, no editor.
+
 `app/mock/api.cjs` is a fictional API for working without the real one (its
 header comment says how; competitions in `mock/competitions.cjs`, one of them two minutes long to watch the clock run out): the password is `demo-pass` unless
 `MB_DEMO_PASSWORD` says otherwise, SMS and email codes are `123456`, Google

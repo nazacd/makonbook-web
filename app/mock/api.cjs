@@ -254,6 +254,7 @@ const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'a
 const universitiesApi = require('./universities.cjs');
 const libraryApi = require('./library.cjs');
 const vocabSocial = require('./vocab-social.cjs');
+const gamification = require('./gamification.cjs');
 vocabSocial.init((l) => reviews.get(l) || []);
 const answerLog = new Map(); // login -> [{ question_id, assessment_id, correct, seconds, at }] (spec 22.8)
 const shared = { people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err, answerLog };
@@ -374,6 +375,11 @@ http.createServer(async (req, res) => {
   if (!me) return err(res, 401, 'unauthorized', 'session ended');
   if (url === '/v1/auth/logout') { tokens.delete(auth); return json(res, 204); }
   if (url === '/v1/me') return json(res, 200, me);
+  if (url === '/v1/me/gamification') {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    if (me.status === 'enrolled') gamification.seed(login);
+    return json(res, 200, gamification.state(login));
+  }
   if (universitiesApi.route(url, req, res, json, err, me)) return;
   // Onboarding and roadmaps.
   if (url === '/v1/me/onboarding' && req.method === 'GET') { const o = onboardings.get(me.login); return o ? json(res, 200, o) : err(res, 404, 'not_found', 'no onboarding yet'); }
@@ -432,6 +438,7 @@ http.createServer(async (req, res) => {
       const found = findLesson(a.roadmap_id, a.lesson_id); lessonIsDone = !!found && lessonDone(me.login, found.l);
     }
     a.finished_at = new Date().toISOString(); a.result = { percent, correct, total: items.length, passed, lesson_done: lessonIsDone, items };
+    gamification.award(me.login, { source_key: `assessment:${a.id}`, title: a.title, amount: (a.kind === 'competition' ? 50 : 15) + correct + (a.kind === 'level_check' && passed ? 20 : 0), happened_at: a.finished_at, metrics: { right_answers: correct, finished: 1 } });
     { const log = answerLog.get(me.login) || []; for (const it of items) if (it.given != null && it.given !== '' && !log.some((x) => x.assessment_id === a.id && x.question_id === it.question_id)) log.push({ question_id: it.question_id, assessment_id: a.id, correct: it.correct, seconds: (a.times || {})[it.question_id] || null, at: a.finished_at }); answerLog.set(me.login, log); }
     return json(res, 200, assessmentOut(a));
   }
@@ -552,7 +559,10 @@ http.createServer(async (req, res) => {
     const pkg = packages[body.test]; if (!pkg || pkg.version !== body.version) return err(res, 422, 'invalid_attempt', 'no such test version');
     const scores = grade(pkg, body.sections, body.answers);
     const stored = { id: body.id, test: body.test, title: pkg.title, version: body.version, sections: body.sections, started_at: body.started_at, finished_at: body.finished_at, scores, total: scores.english && scores.math ? scores.english.score + scores.math.score : null, answers: body.answers };
-    attempts.set(key, stored); const { answers: _a, ...out } = stored; return json(res, 200, out);
+    attempts.set(key, stored); const { answers: _a, ...out } = stored;
+    const right = Object.values(scores).reduce((s, x) => s + (x ? x.raw : 0), 0);
+    gamification.award(login, { source_key: `attempt:${body.id}`, title: pkg.title, amount: 30 + right, happened_at: body.finished_at, metrics: { right_answers: right, finished: 1 } });
+    return json(res, 200, out);
   }
   if (url === '/v1/me/practice/attempts') return me.kind === 'student' ? json(res, 200, { attempts: [...attempts.values()].filter((a) => [...attempts.keys()].some((k) => k === `${login}:${a.id}`)).sort((a, b) => b.finished_at.localeCompare(a.finished_at)) }) : err(res, 403, 'forbidden', 'not a student');
   if (url === '/v1/vocab/deck') { const have = new URL(req.url, 'http://x').searchParams.get('have'); return json(res, 200, have === deck.version ? { version: deck.version, unchanged: true } : { version: deck.version, unchanged: false, lists: deck.lists }); }
@@ -561,7 +571,12 @@ http.createServer(async (req, res) => {
     if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
     const mine = reviews.get(login) || []; let added = 0;
     for (const r of body.reviews || []) { if (!mine.some((x) => x.id === r.id)) { mine.push({ seq: ++seq, ...r }); added++; } }
-    reviews.set(login, mine); return json(res, 200, { received: (body.reviews || []).length, added });
+    reviews.set(login, mine);
+    for (const day of new Set((body.reviews || []).map((r) => gamification.dayOf(r.reviewed_at)))) {
+      const n = Math.min(40, mine.filter((r) => gamification.dayOf(r.reviewed_at) === day).length);
+      gamification.award(login, { source_key: `vocab:${day}`, title: 'Word reviews', amount: n, happened_at: `${day}T12:00:00+05:00`, metrics: { reviews: n }, replace: true });
+    }
+    return json(res, 200, { received: (body.reviews || []).length, added });
   }
   if (url === '/v1/me/vocab/reviews') { const after = Number(new URL(req.url, 'http://x').searchParams.get('after') || 0); const mine = (reviews.get(login) || []).filter((r) => r.seq > after); return json(res, 200, { reviews: mine.slice(0, 1000), next: mine.length > 1000 ? mine[999].seq : null }); }
   if (url === '/v1/teacher/lessons') { if (me.kind !== 'teacher') return err(res, 403, 'forbidden', 'not a teacher'); const date = new URL(req.url, 'http://x').searchParams.get('date') || today(); return json(res, 200, { date, lessons: lessonsFor(date) }); }

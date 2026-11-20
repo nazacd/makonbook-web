@@ -161,6 +161,7 @@ export function useVocabSync(enabled: boolean) {
           }
           unqueue(person, batch.map((r) => r.id));
         }
+        void queryClient.invalidateQueries({ queryKey: ['gamification'] }); // reviews earn XP (spec 27)
       }
 
       // Reviews made on other devices, down to this one.

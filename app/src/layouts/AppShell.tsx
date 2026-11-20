@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Lock,
   LogOut,
+  Medal,
   Moon,
   MoreHorizontal,
   Search,
@@ -45,6 +46,7 @@ import { LockedModal } from '@/components/shell/LockedModal';
 import { PhoneLocked, ProvePanelContext, ProvePhonePanel, useProvePanel } from '@/components/shell/ProvePhone';
 import { needsPhone } from '@/api/accounts';
 import { NotificationsDrawer } from '@/components/shell/NotificationsDrawer';
+import { AchievementToasts } from '@/components/achievements/Toasts';
 import { SeasonLayer } from '@/components/season/SeasonLayer';
 import { useAppearance, useIsDark } from '@/lib/appearance';
 import { useTrackPracticeVisits } from '@/lib/practice/summary';
@@ -70,6 +72,7 @@ const STUDENT: Item[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/classes', label: 'Classes', icon: CalendarDays, enrolledOnly: true },
   { to: '/roadmaps', label: 'Roadmaps', icon: Signpost },
+  { to: '/progress', label: 'Progress', icon: Medal },
   ...ASSESSMENTS,
   { to: '/practice', label: 'Mock tests', icon: ClipboardList },
   { to: '/training-hall', label: 'Training Hall', icon: Dumbbell },
@@ -170,6 +173,7 @@ export function AppShell() {
     <div className="flex min-h-dvh">
       {/* The season behind the page: the whole scene on the student's dashboard, washes and a few particles elsewhere. */}
       <SeasonLayer full={!teacher && pathname === '/'} />
+      <AchievementToasts />
       <Sidebar items={items} collapsed={collapsed} onCollapse={setCollapsed} onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} unread={unread} isLocked={isLocked} onLocked={onLocked} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setOverlay('search')} onNotifications={() => setOverlay('notifications')} unread={unread} />

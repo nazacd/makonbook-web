@@ -205,6 +205,7 @@ export function useUploadAttempts(enabled: boolean) {
         void refresh();
         void queryClient.invalidateQueries({ queryKey: ['practice-mine'] });
       }
+      if (sent > 0) void queryClient.invalidateQueries({ queryKey: ['gamification'] }); // an attempt earns XP (spec 27)
       return pending.length - sent;
     },
   });
