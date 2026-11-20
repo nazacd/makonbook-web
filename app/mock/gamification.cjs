@@ -79,15 +79,15 @@ function award(login, { source_key, title, amount, happened_at = new Date().toIS
     if (q.metric === 'active_days') { let n = 0; for (let i = 0; i < 7; i++) if (active.has(addDays(q.period_start, i))) n++; q.progress = n; }
     else q.progress = Math.min(q.target, q.progress + (metrics[q.metric] || 0) - ((had && had.metrics?.[q.metric]) || 0));
     if (q.progress >= q.target) {
-      q.done_at = new Date().toISOString();
-      L.events.set(`quest:${q.code}:${q.period_start}`, { source_key: `quest:${q.code}:${q.period_start}`, title: `Quest: ${q.title}`, amount: q.reward_xp, happened_at: q.done_at, right: 0 });
+      q.done_at = happened_at; // when the work was done, as the server does
+      L.events.set(`quest:${q.code}:${q.period_start}`, { source_key: `quest:${q.code}:${q.period_start}`, title: `Quest: ${q.title}`, amount: q.reward_xp, happened_at, right: 0 });
     }
   }
   // achievements
   const st = streaks(L, dayOf(new Date().toISOString()));
   const state = { xp_total: total(L), level: levelOf(total(L)), best_streak: st.best, right_answers: L.right, quests: [...L.quests.values()].filter((q) => q.done_at).length };
-  for (const a of ACHIEVEMENTS) if (!L.unlocked.has(a.code) && state[a.key] >= a.target) L.unlocked.set(a.code, new Date().toISOString());
-  L.leveledAt = levelOf(total(L)) > before ? new Date().toISOString() : L.leveledAt;
+  for (const a of ACHIEVEMENTS) if (!L.unlocked.has(a.code) && state[a.key] >= a.target) L.unlocked.set(a.code, happened_at);
+  L.leveledAt = levelOf(total(L)) > before ? happened_at : L.leveledAt;
 }
 
 function state(login, now = new Date()) {

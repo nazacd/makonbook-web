@@ -25,6 +25,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { isDue, KIND, useMyAssignments, type StudentAssignment } from '@/api/assignments';
+import { useGamification, xp, type Gamification } from '@/api/gamification';
 import { useGoals, type Goals } from '@/api/learning';
 import { useLibrary, type Book } from '@/api/library';
 import { useRoadmaps } from '@/api/roadmaps';
@@ -80,6 +81,7 @@ export function Dashboard() {
   const runs = useRuns();
   const catalog = useCatalog();
   const library = useLibrary();
+  const game = useGamification();
   const [editGoals, setEditGoals] = useState(false);
   const assignments = useMyAssignments(profile.status !== 'registered');
   const soon = (assignments.data ?? []).filter((a) => isDue(a) && Date.parse(a.due_at) - now < 2 * 86_400_000).sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
@@ -107,6 +109,10 @@ export function Dashboard() {
     hasGroup: profile.groups.length > 0,
     holiday,
     onSetGoal: () => setEditGoals(true),
+    level: game.data?.level,
+    levelTitle: game.data?.level_title,
+    leveledUpToday: game.data?.leveled_up_today,
+    questsDoneToday: !!game.data && game.data.quests.daily.length > 0 && game.data.quests.daily.every((q) => q.done_at),
   });
   const dream = goals.data?.university ?? null;
   // Widgets this browser hides (Customise); each row's grid fits what's left.
@@ -154,7 +160,7 @@ export function Dashboard() {
       {(shown('mistakes') || shown('week')) && (
         <div className={`mt-3.5 grid gap-3.5 ${shown('mistakes') && shown('week') ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}>
           {shown('mistakes') && <Mistakes repair={repair} attempts={attempts.length} fixed={Object.keys(resolved).length} loading={isPending} />}
-          {shown('week') && <ThisWeek answered={answered} activity={activity} />}
+          {shown('week') && <ThisWeek answered={answered} activity={activity} g={game.data} />}
         </div>
       )}
 
@@ -468,8 +474,13 @@ function activeDays(answered: Answered[], reviewDays: string[], resolved: Record
   return { today, days, byDay, active, streak, week };
 }
 
-function ThisWeek({ answered, activity }: { answered: Answered[]; activity: Activity }) {
-  const { days, byDay, active, streak, week } = activity;
+// The streak, the level and the XP come from the server once loaded (spec 27);
+// the 14-day strip's colours are this browser's answers.
+function ThisWeek({ answered, activity, g }: { answered: Answered[]; activity: Activity; g?: Gamification }) {
+  const { days, byDay } = activity;
+  const active = new Set([...activity.active, ...(g?.streak.days.filter((d) => d.active).map((d) => d.day) ?? [])]);
+  const streak = g ? g.streak.current : activity.streak;
+  const week = g ? g.streak.days.slice(7).filter((d) => d.active).length : activity.week;
   const recent = answered.filter((a) => days.includes(schoolDate(Date.parse(a.at))));
   const share = (subject: 'math' | 'english') => {
     const list = recent.filter((a) => a.subject === subject);
@@ -483,8 +494,24 @@ function ThisWeek({ answered, activity }: { answered: Answered[]; activity: Acti
       <p className="text-ink">
         <Flame size={18} className="-mt-1 mr-1 inline text-fill-watch" aria-hidden="true" />
         <span className="t-number text-[28px]">{streak}</span> <span className="t-subhead text-ink-2">day streak</span>
+        {g?.streak.at_risk && <span className="t-caption ml-2 rounded-full bg-watch-tint px-2 py-0.5 text-watch">nothing yet today</span>}
       </p>
       <p className="t-footnote text-ink-2">{week} of the last 7 days active</p>
+      {g && (
+        <Link to="/progress" className="mt-3 block rounded-control border border-line bg-surface-2 px-3 py-2 hover:bg-surface">
+          <span className="flex items-center justify-between gap-3">
+            <span className="t-subhead text-ink">
+              <span className="t-number text-[18px]">Level {g.level}</span> <span className="text-ink-2">· {g.level_title}</span>
+            </span>
+            <span className="t-caption text-accent">{xp(g.xp_total)} XP · see all →</span>
+          </span>
+          <Progress value={(g.xp_total - g.level_floor) / Math.max(1, g.next_level_xp - g.level_floor)} className="mt-1.5" />
+          <span className="t-caption mt-1 block font-medium text-ink-2">
+            {xp(g.next_level_xp - g.xp_total)} XP to level {g.level + 1}
+            {g.xp_today > 0 ? ` · +${xp(g.xp_today)} today` : ''}
+          </span>
+        </Link>
+      )}
       <div className="mt-3 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1" role="img" aria-label="The last 14 days: how many answers were right each day">
         {days.map((d) => {
           const c = byDay.get(d);

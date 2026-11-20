@@ -257,6 +257,17 @@ holiday swaps the mix and Mako's greeting; `burst()` throws particles for
 his celebrations. The logo wears `SeasonOrnament`. Nothing of this talks to
 the API yet (a pinned season would come through `/v1/app/config`).
 
+Gamification (spec §27; `api/gamification.ts`, `useGamification`): XP, the
+level, the streak, three daily and three weekly quests and the achievements
+are **computed by the API** from what it recorded (attempts, assessments,
+reviews, games, reading, attendance); the web only shows them. The
+dashboard's This week widget takes the streak from the server once loaded
+(the 14-day strip's colours stay this browser's answers) and adds the level
+and its XP bar; `/progress` (`screens/Progress`, sidebar Progress) is the
+whole picture; Mako celebrates a level reached today or all daily quests
+done (`lib/mako.ts`). The mock keeps a made-up ledger in
+`mock/gamification.cjs` and awards for attempts, submits and reviews.
+
 Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
 the Customise menu in the header, a tick per widget, kept in this browser as
 `mb.dashboard.hidden`; Today's plan and Your SAT always stay; the hidden ones

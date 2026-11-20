@@ -61,6 +61,11 @@ export type MakoInput = {
   hasGroup: boolean;
   holiday: Holiday | null;
   onSetGoal?: () => void;
+  /** From the server's gamification (spec 27), once loaded. */
+  level?: number;
+  levelTitle?: string;
+  leveledUpToday?: boolean;
+  questsDoneToday?: boolean;
 };
 
 const DUE_SOON = 24 * 3600_000;
@@ -81,6 +86,9 @@ export function makoMood(i: MakoInput): MakoMood {
   if (!i.hasGroup) add({ title: 'Open your roadmap', to: '/roadmaps' });
   if (!steps.length) add({ title: 'Take a mock test', to: '/practice' });
 
+  if (i.leveledUpToday && i.level) {
+    return { emotion: 'celebrate', headline: `Level ${i.level} unlocked!`, message: `You reached ${i.levelTitle ?? `level ${i.level}`} today. Keep the momentum going.`, steps };
+  }
   if (dueSoon) {
     const late = dueSoon.dueAt < i.now;
     return {
@@ -91,6 +99,7 @@ export function makoMood(i: MakoInput): MakoMood {
     };
   }
   if (i.holiday) return { emotion: 'celebrate', headline: i.holiday.greeting, message: `${i.holiday.english} A short session today still counts.`, steps };
+  if (i.questsDoneToday) return { emotion: 'celebrate', headline: 'All of today’s quests done!', message: 'Every quest for today is complete. Anything extra is a bonus.', steps };
   if (i.streak >= 2 && !i.activeToday) return { emotion: 'worried', headline: `Keep your ${i.streak}-day streak`, message: 'One short session today keeps it alive.', steps };
   if (i.weakest && i.weakest.count >= 3) {
     return { emotion: 'thinking', headline: `Let’s fix ${i.weakest.skill}`, message: `${i.weakest.count} questions missed there, more than anywhere else. A focused round helps most.`, steps };
