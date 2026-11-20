@@ -2,8 +2,22 @@
 
 /* Nunito for everything (the design reference's single UI font), self-hosted. */
 @import "@fontsource-variable/nunito/wght.css";
-/* A pixel face for the achievement toasts and slabs only. */
-@import "@fontsource-variable/pixelify-sans/wght.css";
+/* A pixel face for the achievement toasts and slabs only, self-hosted
+   (app/public/fonts). */
+@font-face {
+  font-family: "Mojang";
+  src: url("/fonts/Mojang-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Mojang";
+  src: url("/fonts/Mojang-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Colour tokens (docs/design.md): a near-white canvas, white cards with light
    borders, one brand accent (SATMAKON deep purple, from the logo) and a few
@@ -68,7 +82,7 @@
 
   --font-title: "Nunito Variable", "Nunito", system-ui, sans-serif;
   --font-sans: "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  --font-pixel: "Pixelify Sans Variable", "Pixelify Sans", "Courier New", monospace;
+  --font-pixel: "Mojang", "Courier New", monospace;
 
   /* Radius 10 (nav rows, chips) · 12 (controls, tiles) · 16 (cards) · 20 (panels, modals). */
   --radius-chip: 10px;

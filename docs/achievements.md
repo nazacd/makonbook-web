@@ -3,8 +3,8 @@
 The look is the old games' advancement toast, drawn and worded as our own:
 a dark slab with a notched 2px edge, a 16-pixel icon in its own box (SVG
 rectangles in `components/achievements/PixelIcon.tsx`, SATMAKON's own, never
-anyone else's textures), a coloured header line in a pixel face (Pixelify
-Sans, self-hosted) and the title in white. It slides in at the top right,
+anyone else's textures), a coloured header line in a pixel face (Mojang,
+self-hosted from `app/public/fonts`) and the title in white. It slides in at the top right,
 holds five seconds, slides out; the next one waits. A chime (synthesised,
 Profile → Sounds) and a burst of the season's particles go with it. Pressing
 a toast opens the Progress page, where the same slabs make the grid.

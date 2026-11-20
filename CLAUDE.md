@@ -272,7 +272,7 @@ Achievements look like the old games' advancement toasts (`docs/achievements.md`
 `AchievementToasts` (in `AppShell`) slides a slab in at the top right for each
 unlock, quest done, the evening nudge and the cobwebs, once per device
 (`mb.toasts.seen.<person>`), with a synthesised chime (`lib/sounds.ts`,
-Profile → Sounds); the `.mc-*` styles and the pixel font (Pixelify Sans,
+Profile → Sounds); the `.mc-*` styles and the pixel font (Mojang, in `public/fonts`,
 self-hosted, toasts and slabs only). Calls that earn XP invalidate
 `['gamification']` so the toast comes at once.
 
