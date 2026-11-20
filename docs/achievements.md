@@ -33,9 +33,11 @@ get thirteen at once.
 ## The window (`components/achievements/Tree.tsx`)
 
 The Progress page shows the achievements as the old games did: a window
-with a bevelled grey frame, and inside it a pit of blocks drawn in code
-(dirt at the top, stone darkening to bedrock, ore in little clusters by
-depth) that scrolls and drags, with the achievements laid out as a tree over
+with a bevelled grey frame, and inside it a pit of blocks that scrolls and
+drags: `app/public/achievements/pit.png` when it is there (generated to the
+owner's brief: an underground cross-section, no sky, grass and dirt at the
+top edge, stone darkening to bedrock, ore by depth, tiling sideways), else
+blocks drawn in code, with the achievements laid out as a tree over
 it. Each hangs from the one before it (`LAYOUT`: grid cells and a parent),
 joined by elbowed arrows that brighten once the child is earned. Earned ones
 sit in grey frames; the rest in purple, their icons dimmed; a secret shows a

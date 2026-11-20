@@ -182,8 +182,31 @@ export function AchievementTree({ g, now }: { g: Gamification; now: number }) {
   const dx = Math.floor((width - W) / 2);
   const pos = new Map(nodes.map((n) => [n.code, at(n, dx)]));
 
+  // The pit's picture: public/achievements/pit.png when it is there (the
+  // owner's own, generated to brief), covering the pit, repeated sideways on
+  // very wide windows; otherwise the blocks drawn in code.
   useEffect(() => {
-    if (canvas.current) paintPit(canvas.current, width, H);
+    const el = canvas.current;
+    if (!el) return;
+    let gone = false;
+    const img = new Image();
+    img.onload = () => {
+      if (gone) return;
+      el.width = width;
+      el.height = H;
+      const g = el.getContext('2d')!;
+      g.imageSmoothingEnabled = false;
+      const scale = H / img.naturalHeight;
+      const w = Math.round(img.naturalWidth * scale);
+      for (let x = 0; x < width; x += w) g.drawImage(img, x, 0, w, H);
+    };
+    img.onerror = () => {
+      if (!gone) paintPit(el, width, H);
+    };
+    img.src = '/achievements/pit.png';
+    return () => {
+      gone = true;
+    };
   }, [width]);
   const centred = useRef(false);
   useEffect(() => {
