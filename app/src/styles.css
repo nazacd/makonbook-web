@@ -675,8 +675,9 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 :root {
   --mc-bg: #ececf0; --mc-edge: #8e8e9a; --mc-inner: #ffffff; --mc-inner2: #c9c9d2;
   --mc-head: #a07400; --mc-head-challenge: #a21caf; --mc-head-quest: #0e7490; --mc-head-none: #6b6b76;
-  --mc-title: #1b1b1f; --mc-shadow: rgba(0, 0, 0, 0.12); --mc-sub: #5b6472; --mc-bar: #c9c9d2;
+  --mc-title: #1b1b1f; --mc-shadow: rgba(0, 0, 0, 0.22); --mc-sub: #5b6472; --mc-bar: #c9c9d2;
   --mc-locked-edge: #b9b9c3; --mc-locked-text: #7a7a86; --mc-locked-title: #4a4a56;
+  --mc-pit: 1; --mc-dim: grayscale(1) opacity(.5);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -684,6 +685,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
     --mc-head: #ffff55; --mc-head-challenge: #ff55ff; --mc-head-quest: #55ffff; --mc-head-none: #aaaaaa;
     --mc-title: #ffffff; --mc-shadow: rgba(0, 0, 0, 0.55); --mc-sub: #b3b3bd; --mc-bar: #3a3a40;
     --mc-locked-edge: #45454c; --mc-locked-text: #9a9aa6; --mc-locked-title: #c9c9d2;
+    --mc-pit: 0.5; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
   }
 }
 :root[data-theme="dark"] {
@@ -691,6 +693,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
   --mc-head: #ffff55; --mc-head-challenge: #ff55ff; --mc-head-quest: #55ffff; --mc-head-none: #aaaaaa;
   --mc-title: #ffffff; --mc-shadow: rgba(0, 0, 0, 0.55); --mc-sub: #b3b3bd; --mc-bar: #3a3a40;
   --mc-locked-edge: #45454c; --mc-locked-text: #9a9aa6; --mc-locked-title: #c9c9d2;
+    --mc-pit: 0.5; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
 }
 .mc-toasts { position: fixed; top: 12px; right: 12px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
 .mc-toast, .mc-card {
@@ -707,10 +710,15 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 }
 .mc-toast.is-in { transform: none; }
 .mc-card { padding: 8px 12px 8px 8px; }
-.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 48px; height: 48px; flex: none; }
+.mc-toast-icon, .mc-card-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; }
+.mc-item { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.mc-item.is-dim { filter: var(--mc-dim); }
+/* alone on a slab, an item casts a hard pixel shadow, so pale ones (a feather, paper) read on the light slab */
+.mc-card-icon > .mc-item, .mc-toast-icon > .mc-item { filter: drop-shadow(2px 2px 0 var(--mc-shadow)); }
+.mc-card-icon > .mc-item.is-dim { filter: var(--mc-dim) drop-shadow(2px 2px 0 var(--mc-shadow)); }
 .mc-badge { position: relative; display: inline-grid; place-items: center; flex: none; }
-.mc-badge > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.mc-badge > svg { position: relative; }
+.mc-badge > img:first-child { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.mc-badge > .mc-item { position: relative; }
 .mc-toast-text, .mc-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mc-toast-head, .mc-card-head { font-size: 15px; line-height: 18px; color: var(--mc-head); text-shadow: 2px 2px 0 var(--mc-shadow); }
 .mc-toast[data-kind="challenge"] .mc-toast-head, .mc-card[data-kind="challenge"] .mc-card-head { color: var(--mc-head-challenge); }
@@ -727,32 +735,37 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 @media (max-width: 767px) { .mc-toasts { top: 8px; right: 8px; } .mc-toast { width: calc(100vw - 16px); } }
 @media (prefers-reduced-motion: reduce) { .mc-toast { transition: opacity .2s ease; transform: none; opacity: 0; } .mc-toast.is-in { opacity: 1; } }
 
-/* The achievements window (components/achievements/Tree): a bevelled grey
-   frame with a title, a scrolling pit of blocks (a canvas, drawn in code)
-   with the tree over it, arrows between the frames, a slab tooltip. The pit
-   is dark in both themes: it is a window into somewhere else. */
-.mc-window { border: 3px solid #d7d7dc; border-right-color: #8a8a94; border-bottom-color: #8a8a94; background: #c6c6cc; box-shadow: inset 0 0 0 2px #ededf0, inset -2px -2px 0 2px #a3a3ab; padding: 6px; }
-.mc-window-title { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px 6px; font-family: var(--font-pixel); font-size: 15px; color: #3f3f46; text-shadow: 1px 1px 0 #ffffff; }
-.mc-window-count { font-size: 13px; }
-.mc-window-foot { padding: 6px 6px 0; font-size: 12px; font-weight: 600; color: #5a5a62; }
-.mc-pit { position: relative; height: 560px; overflow: auto; border: 2px solid #1c1c20; box-shadow: inset 0 0 0 2px #55555c; background: #2a2a2f; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: pan-x pan-y; scrollbar-width: thin; scrollbar-color: #8a8a94 #2a2a2f; }
+/* The achievements tree (components/achievements/Tree): a pit of rock that
+   scrolls and drags, the frames over it, arrows between them, a slab
+   tooltip. No window around it: it sits in the page's own card. The rock is
+   the same picture in both themes, dimmed in the dark one (--mc-pit). */
+.mc-tree { position: relative; }
+.mc-pit { position: relative; height: 580px; overflow: auto; border-radius: var(--radius-control); border: 1px solid var(--color-line); background: #2a2a2f; cursor: grab; user-select: none; -webkit-user-select: none; scrollbar-width: thin; scrollbar-color: #6b6b74 transparent; }
 .mc-pit:active { cursor: grabbing; }
 .mc-pit-inner { position: relative; }
-.mc-pit-canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.mc-pit-canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; filter: brightness(var(--mc-pit)); }
 .mc-pit-lines { position: absolute; inset: 0; overflow: visible; }
-.mc-line-shadow { fill: none; stroke: #1c1c20; stroke-width: 6; stroke-linejoin: miter; }
-.mc-line { fill: none; stroke: #7d7d84; stroke-width: 2; }
-.mc-line-head { fill: #7d7d84; stroke: #1c1c20; stroke-width: 1.5; }
-.is-on .mc-line { stroke: #e6e6ea; }
-.is-on .mc-line-head { fill: #e6e6ea; }
+.mc-line-shadow { fill: none; stroke: #121214; stroke-width: 6; stroke-linejoin: miter; opacity: .85; }
+.mc-line { fill: none; stroke: #55555e; stroke-width: 2; }
+.mc-line-head { fill: #55555e; stroke: #121214; stroke-width: 1.5; }
+.is-next .mc-line, .is-next .mc-line-head { stroke: #9b6cf0; }
+.is-next .mc-line-head { fill: #9b6cf0; }
+.is-on .mc-line { stroke: #f1f1f4; }
+.is-on .mc-line-head { fill: #f1f1f4; }
 .mc-node { position: absolute; }
-.mc-node-btn { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.45)); transition: transform 120ms var(--ease-soft); }
-.mc-node-btn:hover, .mc-node-btn:focus-visible { transform: scale(1.08); }
-.mc-node-btn:focus-visible { outline: 2px solid #ffff55; outline-offset: 2px; border-radius: 4px; }
+.mc-node-btn { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)); transition: transform 120ms var(--ease-soft); }
+.mc-node-btn:hover, .mc-node-btn:focus-visible { transform: scale(1.1); }
+.mc-node-btn:focus-visible { outline: 2px solid #ffff55; outline-offset: 3px; border-radius: 4px; }
+/* further off: the frame sinks into the rock; next: it glows */
+.mc-node.is-far .mc-badge > img:first-child { filter: brightness(.55) saturate(.7); }
+.mc-node.is-next .mc-node-btn { animation: mc-next 2.4s ease-in-out infinite; }
+@keyframes mc-next { 0%, 100% { filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 0 rgba(180, 140, 255, 0)); } 50% { filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 9px rgba(180, 140, 255, 0.95)); } }
+.mc-node-bar { position: absolute; left: 6px; right: 6px; top: calc(100% + 4px); height: 5px; background: #121214; border: 1px solid #121214; }
+.mc-node-bar > i { display: block; height: 100%; background: #b48cff; }
 .mc-tip { position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 2; width: max-content; max-width: 260px; transform: translateX(-50%); display: none; flex-direction: column; gap: 2px; padding: 8px 12px; text-align: left; pointer-events: none;
   background: var(--mc-bg); color: var(--mc-title); border: 2px solid var(--mc-edge); box-shadow: inset 0 0 0 2px var(--mc-inner), inset 0 0 0 3px var(--mc-inner2), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
   clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px); font-family: var(--font-pixel); font-weight: 500; }
-.mc-tip.is-below { bottom: auto; top: calc(100% + 10px); }
+.mc-tip.is-below { bottom: auto; top: calc(100% + 14px); }
 .mc-tip.is-left { left: 0; transform: none; }
 .mc-tip.is-right { left: auto; right: 0; transform: none; }
 .mc-node:hover .mc-tip, .mc-node.is-open .mc-tip, .mc-node:focus-within .mc-tip { display: flex; }
@@ -762,5 +775,12 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 .mc-tip[data-kind="goal"] .mc-tip-head { color: var(--mc-head-quest); }
 .mc-tip-title { font-size: 16px; line-height: 19px; color: var(--mc-title); text-shadow: 2px 2px 0 var(--mc-shadow); }
 .mc-tip-sub { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 600; color: var(--mc-sub); white-space: normal; }
-@media (max-width: 767px) { .mc-pit { height: 440px; } }
-@media (prefers-reduced-motion: reduce) { .mc-node-btn { transition: none; } }
+.mc-pit-centre { position: absolute; top: 10px; right: 18px; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-chip); border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(18, 18, 20, 0.72); color: #f1f1f4; backdrop-filter: blur(6px); }
+.mc-pit-centre:hover { background: rgba(18, 18, 20, 0.9); }
+.mc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--color-ink-2); }
+.mc-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.mc-legend-item > img { image-rendering: pixelated; }
+.mc-legend-item > b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.mc-legend-hint { margin-left: auto; color: var(--color-ink-3); font-weight: 500; }
+@media (max-width: 767px) { .mc-pit { height: 460px; } .mc-legend-hint { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .mc-node-btn { transition: none; } .mc-node.is-next .mc-node-btn { animation: none; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 6px rgba(180, 140, 255, 0.9)); } }
