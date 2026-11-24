@@ -276,7 +276,7 @@ Profile → Sounds); the `.mc-*` styles and the pixel font (Mojang, in `public/f
 self-hosted, toasts and slabs only). Calls that earn XP invalidate
 `['gamification']` so the toast comes at once. The Progress page's
 achievements are the old games' window (`components/achievements/Tree`): a
-pit of blocks drawn on a canvas, the 36 achievements as a tree with arrows
+pit of blocks (the owner's picture, else drawn on a canvas), the 40 achievements as a tree with arrows
 (`LAYOUT` there), frames by tier (`tier` from the API: advancement, goal,
 challenge; the six frame images in `public/achievements`), secrets as
 padlocks, a slab tooltip, and a List toggle.

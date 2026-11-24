@@ -44,7 +44,7 @@ sit in grey frames; the rest in purple, their icons dimmed; a secret shows a
 padlock and "???". Hover or press a frame for a slab tooltip. A List toggle
 shows the same achievements as slabs, for reading and for keyboards.
 
-## The list (spec 27, 36 of them)
+## The list (spec 27, 40 of them)
 
 Tiers: A advancement (square), G goal (rounded), C challenge (jagged); S secret.
 
@@ -61,11 +61,12 @@ Tiers: A advancement (square), G goal (rounded), C challenge (jagged); S secret.
 - **Words:** Wordsmith 500 reviews (A), Lexicon 2,000 (G).
 - **The clock:** Night Owl (A, S), Early Bird (A, S).
 - **Quests:** Quest Habit (A), Quest Regular (C), Full House (G), Clean Sweep (C).
-- **The world:** Bookworm (G), Regular 20 lessons (G), Contender (A).
+- **The world:** Bookworm (G), Regular 20 lessons (G), Contender (A), Podium
+  (top three in a competition, settled by the worker once it ends, C),
+  Graduation (a roadmap course finished, C).
+- **Sharpshooters:** Sniper (20 right in a row inside one test or assessment,
+  C), Pair of Aces (a Pairs round with no mistakes, A).
 
 ## Still to come
 
-Need hooks the API doesn't have yet: Podium (top three in a competition),
-Graduation (a roadmap course finished; the cap icon is drawn), Sniper (20
-right in a row), Pair of Aces (a Pairs round with no mistakes), and Watching
-the Video once video lessons exist (the heart icon).
+Watching the Video, once video lessons exist (the heart icon is drawn).
