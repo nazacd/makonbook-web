@@ -1,4 +1,4 @@
-import { BarChart3, Bookmark, ChevronRight, CircleCheck, Flame, History, LibraryBig, Target } from 'lucide-react';
+import { BarChart3, ChevronRight, CircleCheck, Flame, History, LibraryBig, Star, Target } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
@@ -93,7 +93,7 @@ function Analytics({ s }: { s: PracticeStats }) {
           label="Saved questions"
           value={String(s.saved)}
           note="To come back to"
-          icon={Bookmark}
+          icon={Star}
           action={
             <Link to="/questions/saved" className="t-footnote inline-flex h-7 items-center rounded-full border border-line bg-surface px-3 font-semibold text-ink-2 hover:text-ink">
               View

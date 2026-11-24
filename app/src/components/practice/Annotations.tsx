@@ -100,27 +100,36 @@ export function Annotated({
   useLayoutEffect(() => {
     const el = root.current;
     if (!el || !supported) return;
-    const nodes = textNodes(el);
-    const byColor = new Map<HighlightColor, Range[]>();
-    const marks: { id: string; x: number; y: number }[] = [];
-    const base = el.getBoundingClientRect();
-    for (const h of highlights) {
-      const r = rangeFromOffsets(nodes, h.start, h.end);
-      if (!r) continue;
-      byColor.set(h.color, [...(byColor.get(h.color) ?? []), r]);
-      if (h.note) {
-        // The last drawn piece of the range; a range that ends at a node
-        // boundary also reports an empty rect on the next line.
-        const rects = [...r.getClientRects()].filter((x) => x.width > 0);
-        const last = rects[rects.length - 1];
-        if (last) marks.push({ id: h.id, x: last.right - base.left, y: last.top - base.top });
-      }
-    }
     const id = blockId;
-    blocks.set(id, byColor);
-    paint();
-    setMarkers(marks);
+    const draw = () => {
+      const nodes = textNodes(el);
+      const byColor = new Map<HighlightColor, Range[]>();
+      const marks: { id: string; x: number; y: number }[] = [];
+      const base = el.getBoundingClientRect();
+      for (const h of highlights) {
+        const r = rangeFromOffsets(nodes, h.start, h.end);
+        if (!r) continue;
+        byColor.set(h.color, [...(byColor.get(h.color) ?? []), r]);
+        if (h.note) {
+          // The last drawn piece of the range; a range that ends at a node
+          // boundary also reports an empty rect on the next line.
+          const rects = [...r.getClientRects()].filter((x) => x.width > 0);
+          const last = rects[rects.length - 1];
+          if (last) marks.push({ id: h.id, x: last.right - base.left, y: last.top - base.top });
+        }
+      }
+      blocks.set(id, byColor);
+      paint();
+      setMarkers((old) => (old.length === marks.length && old.every((m, i) => m.id === marks[i]!.id && m.x === marks[i]!.x && m.y === marks[i]!.y) ? old : marks));
+    };
+    draw();
+    // A formula is drawn a moment after its text (RichContent's Formula): the
+    // text nodes change under the highlights, so they are placed again.
+    const content = el.firstElementChild;
+    const watch = content && highlights.length ? new MutationObserver(draw) : null;
+    if (content) watch?.observe(content, { childList: true, subtree: true, characterData: true });
     return () => {
+      watch?.disconnect();
       blocks.delete(id);
       paint();
     };

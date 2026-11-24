@@ -149,7 +149,18 @@ passes at 70 %, and a lesson is done once it is passed and every set is
 finished, which opens the next lesson), `AssessmentRun` (`/assessments/:id`,
 full screen: answers go to the server as you go, grading happens there on
 submit, then the result with explanations; submitting invalidates the
-`['roadmaps']` queries). Free accounts see the units past the first country
+`['roadmaps']` queries. An open set, of every kind, is laid out like the
+test screen, whose frame it shares (`components/practice/Chrome`: `Tool`,
+`MoreMenu`, `CalcPane`, `useWide`): Go back and Directions, the clock in the
+middle (`components/assessment/Clock`: time left, or time spent with Pause;
+Hide), the tools (Reference and Calculator for Math, Highlight, More); the
+question under a strip with its number, Mark for Review and the cross-out
+tool; a passage beside its question on laptops; the footer with the title,
+the question list (`components/assessment/Navigator`: a popover that scrolls
+however long the set is, cells by state, Group answered, Finish), Back and
+the next step. Marks for review, struck choices and highlights are kept in
+this browser per set (`mb.assessment.marks.<person>.<id>`) and never
+uploaded. Arrow keys turn the questions). Free accounts see the units past the first country
 locked `enrolled_only`; a locked lesson answers 403 `lesson_locked` or
 `enrolled_only`. Teachers have no roadmaps. The curriculum and the logos are
 SATMAKON's own and never committed: the mock makes a course up, or loads
@@ -185,11 +196,15 @@ per subject, accuracy by topic, time and accuracy by difficulty, in
 `components/practice/BankCharts`; art in `BankArt`, SATMAKON's own), a
 subject's topics at `/questions/:subject` (`BankPages`: difficulty, unsolved
 only, order; choose topics, then at one's own pace or a Question Rush),
-`/questions/saved` and `/questions/history`. Open to every student with a
-phone, no paid tier. A set is an assessment of kind `practice` in
+`/questions/saved` and `/questions/history`. The filters are `SelectMenu`
+(`components/ui`: a menu drawn here, never a native `<select>` hidden under a
+pill, which the browser paints in its own colours). Open to every student
+with a phone, no paid tier. A set is an assessment of kind `practice` in
 `AssessmentRun`: a rush is timed and handed in at zero; at one's own pace each
-question is checked (`checkQuestion`) with its answer and explanation, once,
-and can be saved (the bookmark). One open set at a time: starting another
+question is checked (`checkQuestion`) with its answer and explanation, once
+(the choices turn green and red with a tick and a cross), and can be saved
+(the star; the bookmark is Mark for Review, for this set only). Issue reports
+aren't offered here yet: the API's reports point at a test's question. One open set at a time: starting another
 answers `practice_open` with it (`PracticeOpenError`). The trend's colours:
 right green, wrong red, harder darker (`TREND`), with a legend, tooltips and a
 table.

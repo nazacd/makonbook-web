@@ -1,4 +1,4 @@
-import { Bookmark, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, History, Shuffle, SlidersHorizontal, Timer, Zap } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CircleCheck, History, Shuffle, SlidersHorizontal, Star, Timer, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -7,7 +7,7 @@ import { PracticeOpenError, useDiscardPractice, usePracticeSets, usePracticeStat
 import type { Assessment } from '@/api/roadmaps';
 import { Notice } from '@/components/Notice';
 import { EmptyState, ErrorState, Skeleton } from '@/components/States';
-import { Action, Modal } from '@/components/ui';
+import { Action, Modal, SelectMenu } from '@/components/ui';
 import { useTitle } from '@/lib/title';
 
 // The question bank's pages below the hub (spec 22.8): a subject's topics
@@ -64,6 +64,8 @@ export function SubjectBank() {
   const domains = topics.data?.[subject] ?? [];
   const solved = stats.data?.subjects[subject].skills ?? {};
   const allSkills = domains.flatMap((d) => d.skills).filter((s) => s.total > 0);
+  const of = (k: 'total' | 'easy' | 'medium' | 'hard') => allSkills.reduce((n, x) => n + x[k], 0);
+  const questions = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'question' : 'questions'}`;
   const toggle = (skill: string) => setPicked((p) => (p.includes(skill) ? p.filter((x) => x !== skill) : [...p, skill]));
   const countOf = (skills: string[]) => {
     const list = skills.length ? allSkills.filter((s) => skills.includes(s.skill)) : allSkills;
@@ -76,40 +78,43 @@ export function SubjectBank() {
       <Back />
       <h1 className="text-[30px] font-semibold leading-9 tracking-[-0.02em] text-title">{NAME[subject]}</h1>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Menu
+        <SelectMenu
           icon={SlidersHorizontal}
+          name="Difficulty"
           label={difficulty ? `Difficulty: ${difficulty[0]!.toUpperCase()}${difficulty.slice(1)}` : 'Difficulty'}
           active={!!difficulty}
-          options={[
-            ['', 'Any difficulty'],
-            ['easy', 'Easy'],
-            ['medium', 'Medium'],
-            ['hard', 'Hard'],
-          ]}
           value={difficulty}
-          onChange={(v) => setDifficulty(v as Difficulty)}
+          onChange={setDifficulty}
+          options={[
+            { value: '', label: 'Any difficulty', hint: questions(of('total')) },
+            { value: 'easy', label: 'Easy', hint: questions(of('easy')) },
+            { value: 'medium', label: 'Medium', hint: questions(of('medium')) },
+            { value: 'hard', label: 'Hard', hint: questions(of('hard')) },
+          ]}
         />
-        <Menu
+        <SelectMenu
           icon={CircleCheck}
+          name="Which questions"
           label={unsolved ? 'Unsolved only' : 'All questions'}
           active={unsolved}
-          options={[
-            ['all', 'All questions'],
-            ['unsolved', 'Unsolved only'],
-          ]}
           value={unsolved ? 'unsolved' : 'all'}
           onChange={(v) => setUnsolved(v === 'unsolved')}
+          options={[
+            { value: 'all', label: 'All questions', hint: 'Solved ones may come again' },
+            { value: 'unsolved', label: 'Unsolved only', hint: 'Only what you haven’t got right yet' },
+          ]}
         />
-        <Menu
+        <SelectMenu
           icon={Shuffle}
+          name="Order"
           label={shuffle ? 'Order: shuffled' : 'Order: easy to hard'}
           active={shuffle}
-          options={[
-            ['normal', 'Easy to hard'],
-            ['shuffle', 'Shuffled'],
-          ]}
           value={shuffle ? 'shuffle' : 'normal'}
           onChange={(v) => setShuffle(v === 'shuffle')}
+          options={[
+            { value: 'normal', label: 'Easy to hard', hint: 'Warm up, then climb' },
+            { value: 'shuffle', label: 'Shuffled', hint: 'Like the test: any order' },
+          ]}
         />
       </div>
       {error && <div className="mt-3">{error}</div>}
@@ -218,23 +223,6 @@ export function SubjectBank() {
   );
 }
 
-function Menu({ icon: I, label, active, options, value, onChange }: { icon: typeof Shuffle; label: string; active: boolean; options: [string, string][]; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className={`t-subhead relative inline-flex h-10 items-center gap-2 rounded-control border px-3 font-semibold ${active ? 'border-primary bg-accent-tint text-accent' : 'border-line bg-surface-2 text-ink'}`}>
-      <I size={15} aria-hidden="true" />
-      <span>{label}</span>
-      <ChevronDown size={15} aria-hidden="true" />
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="absolute inset-0 cursor-pointer opacity-0">
-        {options.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function ModeDialog({ subject, available, busy, onClose, onStart }: { subject: Subject; available: number; busy: boolean; onClose: () => void; onStart: (mode: 'own_pace' | 'rush', count: number) => void }) {
   const [rushCount, setRushCount] = useState(Math.min(10, available));
   const pace = SAT_PACE[subject];
@@ -298,7 +286,7 @@ export function SavedQuestions() {
         </div>
       ) : list.length === 0 ? (
         <div className="mt-5">
-          <EmptyState icon={Bookmark} title="Nothing saved yet" message="While you practise, save a question with the bookmark to find it here." />
+          <EmptyState icon={Star} title="Nothing saved yet" message="While you practise, save a question with the star to find it here." />
         </div>
       ) : (
         (['english', 'math'] as const).map((s) => {

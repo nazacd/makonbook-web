@@ -1,5 +1,5 @@
-import { X, type LucideIcon } from 'lucide-react';
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { Check, ChevronDown, X, type LucideIcon } from 'lucide-react';
+import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { useDialog } from '@/lib/dialog';
 
@@ -172,5 +172,83 @@ export function Action({ children, onClick, variant = 'primary', className = '',
       {children}
       {I && <I size={16} strokeWidth={2.2} aria-hidden="true" />}
     </button>
+  );
+}
+
+/**
+ * A pill that opens a short menu of choices: the filters over a list. Drawn
+ * here, not by the browser, so it looks the same in both themes. Arrow keys
+ * move between the choices, Enter chooses, Escape or a press outside closes.
+ */
+export function SelectMenu<T extends string>({ icon: I, label, name, value, options, onChange, active = false }: { icon?: LucideIcon; label: string; name: string; value: T; options: { value: T; label: string; hint?: string }[]; onChange: (v: T) => void; active?: boolean }) {
+  const [open, setOpen] = useState<'left' | 'right' | null>(null);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open != null}
+        aria-label={`${name}: ${options.find((o) => o.value === value)?.label ?? label}`}
+        onClick={(e) => {
+          // Opens towards the side with room for it.
+          const r = e.currentTarget.getBoundingClientRect();
+          setOpen(open ? null : r.left + 248 > window.innerWidth ? 'right' : 'left');
+        }}
+        className={`t-subhead inline-flex h-10 items-center gap-2 rounded-control border px-3 font-semibold transition-colors ${active ? 'border-primary bg-accent-tint text-accent' : 'border-line bg-surface-2 text-ink hover:border-line-strong'}`}>
+        {I && <I size={15} aria-hidden="true" />}
+        <span>{label}</span>
+        <ChevronDown size={15} aria-hidden="true" className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <SelectList
+          name={name}
+          side={open}
+          value={value}
+          options={options}
+          onClose={() => setOpen(null)}
+          onChoose={(v) => {
+            setOpen(null);
+            if (v !== value) onChange(v);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SelectList<T extends string>({ name, side, value, options, onChoose, onClose }: { name: string; side: 'left' | 'right'; value: T; options: { value: T; label: string; hint?: string }[]; onChoose: (v: T) => void; onClose: () => void }) {
+  const list = useDialog<HTMLDivElement>(onClose);
+  const items = () => [...(list.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
+  useEffect(() => {
+    (list.current?.querySelector<HTMLElement>('[aria-selected="true"]') ?? items()[0])?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const all = items();
+    const at = all.indexOf(document.activeElement as HTMLElement);
+    const to = e.key === 'ArrowDown' ? (at + 1) % all.length : e.key === 'ArrowUp' ? (at - 1 + all.length) % all.length : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
+    if (e.key === 'Tab') onClose();
+    if (to < 0) return;
+    e.preventDefault();
+    all[to]?.focus();
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-30" aria-hidden="true" onClick={onClose} />
+      <div ref={list} tabIndex={-1} role="listbox" aria-label={name} onKeyDown={onKeyDown} className={`pop absolute top-[calc(100%+6px)] z-40 flex w-max min-w-full max-w-[min(280px,calc(100vw-32px))] flex-col rounded-control border border-line bg-surface p-1.5 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.35)] outline-none ${side === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}>
+        {options.map((o) => {
+          const on = o.value === value;
+          return (
+            <button key={o.value} type="button" role="option" aria-selected={on} onClick={() => onChoose(o.value)} className={`flex min-h-10 w-full items-center gap-3 rounded-chip px-2.5 py-1.5 text-left outline-none hover:bg-surface-2 focus-visible:bg-surface-2 ${on ? 'text-accent' : 'text-ink'}`}>
+              <span className="min-w-0 flex-1">
+                <span className={`t-subhead block ${on ? 'font-bold' : 'font-medium'}`}>{o.label}</span>
+                {o.hint && <span className="t-caption block font-medium text-ink-3">{o.hint}</span>}
+              </span>
+              <Check size={16} strokeWidth={2.6} aria-hidden="true" className={on ? '' : 'invisible'} />
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
