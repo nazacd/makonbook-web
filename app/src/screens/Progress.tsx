@@ -2,7 +2,7 @@ import { Award, CalendarCheck, Flame, LayoutList, Medal, Network, Sparkles, Trop
 import { useState } from 'react';
 
 import { useGamification, xp, type Gamification, type Quest } from '@/api/gamification';
-import { Badge, ICON_OF } from '@/components/achievements/PixelIcon';
+import { AchievementList } from '@/components/achievements/List';
 import { AchievementTree } from '@/components/achievements/Tree';
 import { ErrorState, Skeleton } from '@/components/States';
 import { PageHeader, Progress as Bar, Widget, WidgetLabel } from '@/components/ui';
@@ -118,35 +118,7 @@ function Loaded({ g, now }: { g: Gamification; now: number }) {
             </span>
           }
         />
-        {view === 'tree' ? (
-          <AchievementTree g={g} now={now} />
-        ) : (
-          <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            {g.achievements.map((a) => {
-              const on = !!a.unlocked_at;
-              const hidden = a.secret && !on;
-              return (
-                <li key={a.code} className={`mc-card ${on ? '' : 'is-locked'}`} data-kind={a.tier} title={a.description}>
-                  <span className="mc-card-icon">
-                    <Badge icon={hidden ? 'lock' : (ICON_OF[a.code] ?? 'star')} shape={a.tier} done={on} size={48} dim={!on} />
-                  </span>
-                  <span className="mc-card-text flex-1">
-                    <span className="mc-card-head">{on ? (a.tier === 'challenge' ? 'Challenge complete!' : 'Achievement unlocked!') : a.tier === 'challenge' ? 'Challenge' : a.tier === 'goal' ? 'Goal' : 'Achievement'}</span>
-                    <span className="mc-card-title">{a.title}</span>
-                    <span className="mc-card-sub">
-                      {a.description} {on ? `Unlocked ${relativeDay(Date.parse(a.unlocked_at!), now)}.` : hidden ? '' : `${xp(a.progress)} / ${xp(a.target)}`}
-                    </span>
-                    {!on && !hidden && (
-                      <span className="mc-card-bar" aria-hidden="true">
-                        <i style={{ width: `${Math.min(100, (100 * a.progress) / Math.max(1, a.target))}%` }} />
-                      </span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {view === 'tree' ? <AchievementTree g={g} now={now} /> : <AchievementList g={g} now={now} />}
       </Widget>
 
       <Widget accent={ACCENT.recent} className="mt-3.5">

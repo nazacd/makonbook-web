@@ -268,18 +268,23 @@ whole picture; Mako celebrates a level reached today or all daily quests
 done (`lib/mako.ts`). The mock keeps a made-up ledger in
 `mock/gamification.cjs` and awards for attempts, submits and reviews.
 Achievements look like the old games' advancement toasts (`docs/achievements.md`;
-`components/achievements/`): `PixelIcon` draws 16-pixel icons in code,
+`components/achievements/`): every icon is one of the owner's 16-pixel items
+in `public/achievements/items` (`ItemIcon` in `Icons.tsx`), and nothing else,
+drawn or borrowed; `catalogue.ts` is the one list of which item, group and
+tree cell each achievement has (a new one gets a line there).
 `AchievementToasts` (in `AppShell`) slides a slab in at the top right for each
 unlock, quest done, the evening nudge and the cobwebs, once per device
 (`mb.toasts.seen.<person>`), with a synthesised chime (`lib/sounds.ts`,
 Profile → Sounds); the `.mc-*` styles and the pixel font (Mojang, in `public/fonts`,
 self-hosted, toasts and slabs only). Calls that earn XP invalidate
 `['gamification']` so the toast comes at once. The Progress page's
-achievements are the old games' window (`components/achievements/Tree`): a
-pit of blocks (the owner's picture, else drawn on a canvas), the 40 achievements as a tree with arrows
-(`LAYOUT` there), frames by tier (`tier` from the API: advancement, goal,
-challenge; the six frame images in `public/achievements`), secrets as
-padlocks, a slab tooltip, and a List toggle.
+achievements are a tree (`components/achievements/Tree`, no window frame): a
+pit of blocks (the owner's picture, dimmed by `--mc-pit` in the dark theme,
+else drawn on a canvas), the 40 achievements joined by arrows, frames by tier
+(`tier` from the API: advancement, goal, challenge; the six frame images in
+`public/achievements`; frames are the tree's only), the ones up next
+glowing, secrets as sacks, a slab tooltip; and a List toggle (`List`: by
+group, All/Earned/To do, the bare item on a slab).
 
 Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
 the Customise menu in the header, a tick per widget, kept in this browser as

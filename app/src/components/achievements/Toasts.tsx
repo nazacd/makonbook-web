@@ -4,23 +4,21 @@ import { useNavigate } from 'react-router';
 import { needsPhone } from '@/api/accounts';
 import { useGamification, type Gamification } from '@/api/gamification';
 import { useMe } from '@/api/queries';
-import { Badge, ICON_OF, type FrameShape, type PixelIconName } from '@/components/achievements/PixelIcon';
+import { ICON, iconOf } from '@/components/achievements/catalogue';
+import { ItemIcon } from '@/components/achievements/Icons';
 import { usePerson } from '@/lib/practice/hooks';
 import { burst } from '@/lib/season';
 import { chime } from '@/lib/sounds';
 
-// Achievement toasts, the old games' way: a dark slab slides in at the top
-// right, holds a few seconds, slides out; the next one waits its turn. One
+// Achievement toasts, the old games' way: a slab with the item's icon slides
+// in at the top right, holds a few seconds, slides out; the next one waits its turn. One
 // fires for every achievement unlocked and every quest done since this
 // browser last looked, so work finished on the phone shows up here too. The
 // first look on a device marks everything as seen without a toast. Pressing
 // a toast opens the Progress page.
 
-type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: PixelIconName; shape?: FrameShape };
+type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: string };
 type Seen = { achievements: Record<string, string>; quests: Record<string, string> };
-
-/** The frame's shape per kind: square, rounded for a goal, jagged for a challenge. */
-const SHAPE: Record<Toast['kind'], FrameShape> = { achievement: 'advancement', challenge: 'challenge', quest: 'goal', none: 'advancement', nudge: 'advancement' };
 
 const HOLD = 5000;
 const SLIDE = 450;
@@ -52,13 +50,13 @@ export function fresh(g: Gamification, seen: Seen | null, now = new Date()): { t
     if (!a.unlocked_at) continue;
     next.achievements[a.code] = a.unlocked_at;
     if (seen && seen.achievements[a.code] !== a.unlocked_at) {
-      toasts.push({ id: `a:${a.code}:${a.unlocked_at}`, kind: a.tier === 'challenge' ? 'challenge' : 'achievement', title: a.title, icon: ICON_OF[a.code] ?? 'star', shape: a.tier });
+      toasts.push({ id: `a:${a.code}:${a.unlocked_at}`, kind: a.tier === 'challenge' ? 'challenge' : 'achievement', title: a.title, icon: iconOf(a.code) });
     }
   }
   for (const q of [...g.quests.daily, ...g.quests.weekly]) {
     if (!q.done_at) continue;
     next.quests[`${q.code}@${q.done_at}`] = q.done_at;
-    if (seen && !seen.quests[`${q.code}@${q.done_at}`]) toasts.push({ id: `q:${q.code}:${q.done_at}`, kind: 'quest', title: q.title, icon: 'compass' });
+    if (seen && !seen.quests[`${q.code}@${q.done_at}`]) toasts.push({ id: `q:${q.code}:${q.done_at}`, kind: 'quest', title: q.title, icon: ICON.quest });
   }
   // Back after a week of nothing: a cobweb, once per such gap. Not an achievement.
   const days = g.streak.days;
@@ -67,13 +65,13 @@ export function fresh(g: Gamification, seen: Seen | null, now = new Date()): { t
   if (dead && lastActive) {
     const key = `cobwebs@${lastActive}`;
     next.quests[key] = lastActive;
-    if (seen && !seen.quests[key]) toasts.push({ id: `n:${key}`, kind: 'none', title: 'A week of cobwebs', icon: 'cobweb' });
+    if (seen && !seen.quests[key]) toasts.push({ id: `n:${key}`, kind: 'none', title: 'A week of cobwebs', icon: ICON.cobwebs });
   }
   // Evening, and nothing done today: one nudge a day, in the old games' oldest words.
   if (now.getHours() >= 18 && !g.streak.active_today && g.xp_total > 0) {
     const key = `nudge@${g.streak.days.at(-1)?.day ?? ''}`;
     next.quests[key] = key;
-    if (seen && !seen.quests[key]) toasts.push({ id: `g:${key}`, kind: 'nudge', title: 'please lock in', icon: 'book' });
+    if (seen && !seen.quests[key]) toasts.push({ id: `g:${key}`, kind: 'nudge', title: 'please lock in', icon: ICON.nudge });
   }
   return { toasts, seen: next };
 }
@@ -133,7 +131,7 @@ export function AchievementToasts() {
         }}
         aria-label={`${head} ${current.title}. ${current.kind === 'nudge' ? 'Open the dashboard.' : 'Open your progress.'}`}>
         <span className="mc-toast-icon">
-          <Badge icon={current.icon} shape={current.shape ?? SHAPE[current.kind]} done size={48} />
+          <ItemIcon name={current.icon} size={32} />
         </span>
         <span className="mc-toast-text">
           <span className="mc-toast-head">{head}</span>

@@ -1,13 +1,25 @@
 # Achievements
 
 The look is the old games' advancement toast, drawn and worded as our own:
-a dark slab with a notched 2px edge, a 16-pixel icon in its own box (SVG
-rectangles in `components/achievements/PixelIcon.tsx`, SATMAKON's own, never
-anyone else's textures), a coloured header line in a pixel face (Mojang,
-self-hosted from `app/public/fonts`) and the title in white. It slides in at the top right,
+a slab with a notched 2px edge (dark in the dark theme, light in the light
+one), a 16-pixel item icon standing bare at the left, with no box or frame
+behind it, a coloured header line in a pixel face (Mojang, self-hosted from
+`app/public/fonts`) and the title. It slides in at the top right,
 holds five seconds, slides out; the next one waits. A chime (synthesised,
 Profile → Sounds) and a burst of the season's particles go with it. Pressing
-a toast opens the Progress page, where the same slabs make the grid.
+a toast opens the Progress page, where the same slabs make the list.
+
+## Icons: the owner's item set, and nothing else
+
+Every icon is one of the 16-pixel item pictures the owner supplied, in
+`app/public/achievements/items/<name>.png` (836 of them), drawn by `ItemIcon`
+in `components/achievements/Icons.tsx` with `image-rendering: pixelated`.
+**No icon is drawn in code and none comes from anywhere else**, now or later.
+`components/achievements/catalogue.ts` is the one place that says which item
+an achievement wears (and its group and place in the tree); the toasts' other
+icons (a quest, the nudge, the cobwebs, a secret's sack, the fallback) are
+`ICON` there. A new achievement gets a line in `CATALOGUE` with an item from
+the folder; until it has one it shows the fallback and sits in no group.
 
 Headers, by kind:
 
@@ -19,32 +31,44 @@ Headers, by kind:
 | none | Not an achievement | grey | back after seven dead days: "A week of cobwebs" |
 | nudge | Achievement get! | gold | evening, nothing done today: "please lock in" |
 
-The icon sits in a **frame** (`Badge` in `PixelIcon.tsx`), the six images in
-`app/public/achievements/` cut from the owner's reference: a square for an
-achievement, a rounded one for a goal (quests, the nudge), a jagged one for a
+In the tree only, the icon sits in a **frame** (`Badge` in `Icons.tsx`), the
+six images in `app/public/achievements/` cut from the owner's reference: a
+square for an achievement, a rounded one for a goal, a jagged one for a
 challenge; light grey once completed, the gold ones shifted to SATMAKON
-purple for the ones still to do.
+purple for the ones still to do. Toasts and the list have no frames.
 
 The API decides what is unlocked (spec 27); the browser only decides what it
 hasn't shown yet (`mb.toasts.seen.<person>`): the first look on a device
 marks everything seen without a toast, so an account with history doesn't
 get thirteen at once.
 
-## The window (`components/achievements/Tree.tsx`)
+## The tree (`components/achievements/Tree.tsx`)
 
-The Progress page shows the achievements as the old games did: a window
-with a bevelled grey frame, and inside it a pit of blocks that scrolls and
+The Progress page shows the achievements as the old games did, without the
+old games' window around them: a pit of blocks with rounded corners and a
+hairline edge, like any other panel here, that scrolls and
 drags: `app/public/achievements/pit.webp` when it is there (generated to the
 owner's brief: an underground cross-section, no sky, grass and dirt at the
 top edge, stone darkening to bedrock, ore by depth, tiling sideways), else
 blocks drawn in code, with the achievements laid out as a tree over
-it. Each hangs from the one before it (`LAYOUT`: grid cells and a parent),
-joined by elbowed arrows that brighten once the child is earned. Earned ones
-sit in grey frames; the rest in purple, their icons dimmed; a secret shows a
-padlock and "???". Hover or press a frame for a slab tooltip. A List toggle
-shows the same achievements as slabs, for reading and for keyboards.
+it. The picture is the same in both themes, at half brightness in the dark
+one (`--mc-pit`). Each achievement hangs from the one before it (`CATALOGUE`:
+grid cells and a parent), joined by elbowed arrows: white once the child is
+earned, purple to the ones that are next, faint beyond. Earned ones sit in
+grey frames; the ones whose parent is earned are **next**: purple and
+glowing, with a thin bar under them when part of the way there; the rest are
+purple and dimmed. A secret shows a sack and "???". Hover or press a frame
+for a slab tooltip. Under the pit, a count per tier and a line that says how
+to read it; the button in the corner goes back to the start.
 
-## The list (spec 27, 40 of them)
+## The list (`components/achievements/List.tsx`)
+
+The same achievements as slabs, for reading and for keyboards: All, Earned
+and To do; a section per group with its count; the bare item at the left,
+grey when not earned yet; the day it was earned, or how far along with a
+bar.
+
+## The forty (spec 27)
 
 Tiers: A advancement (square), G goal (rounded), C challenge (jagged); S secret.
 
@@ -69,4 +93,4 @@ Tiers: A advancement (square), G goal (rounded), C challenge (jagged); S secret.
 
 ## Still to come
 
-Watching the Video, once video lessons exist (the heart icon is drawn).
+Watching the Video, once video lessons exist (its item is `ICON.video`).
