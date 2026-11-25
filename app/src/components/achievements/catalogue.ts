@@ -86,7 +86,7 @@ export const ICON = {
   nudge: 'book',
   cobwebs: 'string',
   /** For when video lessons exist ("Watching the Video"). */
-  video: 'heart_of_the_sea',
+  video: 'heart_of_the_sea', room: 'painting',
 } as const;
 
 export const entryOf = (code: string): Entry | undefined => BY_CODE.get(code);

@@ -32,6 +32,7 @@ const PracticeReview = page(() => import('@/screens/PracticeReview'), 'PracticeR
 const PracticeHistory = page(() => import('@/screens/PracticeHistory'), 'PracticeHistory');
 const Words = page(() => import('@/screens/Words'), 'Words');
 const ProgressPage = page(() => import('@/screens/Progress'), 'Progress');
+const RoomPage = page(() => import('@/screens/Room'), 'Room');
 const WordsList = page(() => import('@/screens/WordsList'), 'WordsList');
 const Study = page(() => import('@/screens/Study'), 'Study');
 const Pairs = page(() => import('@/screens/vocab/Pairs'), 'Pairs');
@@ -138,6 +139,7 @@ export function App() {
                   <Route path="/practice/review/:id/:slot" element={<PracticeReview />} />
                   <Route path="/words" element={<Words />} />
                   <Route path="/progress" element={<ProgressPage />} />
+                  <Route path="/room" element={<RoomPage />} />
                   <Route path="/library" element={<Library />} />
                   <Route path="/universities" element={<Universities />} />
                   <Route path="/competitions" element={<Competitions />} />

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { needsPhone } from '@/api/accounts';
 import { useGamification, type Gamification } from '@/api/gamification';
 import { useMe } from '@/api/queries';
+import { newItems, useRoom, type Room } from '@/api/room';
 import { ICON, iconOf } from '@/components/achievements/catalogue';
 import { ItemIcon } from '@/components/achievements/Icons';
 import { usePerson } from '@/lib/practice/hooks';
@@ -15,9 +16,10 @@ import { chime } from '@/lib/sounds';
 // fires for every achievement unlocked and every quest done since this
 // browser last looked, so work finished on the phone shows up here too. The
 // first look on a device marks everything as seen without a toast. Pressing
-// a toast opens the Progress page.
+// a toast opens the Progress page. Things newly unlocked for Mako's room
+// (spec 28) get one toast between them, which opens the room.
 
-type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge'; title: string; icon: string };
+type Toast = { id: string; kind: 'achievement' | 'challenge' | 'quest' | 'none' | 'nudge' | 'room'; title: string; icon: string };
 type Seen = { achievements: Record<string, string>; quests: Record<string, string> };
 
 const HOLD = 5000;
@@ -43,7 +45,7 @@ function writeSeen(person: string, seen: Seen) {
 }
 
 /** What g holds that `seen` doesn't; and the record to keep afterwards. */
-export function fresh(g: Gamification, seen: Seen | null, now = new Date()): { toasts: Toast[]; seen: Seen } {
+export function fresh(g: Gamification, seen: Seen | null, now = new Date(), room?: Room): { toasts: Toast[]; seen: Seen } {
   const next: Seen = { achievements: {}, quests: {} };
   const toasts: Toast[] = [];
   for (const a of g.achievements) {
@@ -73,6 +75,13 @@ export function fresh(g: Gamification, seen: Seen | null, now = new Date()): { t
     next.quests[key] = key;
     if (seen && !seen.quests[key]) toasts.push({ id: `g:${key}`, kind: 'nudge', title: 'please lock in', icon: ICON.nudge });
   }
+  // New things for Mako's room: one toast for the lot, once per set of them.
+  const items = room ? newItems(room) : [];
+  if (items.length > 0) {
+    const key = `room@${items.map((i) => i.code).sort().join(',')}`;
+    next.quests[key] = key;
+    if (seen && !seen.quests[key]) toasts.push({ id: `r:${key}`, kind: 'room', title: items.length === 1 ? items[0]!.name : `${items.length} new things`, icon: ICON.room });
+  }
   return { toasts, seen: next };
 }
 
@@ -81,6 +90,8 @@ export function AchievementToasts() {
   const person = usePerson();
   const student = me?.kind === 'student' && !needsPhone(me);
   const g = useGamification(student).data;
+  const room = useRoom(student).data;
+  const inRoom = useLocation().pathname === '/room';
   const [queue, setQueue] = useState<Toast[]>([]);
   const [shown, setShown] = useState(false);
   const navigate = useNavigate();
@@ -90,12 +101,14 @@ export function AchievementToasts() {
   useEffect(() => {
     if (!g || !student) return;
     const had = readSeen(person);
-    const { toasts, seen } = fresh(g, had);
+    // In the room itself the page says what is new: no toast on top of it.
+    const { toasts: all, seen } = fresh(g, had, new Date(), room);
     writeSeen(person, seen);
+    const toasts = inRoom ? all.filter((t) => t.kind !== 'room') : all;
     if (!toasts.length) return;
     const t = window.setTimeout(() => setQueue((q) => [...q, ...toasts.filter((x) => !q.some((y) => y.id === x.id))]), 0);
     return () => clearTimeout(t);
-  }, [g, person, student]);
+  }, [g, room, inRoom, person, student]);
 
   // One at a time: in, hold, out, next.
   const current = queue[0];
@@ -103,7 +116,7 @@ export function AchievementToasts() {
     if (!current) return;
     const t1 = window.setTimeout(() => {
       setShown(true);
-      if (current.kind === 'nudge') chime('quest');
+      if (current.kind === 'nudge' || current.kind === 'room') chime('quest');
       else if (current.kind !== 'none') {
         chime(current.kind);
         burst(current.kind === 'challenge' ? 30 : 16);
@@ -116,7 +129,7 @@ export function AchievementToasts() {
   }, [current]);
 
   if (!current) return null;
-  const head = { achievement: 'Achievement unlocked!', challenge: 'Challenge complete!', quest: 'Quest done!', none: 'Not an achievement', nudge: 'Achievement get!' }[current.kind];
+  const head = { achievement: 'Achievement unlocked!', challenge: 'Challenge complete!', quest: 'Quest done!', none: 'Not an achievement', nudge: 'Achievement get!', room: 'New for Mako’s room!' }[current.kind];
   return (
     <div className="mc-toasts" aria-live="polite">
       <button
@@ -127,9 +140,9 @@ export function AchievementToasts() {
           timers.current.forEach(clearTimeout);
           setShown(false);
           setQueue([]);
-          void navigate(current.kind === 'nudge' ? '/' : '/progress');
+          void navigate(current.kind === 'nudge' ? '/' : current.kind === 'room' ? '/room' : '/progress');
         }}
-        aria-label={`${head} ${current.title}. ${current.kind === 'nudge' ? 'Open the dashboard.' : 'Open your progress.'}`}>
+        aria-label={`${head} ${current.title}. ${current.kind === 'nudge' ? 'Open the dashboard.' : current.kind === 'room' ? 'Open the room.' : 'Open your progress.'}`}>
         <span className="mc-toast-icon">
           <ItemIcon name={current.icon} size={32} />
         </span>

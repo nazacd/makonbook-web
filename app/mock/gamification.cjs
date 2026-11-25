@@ -200,4 +200,7 @@ function seed(login) {
   }
 }
 
-module.exports = { award, state, seed, dayOf, setGoals, perfectPairs };
+/** The figures as of now, for Mako's room (mock/room.cjs). */
+function figuresOf(login) { return figures(ledger(login), dayOf(new Date().toISOString())); }
+
+module.exports = { award, state, seed, dayOf, setGoals, perfectPairs, figuresOf };
