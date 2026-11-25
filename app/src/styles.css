@@ -677,7 +677,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
   --mc-head: #a07400; --mc-head-challenge: #a21caf; --mc-head-quest: #0e7490; --mc-head-none: #6b6b76;
   --mc-title: #1b1b1f; --mc-shadow: rgba(0, 0, 0, 0.22); --mc-sub: #5b6472; --mc-bar: #c9c9d2;
   --mc-locked-edge: #b9b9c3; --mc-locked-text: #7a7a86; --mc-locked-title: #4a4a56;
-  --mc-pit: 1; --mc-dim: grayscale(1) opacity(.5);
+  --mc-pit: 1; --room-night: 0; --mc-dim: grayscale(1) opacity(.5);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -685,7 +685,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
     --mc-head: #ffff55; --mc-head-challenge: #ff55ff; --mc-head-quest: #55ffff; --mc-head-none: #aaaaaa;
     --mc-title: #ffffff; --mc-shadow: rgba(0, 0, 0, 0.55); --mc-sub: #b3b3bd; --mc-bar: #3a3a40;
     --mc-locked-edge: #45454c; --mc-locked-text: #9a9aa6; --mc-locked-title: #c9c9d2;
-    --mc-pit: 0.5; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
+    --mc-pit: 0.5; --room-night: 1; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
   }
 }
 :root[data-theme="dark"] {
@@ -693,7 +693,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
   --mc-head: #ffff55; --mc-head-challenge: #ff55ff; --mc-head-quest: #55ffff; --mc-head-none: #aaaaaa;
   --mc-title: #ffffff; --mc-shadow: rgba(0, 0, 0, 0.55); --mc-sub: #b3b3bd; --mc-bar: #3a3a40;
   --mc-locked-edge: #45454c; --mc-locked-text: #9a9aa6; --mc-locked-title: #c9c9d2;
-    --mc-pit: 0.5; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
+    --mc-pit: 0.5; --room-night: 1; --mc-dim: grayscale(1) brightness(1.5) opacity(.6);
 }
 .mc-toasts { position: fixed; top: 12px; right: 12px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
 .mc-toast, .mc-card {
@@ -722,7 +722,7 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 .mc-toast-text, .mc-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mc-toast-head, .mc-card-head { font-size: 15px; line-height: 18px; color: var(--mc-head); text-shadow: 2px 2px 0 var(--mc-shadow); }
 .mc-toast[data-kind="challenge"] .mc-toast-head, .mc-card[data-kind="challenge"] .mc-card-head { color: var(--mc-head-challenge); }
-.mc-toast[data-kind="quest"] .mc-toast-head { color: var(--mc-head-quest); }
+.mc-toast[data-kind="quest"] .mc-toast-head, .mc-toast[data-kind="room"] .mc-toast-head { color: var(--mc-head-quest); }
 .mc-toast[data-kind="none"] .mc-toast-head { color: var(--mc-head-none); }
 .mc-toast-title, .mc-card-title { font-size: 16px; line-height: 19px; color: var(--mc-title); text-shadow: 2px 2px 0 var(--mc-shadow); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-card.is-locked { border-color: var(--mc-locked-edge); }
@@ -784,3 +784,24 @@ html[data-season="winter"] { --mbs-accent: #3a86c8; }
 .mc-legend-hint { margin-left: auto; color: var(--color-ink-3); font-weight: 500; }
 @media (max-width: 767px) { .mc-pit { height: 460px; } .mc-legend-hint { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .mc-node-btn { transition: none; } .mc-node.is-next .mc-node-btn { animation: none; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 6px rgba(180, 140, 255, 0.9)); } }
+
+/* Mako's room (spec 28; components/room). The drawings keep their colours in
+   both themes; in the dark one it is night: a veil over the room, a dark sky
+   in the window and a glow around the lamps placed (--room-night, 0 or 1). */
+.room-night { opacity: var(--room-night); transition: opacity .4s ease; pointer-events: none; }
+.room-veil { opacity: calc(var(--room-night) * .42); }
+.room-glows { mix-blend-mode: screen; }
+.room-trophy { image-rendering: pixelated; }
+.room-drop { animation: room-drop .55s cubic-bezier(.3, 1.4, .5, 1) both; transform-box: fill-box; transform-origin: 50% 100%; }
+.room-fade { animation: fade .45s ease both; }
+.room-shake { animation: room-shake .4s ease; }
+.room-mako { animation: mk-enter .8s cubic-bezier(.3, 1.4, .5, 1) both; }
+.room-mako .pd { filter: drop-shadow(0 10px 14px rgba(30, 15, 50, .25)); }
+/* What Mako says: under the room on a phone, a bubble over it on wider screens. */
+.room-say { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 10px 12px; border-top: 1px solid var(--color-line); }
+@media (min-width: 640px) {
+  .room-say { position: absolute; left: 12px; bottom: 12px; max-width: min(360px, 38%); padding: 9px 12px; border: 1px solid var(--color-line); border-radius: 16px 16px 16px 6px; background: var(--color-surface); box-shadow: 0 14px 34px -18px rgba(30, 15, 50, .5); }
+}
+@keyframes room-drop { 0% { opacity: 0; transform: translateY(-18px) scale(.94); } 100% { opacity: 1; transform: none; } }
+@keyframes room-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+@media (prefers-reduced-motion: reduce) { .room-drop, .room-fade, .room-shake, .room-mako { animation: none; } }

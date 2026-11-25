@@ -255,6 +255,7 @@ const universitiesApi = require('./universities.cjs');
 const libraryApi = require('./library.cjs');
 const vocabSocial = require('./vocab-social.cjs');
 const gamification = require('./gamification.cjs');
+const roomApi = require('./room.cjs');
 vocabSocial.init((l) => reviews.get(l) || []);
 const answerLog = new Map(); // login -> [{ question_id, assessment_id, correct, seconds, at }] (spec 22.8)
 const shared = { people, roster, assessments, attempts, packages, courses, prog, findLesson, assessmentOut, json, err, answerLog };
@@ -379,6 +380,11 @@ http.createServer(async (req, res) => {
     if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
     if (me.status === 'enrolled') gamification.seed(login);
     return json(res, 200, gamification.state(login));
+  }
+  if (url.startsWith('/v1/me/room')) {
+    if (me.kind !== 'student') return err(res, 403, 'forbidden', 'not a student');
+    if (me.status === 'enrolled') gamification.seed(login);
+    if (roomApi.route(url, req, res, json, err, login, body, gamification.figuresOf(login))) return;
   }
   if (universitiesApi.route(url, req, res, json, err, me)) return;
   // Onboarding and roadmaps.

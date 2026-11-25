@@ -301,6 +301,28 @@ else drawn on a canvas), the 40 achievements joined by arrows, frames by tier
 glowing, secrets as sacks, a slab tooltip; and a List toggle (`List`: by
 group, All/Earned/To do, the bare item on a slab).
 
+Mako's room (spec §28; `api/room.ts`; sidebar Mako's room, `/room`,
+`screens/Room`): the old MakonRoom as the mascot's room. Six slots (wallpaper,
+wall art, rug, furniture, light, plant), one item each; the API says which
+items are unlocked (from gamification's figures: level, XP, best streak, word
+reviews, quests) and keeps what is placed; the web only draws. The drawings
+are the old room's own (`components/room/items.tsx`: each item drawn where it
+stands in a 960 × 600 scene, so a thumbnail is the same drawing through a
+smaller window, `THUMB`; `RoomDefs` holds their patterns and goes on the page
+once), put together by `components/room/Scene` with a window onto the season
+and three shelves where the earned achievements stand as their item icons.
+Dark theme is night there (`--room-night`: a veil, a dark sky, the lamps
+placed glow); the drawings' colours are otherwise the same in both themes.
+Mako sits on the rug, says which item is nearest to opening and reacts to
+what is placed. Pressing an unlocked item places it at once (`useEquip`,
+optimistic); a locked one is shown in the room for a moment with what it
+takes. Newly unlocked items (`is_new`) get one toast between them
+(`AchievementToasts`, kind `room`), "New" tags in the room, and are then
+marked seen (`useSeenRoom`). The room is read under the `['gamification']`
+key, so anything that earns XP refetches it. A new item needs a line in the
+API's catalogue, the mock's (`mock/room.cjs`) and a drawing in `items.tsx`
+under the same code. Cosmetic only: nothing is bought, no score changes.
+
 Dashboard widgets can be hidden, lightly (`components/dashboard/Customise`:
 the Customise menu in the header, a tick per widget, kept in this browser as
 `mb.dashboard.hidden`; Today's plan and Your SAT always stay; the hidden ones
