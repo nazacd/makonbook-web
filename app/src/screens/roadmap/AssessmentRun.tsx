@@ -1,27 +1,35 @@
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, RotateCcw, Trophy, X, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, BookOpen, Bookmark, Calculator as CalculatorIcon, Check, ChevronDown, ChevronLeft, ChevronUp, EllipsisVertical, Highlighter, LayoutGrid, ListChecks, Lock, Pause, Play, RotateCcw, ScrollText, Star, Strikethrough, Trophy, X } from 'lucide-react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useStartAssignment } from '@/api/assignments';
 import { ApiError } from '@/api/client';
+import { isTimeUp, useCompetitionBoard } from '@/api/competitions';
 import { describeError } from '@/api/errors';
-import { dueLong, dueShort } from '@/components/assignments/format';
-import { clock, isTimeUp, useCompetitionBoard } from '@/api/competitions';
 import { checkQuestion, PRACTICE_STATS_KEY, PracticeOpenError, useSavedQuestions, useSaveQuestion, useStartPractice, type Checked } from '@/api/practiceSets';
-import { useQueryClient } from '@tanstack/react-query';
-import { usePerson } from '@/lib/practice/hooks';
 import { saveAnswers, useAssessment, useStartAssessment, useSubmitAssessment, type Assessment, type AssessmentQuestion, type AssessmentResult } from '@/api/roadmaps';
+import { Clock } from '@/components/assessment/Clock';
+import { Navigator } from '@/components/assessment/Navigator';
+import { dueLong, dueShort } from '@/components/assignments/format';
 import { Spinner } from '@/components/Button';
-import { AnswerChoice } from '@/components/practice/AnswerChoice';
-import { GridInInput } from '@/components/practice/GridInInput';
-import { RichContent, type ImageLinks } from '@/components/practice/RichContent';
 import { Notice } from '@/components/Notice';
-import { useFastNow, useNow } from '@/lib/clock';
+import { Annotated, supported as canHighlight, type TextHighlight } from '@/components/practice/Annotations';
+import { AnswerChoice } from '@/components/practice/AnswerChoice';
+import { Calculator } from '@/components/practice/Calculator';
+import { CalcPane, MenuItem, MoreMenu, Tool, useWide } from '@/components/practice/Chrome';
+import { Directions } from '@/components/practice/Directions';
+import { GridInInput } from '@/components/practice/GridInInput';
+import { Reference } from '@/components/practice/Reference';
+import { RichContent, type ImageLinks } from '@/components/practice/RichContent';
+import { useNow } from '@/lib/clock';
+import { usePerson } from '@/lib/practice/hooks';
+import type { PackageImage, Subject } from '@/lib/practice/types';
 import { useTitle } from '@/lib/title';
-import type { PackageImage } from '@/lib/practice/types';
 
-// "/assessments/:id": a level check or a homework set from a roadmap lesson,
-// full screen. One question at a time with a navigator; answers are saved to
+// "/assessments/:id": a level check, a homework set, a practice set from the
+// question bank or a competition attempt, full screen. One question at a
+// time under the test screen's kind of frame (see Run); answers are saved to
 // the server as you go (a reload continues), and it's graded there on
 // submit. Then the result: the score, passed or not, and every question with
 // the right answer and its explanation.
@@ -74,19 +82,81 @@ function useImages(a: Assessment) {
   }, [a.images]);
 }
 
+// What a person marks on a set while taking it: questions to come back to,
+// choices struck out, highlights and notes. Kept in this browser with the
+// set, never uploaded; gone once the set is handed in.
+type Marks = { marked: string[]; eliminated: Record<string, string[]>; highlights: Record<string, TextHighlight[]> };
+const NO_MARKS: Marks = { marked: [], eliminated: {}, highlights: {} };
+const NO_HIGHLIGHTS: TextHighlight[] = [];
+const marksKey = (person: string, id: string) => `mb.assessment.marks.${person}.${id}`;
+
+function useMarks(person: string, id: string) {
+  const key = marksKey(person, id);
+  const [marks, setMarks] = useState<Marks>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? { ...NO_MARKS, ...(JSON.parse(raw) as Partial<Marks>) } : NO_MARKS;
+    } catch {
+      return NO_MARKS;
+    }
+  });
+  useEffect(() => {
+    if (marks === NO_MARKS) return;
+    try {
+      localStorage.setItem(key, JSON.stringify(marks));
+    } catch {
+      // Not kept: they last until the page is left.
+    }
+  }, [key, marks]);
+  const forget = () => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Nothing to remove.
+    }
+  };
+  return { marks, setMarks, forget };
+}
+
+const KIND_LABEL = { level_check: 'Level check', practice: 'Practice', competition: 'Competition', homework: 'Homework' } as const;
+const MATH_DOMAINS = ['Algebra', 'Advanced Math', 'Problem-Solving and Data Analysis', 'Geometry and Trigonometry'];
+
+// An open set, full screen, laid out like the test screen (screens/
+// PracticeRun) with a practice site's manners: the header has Go back and
+// Directions, the clock in the middle (time left, or time spent with a
+// pause) and the tools (Reference and Calculator for Math, Highlight, More);
+// the question sits under a strip with its number, Mark for Review and the
+// cross-out tool; the footer has the question list, Back and the next step.
 function Run({ a, skew }: { a: Assessment; skew: number }) {
   const navigate = useNavigate();
   const submit = useSubmitAssessment(a.id);
   const { images, links } = useImages(a);
+  const person = usePerson();
+  const queryClient = useQueryClient();
+  const wide = useWide();
+  const now = useNow();
   const [answers, setAnswers] = useState<Record<string, string | null>>(a.answers);
-  const [eliminated, setEliminated] = useState<Record<string, string[]>>({});
   const [i, setI] = useState(() => Math.max(0, a.questions.findIndex((q) => a.answers[q.id] == null)));
-  const [grid, setGrid] = useState(false);
+  const { marks, setMarks, forget } = useMarks(person, a.id);
+  const [showNav, setShowNav] = useState(false);
+  const [grouped, setGrouped] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+  const [showReference, setShowReference] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [annotating, setAnnotating] = useState(false);
+  const [crossOut, setCrossOut] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(true);
+  const [paused, setPaused] = useState(false);
   const q = a.questions[i]!;
+  const total = a.questions.length;
   const answered = a.questions.filter((x) => answers[x.id] != null && answers[x.id] !== '').length;
   const back = backOf(a);
-  const now = useNow();
+  const subject: Subject = a.subject === 'mixed' ? (MATH_DOMAINS.includes(q.domain) ? 'math' : 'english') : a.subject;
+  const math = subject === 'math';
+  const hasMath = a.subject !== 'english';
+
   // At one's own pace: each question is checked as it is answered, once.
   const ownPace = a.practice?.mode === 'own_pace';
   // What the assessment says was checked, with what was checked here since.
@@ -95,13 +165,94 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
   for (const x of a.questions) {
     if (a.checked?.[x.id] != null && !checks[x.id]) checks[x.id] = { correct: a.checked[x.id]!, answer: a.answers[x.id] ?? '', correct_answer: x.correct ?? null, accepted: x.accepted ?? [], explanation: x.explanation ?? '' };
   }
+  const review = checks[q.id];
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<unknown>(null);
-  const queryClient = useQueryClient();
-  const person = usePerson();
+
+  // A timed practice set: the clock runs from when it was made, a question's time each.
+  const secs = a.practice?.seconds_per_question ?? 0;
+  // A competition: the server's deadline, on this computer's clock.
+  const deadline = a.competition ? Date.parse(a.competition.deadline) - skew : secs > 0 ? Date.parse(a.created_at) + secs * total * 1000 : null;
+
+  // Seconds spent on each question: counted while it is on screen, the tab
+  // is visible and the set isn't paused; kept with the answers (the teacher's
+  // statistics, and the pace in the student's own).
+  const times = useRef<Record<string, number>>({ ...a.times });
+  const shownSince = useRef<number | null>(null);
+  const shown = useRef<string | null>(null); // the question being counted
+  const timesDirty = useRef(false);
+  const stopped = useRef(false); // paused
+  const counting = () => (document.visibilityState === 'visible' && !stopped.current ? Date.now() : null);
+  // Adds the time since the last tally to the question on screen, and starts counting again.
+  const tally = () => {
+    const id = shown.current;
+    if (id && shownSince.current != null) {
+      const spent = Math.round((Date.now() - shownSince.current) / 1000);
+      if (spent > 0) {
+        times.current[id] = Math.min(21_600, (times.current[id] ?? 0) + spent);
+        timesDirty.current = true;
+      }
+    }
+    shownSince.current = counting();
+  };
+  // A new question starts its own count (the previous one is tallied first).
+  const tallyNow = useEffectEvent(tally);
+  useEffect(() => {
+    shown.current = q.id;
+    shownSince.current = document.visibilityState === 'visible' && !stopped.current ? Date.now() : null;
+    document.addEventListener('visibilitychange', tallyNow);
+    return () => {
+      document.removeEventListener('visibilitychange', tallyNow);
+      tallyNow();
+    };
+  }, [q.id]);
+  const pause = (on: boolean) => {
+    tally();
+    stopped.current = on;
+    shownSince.current = counting();
+    setPaused(on);
+    if (on) setShowNav(false);
+  };
+
+  // Saved to the server a moment after each change, so a reload or another
+  // device continues; and at once when the page is left or closed.
+  const pending = useRef<Record<string, string | null>>({});
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flush = () => {
+    clearTimeout(timer.current);
+    const batch = pending.current;
+    pending.current = {};
+    const sendTimes = timesDirty.current;
+    timesDirty.current = false;
+    if (Object.keys(batch).length || sendTimes)
+      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch((e) => {
+        if (isTimeUp(e)) return; // the competition's time is over: nothing more is taken
+        pending.current = { ...batch, ...pending.current };
+        timesDirty.current = timesDirty.current || sendTimes;
+      });
+  };
+  const flushOnLeave = useEffectEvent(() => {
+    tally();
+    flush();
+  });
+  useEffect(() => {
+    window.addEventListener('pagehide', flushOnLeave);
+    return () => {
+      window.removeEventListener('pagehide', flushOnLeave);
+      flushOnLeave();
+    };
+  }, []);
+  const answer = (value: string | null) => {
+    if (review) return;
+    setAnswers((x) => ({ ...x, [q.id]: value }));
+    pending.current[q.id] = value;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 800);
+  };
+
   const check = () => {
     const given = answers[q.id];
-    if (!given || checks[q.id]) return;
+    if (!given || review || checking) return;
     tally();
     setChecking(true);
     setCheckError(null);
@@ -120,6 +271,7 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
             : old,
         );
         void queryClient.invalidateQueries({ queryKey: PRACTICE_STATS_KEY(person) });
+        void queryClient.invalidateQueries({ queryKey: ['gamification'] });
       })
       .catch((e) => {
         // Checked already (another tab, or an old copy here): the server's copy says how.
@@ -127,67 +279,6 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
         else setCheckError(e);
       })
       .finally(() => setChecking(false));
-  };
-  // A timed practice set: the clock runs from when it was made, a question's time each.
-  const secs = a.practice?.seconds_per_question ?? 0;
-  // A competition: the server's deadline, on this computer's clock.
-  const deadline = a.competition ? Date.parse(a.competition.deadline) - skew : secs > 0 ? Date.parse(a.created_at) + secs * a.questions.length * 1000 : null;
-
-  // Seconds spent on each question: counted while it is on screen and the
-  // tab is visible, kept with the answers (the teacher's statistics).
-  const times = useRef<Record<string, number>>({ ...a.times });
-  const shownSince = useRef<number | null>(null);
-  const shown = useRef<string | null>(null); // the question being counted
-  const timesDirty = useRef(false);
-  // Adds the time since the last tally to the question on screen, and starts counting again.
-  const tally = () => {
-    const id = shown.current;
-    if (id && shownSince.current != null) {
-      const secs = Math.round((Date.now() - shownSince.current) / 1000);
-      if (secs > 0) {
-        times.current[id] = Math.min(21_600, (times.current[id] ?? 0) + secs);
-        timesDirty.current = true;
-      }
-    }
-    shownSince.current = document.visibilityState === 'visible' ? Date.now() : null;
-  };
-  // A new question starts its own count (the previous one is tallied first).
-  useEffect(() => {
-    shown.current = q.id;
-    shownSince.current = document.visibilityState === 'visible' ? Date.now() : null;
-    const onVisibility = () => tally();
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      tally();
-    };
-  }, [q.id]);
-
-  // Saved to the server a moment after each change, so a reload or another device continues.
-  const pending = useRef<Record<string, string | null>>({});
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const flush = () => {
-    const batch = pending.current;
-    pending.current = {};
-    const sendTimes = timesDirty.current;
-    timesDirty.current = false;
-    if (Object.keys(batch).length || sendTimes)
-      saveAnswers(a.id, batch, sendTimes ? { ...times.current } : undefined).catch((e) => {
-        if (isTimeUp(e)) return; // the competition's time is over: nothing more is taken
-        pending.current = { ...batch, ...pending.current };
-        timesDirty.current = timesDirty.current || sendTimes;
-      });
-  };
-  useEffect(() => () => {
-    clearTimeout(timer.current);
-    flush();
-  });
-  const answer = (value: string | null) => {
-    if (checks[q.id]) return;
-    setAnswers((x) => ({ ...x, [q.id]: value }));
-    pending.current[q.id] = value;
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 800);
   };
 
   const finish = () => {
@@ -198,110 +289,288 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
     submit.mutate(
       { answers, times: { ...times.current } },
       {
-        onSuccess: () => window.scrollTo(0, 0),
+        onSuccess: () => {
+          forget();
+          window.scrollTo(0, 0);
+        },
         // Handed in already (another tab, or the server graded it when its time ran out): show what the server has.
         onError: (e) => e instanceof ApiError && e.code === 'finished' && void queryClient.invalidateQueries({ queryKey: ['assessment', a.id] }),
       },
     );
   };
+  const askFinish = () => {
+    setShowNav(false);
+    setShowMore(false);
+    if (answered < total) setConfirm(true);
+    else finish();
+  };
+  const leave = () => {
+    tally();
+    flush();
+    void navigate(back);
+  };
+  const goto = (k: number) => {
+    setI(Math.max(0, Math.min(total - 1, k)));
+    setCheckError(null);
+  };
+
+  // The arrow keys turn the questions, unless something is being typed or a panel is open.
+  const onArrow = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || paused || showNav || showMore || confirm || showReference || showDirections) return;
+    const t = e.target instanceof HTMLElement ? e.target : null;
+    if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.closest('[role="dialog"], [role="radiogroup"]'))) return;
+    goto(i + (e.key === 'ArrowRight' ? 1 : -1));
+  });
+  useEffect(() => {
+    window.addEventListener('keydown', onArrow);
+    return () => window.removeEventListener('keydown', onArrow);
+  }, []);
+
+  const marked = marks.marked.includes(q.id);
+  const eliminated = marks.eliminated[q.id] ?? [];
+  const toggleMark = () => setMarks((m) => ({ ...m, marked: m.marked.includes(q.id) ? m.marked.filter((x) => x !== q.id) : [...m.marked, q.id] }));
+  const toggleEliminate = (letter: string) => {
+    const striking = !eliminated.includes(letter);
+    if (striking && answers[q.id] === letter) answer(null);
+    setMarks((m) => ({ ...m, eliminated: { ...m.eliminated, [q.id]: striking ? [...(m.eliminated[q.id] ?? []), letter] : (m.eliminated[q.id] ?? []).filter((x) => x !== letter) } }));
+  };
+  const highlightsOf = (block: string) => marks.highlights[`${q.id}/${block}`] ?? NO_HIGHLIGHTS;
+  const setHighlights = (block: string, next: TextHighlight[]) => setMarks((m) => ({ ...m, highlights: { ...m.highlights, [`${q.id}/${block}`]: next } }));
+
+  const items = a.questions.map((x, k) => {
+    const c = checks[x.id];
+    const done = answers[x.id] != null && answers[x.id] !== '';
+    return { n: k + 1, state: c ? (c.correct ? ('right' as const) : ('wrong' as const)) : done ? ('answered' as const) : ('blank' as const), marked: marks.marked.includes(x.id) };
+  });
+  const isLast = i === total - 1;
+  const twoColumns = !!q.passage;
+  const rightAnswer = review ? (review.correct_answer ?? review.accepted[0] ?? '') : '';
+
+  const backButton = (
+    <button type="button" onClick={() => goto(i - 1)} disabled={i === 0 || paused} className="t-callout h-10 rounded-full border border-line-strong px-5 font-semibold text-ink hover:bg-paper-2 disabled:opacity-40">
+      Back
+    </button>
+  );
+  const finishButton = (label: string, className = '') => (
+    <button type="button" onClick={askFinish} disabled={submit.isPending} className={`lift t-callout flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-5 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60 ${className}`}>
+      {submit.isPending ? 'Checking…' : label} <Check size={16} aria-hidden="true" />
+    </button>
+  );
+
+  const questionBody = (
+    <>
+      {/* The question strip: the number, Mark for Review beside it; at the right its difficulty, Save and the cross-out tool. */}
+      <div className="mb-5 flex h-10 items-center gap-1 rounded-[10px] bg-paper-2 pr-1.5">
+        <span className="t-subhead flex h-10 min-w-10 items-center justify-center rounded-[10px] bg-ink px-2 font-bold text-surface" aria-label={`Question ${i + 1} of ${total}`}>
+          {i + 1}
+        </span>
+        <button type="button" onClick={toggleMark} aria-pressed={marked} className={`t-subhead flex h-9 items-center gap-1.5 rounded-chip px-2 font-semibold ${marked ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}>
+          <Bookmark size={17} strokeWidth={1.9} className={marked ? 'text-fill-watch' : ''} fill={marked ? 'currentColor' : 'none'} aria-hidden="true" />
+          {marked ? 'Marked for Review' : 'Mark for Review'}
+        </button>
+        <span className="ml-auto flex items-center gap-0.5">
+          {q.difficulty && <span className="t-micro mr-1.5 hidden text-ink-3 sm:inline">{q.difficulty}</span>}
+          {a.kind === 'practice' && <SaveButton id={q.id} />}
+          {q.type === 'mcq' && !review && (
+            <button type="button" onClick={() => setCrossOut((v) => !v)} aria-pressed={crossOut} aria-label="Cross out answer choices" title="Cross out answer choices" className={`flex size-8 items-center justify-center rounded-full ${crossOut ? 'bg-ink text-surface' : 'text-ink-2 hover:bg-paper hover:text-ink'}`}>
+              <Strikethrough size={16} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          )}
+        </span>
+      </div>
+      <Annotated enabled={annotating} highlights={highlightsOf('q')} onChange={(next) => setHighlights('q', next)}>
+        <RichContent text={q.stem} images={images} links={links} className="rich rich-lg text-ink" />
+      </Annotated>
+      {q.type === 'mcq' && q.choices ? (
+        <div className="mt-5 flex flex-col gap-3" role="radiogroup" aria-label="Answer choices">
+          {LETTERS.filter((l) => q.choices![l] != null).map((l) => (
+            <AnswerChoice
+              key={l}
+              letter={l}
+              content={<RichContent text={q.choices![l]} images={images} links={links} displayMath className="rich" />}
+              selected={answers[q.id] === l}
+              eliminated={eliminated.includes(l)}
+              crossOut={crossOut}
+              locked={!!review}
+              result={review ? (l === review.correct_answer ? 'right' : l === review.answer && !review.correct ? 'wrong' : undefined) : undefined}
+              onSelect={() => answer(answers[q.id] === l ? null : l)}
+              onToggleEliminate={() => toggleEliminate(l)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 max-w-xs">
+          <p className="t-micro mb-2 text-ink-3">Your answer</p>
+          <GridInInput value={answers[q.id] ?? ''} onChange={(v) => answer(v === '' ? null : v)} />
+        </div>
+      )}
+      {review && (
+        <section className={`rise mt-5 rounded-card border p-4 ${review.correct ? 'border-good/40 bg-good-tint/60' : 'border-bad/40 bg-bad-tint/60'}`} aria-live="polite">
+          <p className="t-headline flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
+            <span className={`flex size-6 items-center justify-center rounded-full text-brand ${review.correct ? 'bg-good' : 'bg-bad'}`}>{review.correct ? <Check size={14} strokeWidth={3.2} aria-hidden="true" /> : <X size={14} strokeWidth={3.2} aria-hidden="true" />}</span>
+            {review.correct ? 'Right' : 'Not quite'}
+            <span className="t-subhead font-medium text-ink-2">
+              The answer is <b className="font-bold text-ink">{rightAnswer}</b>
+              {!review.correct && review.answer ? `, you answered ${review.answer}` : ''}
+            </span>
+          </p>
+          {review.explanation &&
+            (showExplanation ? (
+              <div className="mt-3 border-t border-line pt-3">
+                <p className="t-micro mb-1.5 text-ink-3">Explanation</p>
+                <RichContent text={review.explanation} images={images} links={links} className="rich t-subhead text-ink" />
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowExplanation(true)} className="t-subhead mt-2 font-semibold text-accent hover:underline">
+                Show the explanation
+              </button>
+            ))}
+        </section>
+      )}
+      {(submit.isError || checkError != null) && (
+        <div className="mt-4">
+          <Notice tone="error" message={describeError(submit.isError ? submit.error : checkError)} />
+        </div>
+      )}
+    </>
+  );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-brand">
-      <header className="sticky top-0 z-10 border-b border-line bg-surface">
-        <div className="mx-auto flex h-14 max-w-[880px] items-center gap-3 px-4">
-          <button
-            type="button"
-            onClick={() => {
-              flush();
-              void navigate(back);
-            }}
-            aria-label={a.competition ? 'Leave (the clock keeps running)' : 'Save and leave'}
-            className="flex size-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface-2">
-            <X size={19} />
+    <div className="flex h-dvh flex-col bg-paper">
+      <header className="relative grid h-[68px] shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line bg-bar px-1.5 sm:px-4">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <button type="button" onClick={leave} aria-label={a.competition ? 'Go back (the clock keeps running)' : 'Go back: your answers are saved'} className="t-subhead flex h-10 items-center gap-1 rounded-chip pl-1.5 pr-2.5 font-semibold text-ink-2 hover:bg-paper-2 hover:text-ink">
+            <ChevronLeft size={19} aria-hidden="true" />
+            <span className="hidden sm:inline">Go back</span>
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-bold text-ink">{a.title}</p>
-            <p className="t-footnote truncate text-ink-2">
-              {a.kind === 'level_check' ? 'Level check' : a.kind === 'practice' ? 'Practice' : a.kind === 'competition' ? 'Competition' : 'Homework'} · {answered}/{a.questions.length} answered
+          <button type="button" onClick={() => setShowDirections((v) => !v)} aria-expanded={showDirections} className="t-subhead hidden h-10 items-center gap-1 rounded-chip px-2.5 font-semibold text-ink hover:bg-paper-2 md:flex">
+            Directions
+            <ChevronDown size={15} strokeWidth={2} aria-hidden="true" className={showDirections ? 'rotate-180' : ''} />
+          </button>
+        </div>
+        <Clock deadline={deadline} onEnd={() => !submit.isPending && finish()} spent={Object.values(a.times).reduce((n, s) => n + s, 0)} paused={paused} onPause={pause} />
+        <div className="flex items-center justify-end gap-0.5 sm:gap-1">
+          {math && (
+            <>
+              <span className="hidden sm:contents">
+                <Tool icon={BookOpen} label="Reference" on={showReference} onClick={() => setShowReference((v) => !v)} />
+              </span>
+              <Tool icon={CalculatorIcon} label="Calculator" on={showCalculator} onClick={() => setShowCalculator((v) => !v)} />
+            </>
+          )}
+          <Tool icon={Highlighter} label="Highlight" ariaLabel={canHighlight ? 'Highlights and notes' : 'Highlights need a newer browser'} on={annotating} disabled={!canHighlight} onClick={() => setAnnotating((v) => !v)} />
+          <div className="relative">
+            <Tool icon={EllipsisVertical} label="More" ariaLabel="More" on={showMore} menu onClick={() => setShowMore((v) => !v)} />
+            {showMore && (
+              <MoreMenu onClose={() => setShowMore(false)}>
+                <MenuItem icon={ScrollText} label="Directions" className="md:hidden" onClick={() => (setShowMore(false), setShowDirections(true))} />
+                {math && <MenuItem icon={BookOpen} label="Reference" className="sm:hidden" onClick={() => (setShowMore(false), setShowReference(true))} />}
+                <MenuItem icon={LayoutGrid} label="All questions" onClick={() => (setShowMore(false), setShowNav(true))} />
+                <MenuItem icon={ListChecks} label={ownPace ? 'Finish the set' : 'Finish and check'} onClick={askFinish} />
+              </MoreMenu>
+            )}
+          </div>
+        </div>
+        {showDirections && <Directions subject={subject} onClose={() => setShowDirections(false)} />}
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+        {/* Mounted for the whole set and only hidden when closed, so the calculator keeps its work. */}
+        {hasMath && wide && (
+          <CalcPane hidden={!(showCalculator && math)}>
+            <Calculator visible docked runId={a.id} onClose={() => setShowCalculator(false)} />
+          </CalcPane>
+        )}
+        {paused ? (
+          <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+            <span className="flex size-14 items-center justify-center rounded-full bg-accent-tint text-accent">
+              <Pause size={24} fill="currentColor" aria-hidden="true" />
+            </span>
+            <h2 className="t-title text-ink">Paused</h2>
+            <p className="t-subhead max-w-xs text-ink-2">The clock is stopped and the question is put away. Your answers are saved.</p>
+            <button type="button" onClick={() => pause(false)} className="lift t-callout mt-2 flex h-11 items-center gap-2 rounded-full bg-primary px-6 font-semibold text-on-primary hover:bg-primary-hover">
+              <Play size={15} fill="currentColor" aria-hidden="true" /> Resume
+            </button>
+          </main>
+        ) : (
+          /* One scrolling page on a phone and without a passage; on a laptop a
+             passage and its question scroll on their own (see PracticeRun). */
+          <main key={q.id} className={`min-h-0 flex-1 overflow-y-auto ${twoColumns ? 'md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden' : ''}`}>
+            {twoColumns && (
+              <div className="border-b border-line p-5 md:min-h-0 md:overflow-y-auto md:border-b-0 md:border-r md:p-8">
+                <Annotated enabled={annotating} highlights={highlightsOf('p')} onChange={(next) => setHighlights('p', next)}>
+                  <RichContent text={q.passage} images={images} links={links} className="rich rich-lg text-ink" />
+                </Annotated>
+              </div>
+            )}
+            <div className={`rise p-5 md:p-8 ${twoColumns ? 'md:min-h-0 md:overflow-y-auto' : 'mx-auto w-full max-w-[780px]'}`}>{questionBody}</div>
+          </main>
+        )}
+      </div>
+
+      <footer className="relative grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-line bg-bar px-3 pb-[env(safe-area-inset-bottom)] sm:px-5">
+        <div className="absolute inset-x-0 -top-px h-[3px] bg-track" role="progressbar" aria-label="Answered" aria-valuemin={0} aria-valuemax={total} aria-valuenow={answered}>
+          <div className="h-full rounded-r-full bg-primary transition-[width] duration-300" style={{ width: `${(100 * answered) / total}%` }} />
+        </div>
+        <div className="min-w-0">
+          <div className="hidden min-w-0 sm:block">
+            <p className="t-subhead truncate font-bold text-ink">{a.title}</p>
+            <p className="t-caption truncate font-medium text-ink-2">
+              {KIND_LABEL[a.kind]} · {answered}/{total} answered
               {a.assignment && ` · due ${dueShort(a.assignment.due_at, now)}`}
             </p>
           </div>
-          {deadline != null && <Countdown deadline={deadline} onEnd={() => !submit.isPending && finish()} />}
-          <button type="button" onClick={() => setGrid(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-bold text-ink hover:bg-surface-2">
-            <LayoutGrid size={15} aria-hidden="true" /> {i + 1} of {a.questions.length}
-          </button>
+          <div className="flex sm:hidden">{backButton}</div>
         </div>
-        <div className="h-1 bg-track">
-          <div className="h-full bg-primary transition-[width]" style={{ width: `${(100 * answered) / a.questions.length}%` }} />
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-[880px] flex-1 px-4 py-6">
-        <Question key={q.id} q={q} n={i + 1} images={images} links={links} review={checks[q.id]} save={a.kind === 'practice' ? <SaveButton id={q.id} /> : null} value={answers[q.id] ?? null} eliminated={eliminated[q.id] ?? []} onAnswer={answer} onEliminate={(l) => setEliminated((x) => ({ ...x, [q.id]: (x[q.id] ?? []).includes(l) ? x[q.id]!.filter((y) => y !== l) : [...(x[q.id] ?? []), l] }))} />
-        {submit.isError && (
-          <div className="mt-4">
-            <Notice tone="error" message={describeError(submit.error)} />
-          </div>
-        )}
-        {checkError != null && (
-          <div className="mt-4">
-            <Notice tone="error" message={describeError(checkError)} />
-          </div>
-        )}
-      </main>
-
-      <footer className="sticky bottom-0 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto flex h-16 max-w-[880px] items-center justify-between gap-3 px-4">
-          <button type="button" onClick={() => setI((x) => Math.max(0, x - 1))} disabled={i === 0} className="flex h-10 items-center gap-1 rounded-full border border-line px-4 text-[14px] font-bold text-ink hover:bg-surface-2 disabled:opacity-40">
-            <ChevronLeft size={16} aria-hidden="true" /> Back
-          </button>
-          {ownPace && !checks[q.id] && answers[q.id] ? (
-            <button type="button" onClick={check} disabled={checking} className="lift flex h-10 items-center gap-1.5 rounded-full bg-ink px-5 text-[14px] font-bold text-surface disabled:opacity-60">
-              {checking ? 'Checking…' : 'Check'} <Check size={16} aria-hidden="true" />
-            </button>
-          ) : i < a.questions.length - 1 ? (
-            <button type="button" onClick={() => setI((x) => x + 1)} className="lift flex h-10 items-center gap-1 rounded-full bg-primary px-5 text-[14px] font-bold text-on-primary hover:bg-primary-hover">
-              Next <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          ) : (
-            <button type="button" onClick={() => (answered < a.questions.length ? setConfirm(true) : finish())} disabled={submit.isPending} className="lift flex h-10 items-center gap-1.5 rounded-full bg-primary px-5 text-[14px] font-bold text-on-primary hover:bg-primary-hover disabled:opacity-60">
-              {submit.isPending ? 'Checking…' : 'Finish'} <Check size={16} aria-hidden="true" />
+        <button type="button" onClick={() => setShowNav((v) => !v)} disabled={paused} aria-haspopup="dialog" aria-expanded={showNav} className="t-subhead tabular flex h-10 items-center gap-1.5 rounded-[10px] bg-ink px-3 font-semibold text-paper disabled:opacity-50 sm:px-4">
+          <span className="hidden sm:inline">Question </span>
+          {i + 1} of {total}
+          <ChevronUp size={16} strokeWidth={2} aria-hidden="true" className={`transition-transform ${showNav ? 'rotate-180' : ''}`} />
+        </button>
+        <div className="flex items-center justify-end gap-2">
+          <span className="hidden sm:flex">{backButton}</span>
+          {review?.explanation && (
+            <button type="button" onClick={() => setShowExplanation((v) => !v)} aria-pressed={showExplanation} className={`t-callout hidden h-10 items-center gap-1.5 rounded-full border px-4 font-semibold md:flex ${showExplanation ? 'border-primary bg-accent-tint text-accent' : 'border-line-strong text-ink hover:bg-paper-2'}`}>
+              <ListChecks size={16} aria-hidden="true" /> Explanation
             </button>
           )}
+          {ownPace && !review && answers[q.id] ? (
+            <button type="button" onClick={check} disabled={checking || paused} className="lift t-callout flex h-10 items-center gap-1.5 rounded-full bg-ink px-5 font-semibold text-surface disabled:opacity-60">
+              {checking ? 'Checking…' : 'Check'} <Check size={16} aria-hidden="true" />
+            </button>
+          ) : !isLast ? (
+            <button type="button" onClick={() => goto(i + 1)} disabled={paused} className="lift t-callout h-10 rounded-full bg-primary px-6 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-60">
+              Next
+            </button>
+          ) : (
+            finishButton('Finish')
+          )}
         </div>
+
+        {showNav && (
+          <Navigator
+            items={items}
+            current={i + 1}
+            checked={ownPace}
+            grouped={grouped}
+            onGrouped={setGrouped}
+            onClose={() => setShowNav(false)}
+            onGo={(n) => {
+              goto(n - 1);
+              setShowNav(false);
+            }}
+            footer={finishButton(ownPace ? 'Finish the set' : 'Finish and check', 'w-full')}
+          />
+        )}
       </footer>
 
-      {grid && (
-        <Sheet title="Questions" onClose={() => setGrid(false)}>
-          <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
-            {a.questions.map((x, k) => {
-              const done = answers[x.id] != null && answers[x.id] !== '';
-              const c = checks[x.id];
-              const look = c ? (c.correct ? 'border-good bg-good-tint text-good' : 'border-bad bg-bad-tint text-bad') : done ? 'border-primary bg-primary text-on-primary' : 'border-dashed border-line-strong text-ink';
-              return (
-                <button
-                  key={x.id}
-                  type="button"
-                  onClick={() => {
-                    setI(k);
-                    setGrid(false);
-                  }}
-                  aria-label={`Question ${k + 1}${c ? (c.correct ? ', right' : ', wrong') : done ? ', answered' : ''}`}
-                  className={`flex h-11 items-center justify-center rounded-control border text-[14px] font-bold ${k === i ? 'ring-2 ring-primary ring-offset-2' : ''} ${look}`}>
-                  {k + 1}
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" onClick={() => (setGrid(false), answered < a.questions.length ? setConfirm(true) : finish())} className="lift mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-bold text-on-primary">
-            Finish and check
-          </button>
-        </Sheet>
-      )}
+      {hasMath && !wide && <Calculator visible={showCalculator && math} runId={a.id} onClose={() => setShowCalculator(false)} />}
+      {showReference && <Reference onClose={() => setShowReference(false)} />}
       {confirm && (
         <Sheet title="Finish now?" onClose={() => setConfirm(false)}>
           <p className="t-subhead text-ink-2">
-            {a.questions.length - answered} {a.questions.length - answered === 1 ? 'question is' : 'questions are'} still blank. Blank answers count as wrong.
+            {total - answered} {total - answered === 1 ? 'question is' : 'questions are'} still blank. Blank answers count as wrong.
           </p>
           <div className="mt-5 flex gap-2.5">
             <button type="button" onClick={() => setConfirm(false)} className="h-11 flex-1 rounded-full border border-line-strong text-[15px] font-bold text-ink hover:bg-surface-2">
@@ -323,64 +592,15 @@ function Run({ a, skew }: { a: Assessment; skew: number }) {
   );
 }
 
-function Question({ q, n, images, links, value, eliminated, onAnswer, onEliminate, review, save }: { q: AssessmentQuestion; n: number; images: Record<string, PackageImage>; links: ImageLinks; value: string | null; eliminated: string[]; onAnswer: (v: string | null) => void; onEliminate: (letter: string) => void; review?: Checked; save?: ReactNode }) {
-  return (
-    <div className="rise">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex size-8 items-center justify-center rounded-[8px] bg-ink text-[14px] font-bold text-surface">{n}</span>
-        {q.difficulty && <span className="t-micro text-ink-3">{q.difficulty}</span>}
-        {review && (
-          <span className={`t-footnote ml-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-bold ${review.correct ? 'bg-good-tint text-good' : 'bg-bad-tint text-bad'}`}>
-            {review.correct ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : <XCircle size={13} aria-hidden="true" />} {review.correct ? 'Right' : 'Not quite'}
-          </span>
-        )}
-        <span className="ml-auto">{save}</span>
-      </div>
-      <div className={`grid gap-6 ${q.passage ? 'lg:grid-cols-2' : ''}`}>
-        {q.passage && (
-          <div className="rounded-card border border-line bg-surface p-5">
-            <RichContent text={q.passage} images={images} links={links} className="rich t-body text-ink" />
-          </div>
-        )}
-        <div>
-          <RichContent text={q.stem} images={images} links={links} className="rich t-body text-ink" />
-          <div className="mt-5">
-            {q.type === 'mcq' && q.choices ? (
-              <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Answer choices">
-                {LETTERS.filter((l) => q.choices![l] != null).map((l) => (
-                  <AnswerChoice key={l} letter={l} content={<RichContent text={q.choices![l]} images={images} links={links} displayMath className="rich" />} selected={value === l} eliminated={eliminated.includes(l)} crossOut onSelect={() => onAnswer(value === l ? null : l)} onToggleEliminate={() => onEliminate(l)} />
-                ))}
-              </div>
-            ) : (
-              <div className="max-w-xs">
-                <p className="t-micro mb-2 text-ink-3">Your answer</p>
-                <GridInInput value={value ?? ''} onChange={(v) => onAnswer(v === '' ? null : v)} />
-              </div>
-            )}
-          </div>
-          {review && (
-            <section className="rise mt-5 rounded-card border border-line bg-surface p-4" aria-live="polite">
-              <p className="t-subhead font-semibold text-ink">
-                {review.correct ? 'Right.' : 'Not quite.'} The answer is <span className="font-bold">{review.correct_answer ?? review.accepted[0] ?? ''}</span>
-                {!review.correct && review.answer ? <span className="text-ink-2"> · you answered {review.answer}</span> : null}
-              </p>
-              {review.explanation && <RichContent text={review.explanation} images={images} links={links} className="rich t-subhead mt-2 text-ink-2" />}
-            </section>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Saves the question to the student's saved questions (or unsaves it). */
+/** Saves the question to the student's saved questions (or unsaves it): a star, apart from the bookmark of Mark for Review. */
 function SaveButton({ id }: { id: string }) {
   const saved = useSavedQuestions();
   const save = useSaveQuestion();
   const on = (saved.data ?? []).some((q) => q.id === id) !== (save.isPending && save.variables?.id === id);
   return (
-    <button type="button" onClick={() => save.mutate({ id, on: !on })} aria-pressed={on} aria-label={on ? 'Remove from saved questions' : 'Save this question'} className={`t-footnote inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-semibold ${on ? 'border-primary bg-accent-tint text-accent' : 'border-line text-ink-2 hover:text-ink'}`}>
-      <Bookmark size={14} fill={on ? 'currentColor' : 'none'} aria-hidden="true" /> {on ? 'Saved' : 'Save'}
+    <button type="button" onClick={() => save.mutate({ id, on: !on })} aria-pressed={on} aria-label={on ? 'Remove from saved questions' : 'Save this question'} title={on ? 'Saved to your questions' : 'Save this question'} className={`t-footnote flex h-8 items-center gap-1.5 rounded-full px-2 font-semibold ${on ? 'text-accent' : 'text-ink-2 hover:bg-paper hover:text-ink'}`}>
+      <Star size={16} strokeWidth={2} fill={on ? 'currentColor' : 'none'} aria-hidden="true" />
+      <span className="hidden sm:inline">{on ? 'Saved' : 'Save'}</span>
     </button>
   );
 }
@@ -535,29 +755,6 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
         {children}
       </div>
     </div>
-  );
-}
-
-/** A timed practice set's clock: the time left, red in the last minute; at zero, the set is submitted. */
-function Countdown({ deadline, onEnd }: { deadline: number; onEnd: () => void }) {
-  const now = useFastNow();
-  const left = Math.max(0, deadline - now);
-  const ended = useRef(false);
-  const latest = useRef(onEnd);
-  useEffect(() => {
-    latest.current = onEnd;
-  });
-  useEffect(() => {
-    if (left === 0 && !ended.current) {
-      ended.current = true;
-      latest.current();
-    }
-  }, [left]);
-  const s = Math.ceil(left / 1000);
-  return (
-    <span role="timer" aria-label={`${Math.floor(s / 60)} minutes ${s % 60} seconds left`} className={`t-subhead tabular flex h-9 items-center rounded-full px-3 font-bold ${s <= 60 ? 'bg-bad-tint text-bad' : 'bg-surface-2 text-ink'}`}>
-      {clock(left)}
-    </span>
   );
 }
 

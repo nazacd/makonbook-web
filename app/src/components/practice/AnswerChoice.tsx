@@ -1,4 +1,4 @@
-import { Undo2 } from 'lucide-react';
+import { Check, Undo2, X } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 
 type AnswerChoiceProps = {
@@ -10,22 +10,37 @@ type AnswerChoiceProps = {
   crossOut: boolean;
   onSelect: () => void;
   onToggleEliminate: () => void;
+  /** Once the answer is checked: the right choice, or the wrong one that was given. Nothing can be chosen then. */
+  result?: 'right' | 'wrong';
+  /** Checked: no choosing or striking any more. */
+  locked?: boolean;
 };
 
 // The whole card selects the choice (Bluebook's rounded card with the
 // circled letter); with the cross-out tool on, a strike button sits on the
-// right, and a struck choice shows an undo in its place.
-export function AnswerChoice({ letter, content, selected, eliminated, crossOut, onSelect, onToggleEliminate }: AnswerChoiceProps) {
+// right, and a struck choice shows an undo in its place. A checked question
+// shows the right choice in green with a tick and the wrong one given in red
+// with a cross: a mark as well as a colour.
+export function AnswerChoice({ letter, content, selected, eliminated, crossOut, onSelect, onToggleEliminate, result, locked = false }: AnswerChoiceProps) {
   const struckId = useId();
+  const frame = result === 'right' ? 'border-2 border-good bg-good-tint' : result === 'wrong' ? 'border-2 border-bad bg-bad-tint' : `bg-paper ${selected ? 'border-2 border-engine' : 'border-[1.5px] border-ink'}`;
+  const badge = result === 'right' ? 'border-good bg-good text-brand' : result === 'wrong' ? 'border-bad bg-bad text-brand' : selected ? 'border-engine bg-engine text-white' : 'border-ink text-ink';
+  const still = eliminated || locked;
   return (
     <div className="flex items-center gap-3">
-      <div className={`relative flex min-w-0 flex-1 items-stretch rounded-control border bg-paper ${selected ? 'border-2 border-engine' : 'border-[1.5px] border-ink'} ${eliminated ? 'opacity-50' : ''}`}>
+      <div className={`relative flex min-w-0 flex-1 items-stretch rounded-control ${frame} ${eliminated && !result ? 'opacity-50' : ''}`}>
         {/* Named by its letter and text (the content), so a screen reader reads the answer. */}
-        <button type="button" role="radio" aria-checked={selected} aria-describedby={eliminated ? struckId : undefined} onClick={eliminated ? undefined : onSelect} className={`flex min-h-[52px] flex-1 items-center gap-3 px-3 py-2 text-left ${eliminated ? 'cursor-default' : 'active:bg-paper-2'}`}>
-          <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border t-footnote font-bold ${selected ? 'border-engine bg-engine text-white' : 'border-ink text-ink'}`}>{letter}</span>
+        <button type="button" role="radio" aria-checked={selected} aria-describedby={eliminated ? struckId : undefined} onClick={still ? undefined : onSelect} aria-disabled={locked || undefined} className={`flex min-h-[52px] flex-1 items-center gap-3 px-3 py-2 text-left ${still ? 'cursor-default' : 'active:bg-paper-2'}`}>
+          <span className={`flex size-7 shrink-0 items-center justify-center rounded-full border t-footnote font-bold ${badge}`}>{letter}</span>
           <span className="min-w-0 flex-1">{content}</span>
+          {result && (
+            <span className={`flex shrink-0 items-center gap-1 t-footnote font-bold ${result === 'right' ? 'text-good' : 'text-bad'}`}>
+              {result === 'right' ? <Check size={16} strokeWidth={3} aria-hidden="true" /> : <X size={16} strokeWidth={3} aria-hidden="true" />}
+              <span className="sr-only">{result === 'right' ? 'The right answer' : 'Your answer, wrong'}</span>
+            </span>
+          )}
         </button>
-        {eliminated && (
+        {eliminated && !result && (
           <>
             <span aria-hidden="true" className="pointer-events-none absolute inset-x-2 top-1/2 h-0.5 bg-ink" />
             <span id={struckId} className="sr-only">
@@ -35,6 +50,7 @@ export function AnswerChoice({ letter, content, selected, eliminated, crossOut, 
         )}
       </div>
       {crossOut &&
+        !locked &&
         (eliminated ? (
           <button type="button" onClick={onToggleEliminate} aria-label={`Bring back choice ${letter}`} className="t-footnote flex h-8 items-center gap-1 px-1 font-semibold text-accent underline">
             <Undo2 size={14} strokeWidth={2} aria-hidden="true" />
