@@ -20,6 +20,16 @@ export const THUMB: Record<RoomSlot, string> = {
   plant: '34 252 160 230',
 };
 
+/** Items too tall for their slot's window: the part of them a thumbnail shows. */
+export const THUMB_OF: Record<string, string> = {
+  corner_lamp: '258 196 160 120',
+  corner_chiroq: '258 100 160 120',
+  corner_globe: '242 290 192 146',
+};
+
+/** A wallpaper's pattern (in RoomDefs): the scene papers a wall of any size with it. */
+export const WALLPAPER: Record<string, string> = { wp_lavender: 'roomPatLavender', wp_ikat: 'roomPatIkat', wp_girih: 'roomPatGirih', wp_night: 'roomPatNight' };
+
 /** Where an item's light falls at night: the centre and the reach. */
 export const GLOW: Record<string, { cx: number; cy: number; r: number }> = {
   corner_lamp: { cx: 338, cy: 236, r: 150 },

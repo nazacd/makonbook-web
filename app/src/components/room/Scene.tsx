@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react';
-
 import type { Season } from '@/lib/season';
 
-import { GLOW, ROOM_ITEMS, THUMB, WINDOW_VIEW, type RoomSlot } from './items';
+import { GLOW, ROOM_ITEMS, THUMB, THUMB_OF, WALLPAPER, WINDOW_VIEW, type RoomSlot } from './items';
 
 // Mako's room, drawn (spec 28): a wall with its paper, a window onto the
 // season, the wall art, three shelves for the achievements earned, the
 // floor with a rug, a light, a plant and the furniture. In the dark theme
 // it is night: a veil over the room, the sky dark in the window, and the
-// lamps that are placed glow (--room-night in styles.css). The drawings are
-// in items.tsx; RoomDefs must be on the page.
+// lamps that are placed glow (--room-night in styles.css). The furnished
+// part is a 960 × 600 stage; with `pad` the wall and the floor carry on past
+// it, so the room can fill a box of any shape. The drawings are in
+// items.tsx; RoomDefs must be on the page.
 
 export type Trophy = { code: string; title: string; icon: string };
 
@@ -21,21 +21,51 @@ const PER_SHELF = 10;
 /** Back to front after the wall art and the shelves. */
 const FLOOR_ORDER: RoomSlot[] = ['rug', 'corner', 'plant', 'desk'];
 
-export function RoomScene({ equipped, season, trophies, dropped, children }: { equipped: Record<RoomSlot, string>; season: Season; trophies: Trophy[]; /** The item just placed: it drops in. */ dropped?: string | null; children?: ReactNode }) {
+/** The furnished part: 960 wide, 600 tall, the floor from 430 down. */
+export const STAGE = { w: 960, h: 600 };
+const FLOOR = 430;
+/** More room around the stage, in the scene's units: wall above and at the sides, floor below. */
+export type RoomPad = { x: number; top: number; bottom: number };
+const NO_PAD: RoomPad = { x: 0, top: 0, bottom: 0 };
+
+// The floorboards: rows 46 tall from the wall down, each row's joints 260
+// apart and shifted from the row above, for as much floor as there is.
+const SEAMS = [120, 60, 180, 100];
+function boards(x0: number, x1: number, bottom: number): string {
+  let d = '';
+  for (let k = 0, y = FLOOR; y < bottom; k++, y += 46) {
+    const next = Math.min(bottom, y + 46);
+    if (k > 0) d += `M${x0} ${y}H${x1}`;
+    const first = SEAMS[k % SEAMS.length]! + 260 * Math.ceil((x0 - SEAMS[k % SEAMS.length]!) / 260);
+    for (let x = first; x < x1; x += 260) d += `M${x} ${y}V${next}`;
+  }
+  return d;
+}
+
+export function RoomScene({ equipped, season, trophies, dropped, pad = NO_PAD, fill = false }: { equipped: Record<RoomSlot, string>; season: Season; trophies: Trophy[]; /** The item just placed: it drops in. */ dropped?: string | null; /** Room beyond the stage (the full-screen room). */ pad?: RoomPad; /** Fill the box it is in, instead of taking its height from its width. */ fill?: boolean }) {
+  const x0 = -pad.x;
+  const y0 = -pad.top;
+  const w = STAGE.w + 2 * pad.x;
+  const h = STAGE.h + pad.top + pad.bottom;
   const item = (slot: RoomSlot) => {
     const code = equipped[slot];
     return (
-      <g key={code} className={code === dropped ? (slot === 'wallpaper' ? 'room-fade' : 'room-drop') : undefined}>
+      <g key={code} className={code === dropped ? 'room-drop' : undefined}>
         {ROOM_ITEMS[code]}
       </g>
     );
   };
+  const paper = WALLPAPER[equipped.wallpaper];
   const glows = [equipped.corner, equipped.desk].flatMap((code) => (GLOW[code] ? [{ code, ...GLOW[code] }] : []));
   return (
-    <svg className="block h-auto w-full" viewBox="0 0 960 600" role="img" aria-label="Mako’s room" focusable="false">
-      {/* the wall */}
-      {item('wallpaper')}
-      <rect width="960" height="430" fill="url(#roomWallShade)" />
+    <svg className={fill ? 'block size-full' : 'block h-auto w-full'} viewBox={`${x0} ${y0} ${w} ${h}`} preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mako’s room" focusable="false">
+      {/* the wall, papered as far as it goes */}
+      <g key={equipped.wallpaper} className={equipped.wallpaper === dropped ? 'room-fade' : undefined}>
+        {paper ? <rect x={x0} y={y0} width={w} height={FLOOR - y0} fill={`url(#${paper})`} /> : ROOM_ITEMS[equipped.wallpaper]}
+      </g>
+      <rect x={x0} y={y0} width={w} height={FLOOR - y0} fill="url(#roomWallShade)" />
+      {/* a lantern hangs from the ceiling, however high that is */}
+      {equipped.corner === 'corner_chiroq' && pad.top > 0 && <path d={`M338 ${y0}V0`} stroke="#6b4a2e" strokeWidth="3" strokeDasharray="6 3" />}
 
       {/* the window: today's season outside, the night sky in the dark theme */}
       <g>
@@ -78,24 +108,20 @@ export function RoomScene({ equipped, season, trophies, dropped, children }: { e
         ))}
       </g>
 
-      {/* the floor */}
-      <rect y="430" width="960" height="170" fill="url(#roomFloor)" />
-      <g stroke="#b88a5c" strokeWidth="2" opacity=".55">
-        <path d="M0 468H960M0 512H960M0 560H960" />
-        <path d="M120 430V468M380 430V468M640 430V468M880 430V468M60 468V512M300 468V512M560 468V512M820 468V512M180 512V560M440 512V560M700 512V560M940 512V560M100 560V600M360 560V600M620 560V600M860 560V600" />
-      </g>
-      <rect y="422" width="960" height="12" fill="#f4eee6" />
+      {/* the floor, boarded as far as it goes */}
+      <rect x={x0} y={FLOOR} width={w} height={y0 + h - FLOOR} fill="url(#roomFloor)" />
+      <path d={boards(x0, x0 + w, y0 + h)} stroke="#b88a5c" strokeWidth="2" opacity=".55" fill="none" />
+      <rect x={x0} y={FLOOR - 8} width={w} height="12" fill="#f4eee6" />
 
       {FLOOR_ORDER.map(item)}
 
       {/* night: the room dims, the lamps placed glow */}
-      <rect className="room-night room-veil" width="960" height="600" fill="#0d0f2e" />
+      <rect className="room-night room-veil" x={x0} y={y0} width={w} height={h} fill="#0d0f2e" />
       <g className="room-night room-glows">
         {glows.map((g) => (
           <circle key={g.code} cx={g.cx} cy={g.cy} r={g.r} fill="url(#roomGlow)" />
         ))}
       </g>
-      {children}
     </svg>
   );
 }
@@ -103,7 +129,7 @@ export function RoomScene({ equipped, season, trophies, dropped, children }: { e
 /** An item on its own: the same drawing through its slot's window. */
 export function RoomThumb({ slot, code, className = '' }: { slot: RoomSlot; code: string; className?: string }) {
   return (
-    <svg viewBox={THUMB[slot]} className={className} aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox={THUMB_OF[code] ?? THUMB[slot]} className={className} aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid slice">
       {ROOM_ITEMS[code]}
     </svg>
   );

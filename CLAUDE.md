@@ -313,8 +313,15 @@ once), put together by `components/room/Scene` with a window onto the season
 and three shelves where the earned achievements stand as their item icons.
 Dark theme is night there (`--room-night`: a veil, a dark sky, the lamps
 placed glow); the drawings' colours are otherwise the same in both themes.
-Mako sits on the rug, says which item is nearest to opening and reacts to
-what is placed. Pressing an unlocked item places it at once (`useEquip`,
+On a laptop (1024 px wide and up) the room is the whole page beside the
+sidebar, with no page scroll: the furnished part is a 960 × 600 stage, and
+`RoomScene`'s `pad` carries the wall up and sideways and the floor down to
+fill whatever shape the window is (`layoutOf` in `screens/Room` fits the
+stage between the floating title and figures at the top and the picker, a
+dock along the bottom); narrower windows keep the room on top and the picker
+under it.
+Mako sits on the rug, says which item is nearest to opening, tells about the
+item under the pointer and reacts to what is placed. Pressing an unlocked item places it at once (`useEquip`,
 optimistic); a locked one is shown in the room for a moment with what it
 takes. Newly unlocked items (`is_new`) get one toast between them
 (`AchievementToasts`, kind `room`), "New" tags in the room, and are then
